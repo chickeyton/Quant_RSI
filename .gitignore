@@ -1,0 +1,36 @@
+# Python environments, caches and build output
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+build/
+dist/
+
+# Local datasets, experiment output and session coordination
+/runs/
+/tmp/
+/data/
+/datasets/
+/artifacts/
+/logs/
+/*.log
+/discussion_boards/
+/lock.yaml
+.quant_rsi/
+
+# Local credentials and machine configuration
+.env
+.env.*
+!.env.example
+!.env.template
+/secrets/
+/credentials/
+.DS_Store

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "mode": "registered_baseline_observer",
+  "purpose": "developer_visible_observation",
+  "model_bundle_ref": "SET_ACTUAL_SEALED_BUNDLE_SHA256",
+  "contract_ref": "SET_IMPORTED_CONTRACT_SHA256",
+  "max_information_age_seconds": "SET_MARKET_INFORMATION_AGE_LIMIT_SECONDS",
+  "max_model_age_seconds": "SET_ACTUAL_FIT_AGE_LIMIT_SECONDS",
+  "expires_at": "SET_AWARE_EXPIRY_TIMESTAMP",
+  "currency": "SET_CURRENCY",
+  "currency_precision": "SET_INTEGER_CURRENCY_PRECISION",
+  "rounding_policy": "half_even_per_component",
+  "initial_cash": "SET_INITIAL_CASH",
+  "cash_settlement": "immediate_simulation",
+  "inventory_unlock": "immediate_simulation",
+  "sizing": "long_only_topk",
+  "allocation": "SET_ALLOCATION_FRACTION",
+  "max_positions": "SET_MAX_POSITIONS",
+  "lot_size": "SET_POSITIVE_INTEGER_LOT",
+  "cost_policy": "linear_side_bps",
+  "buy_costs": {
+    "commission_bps": "SET_EXPLICIT_DECIMAL_BPS",
+    "tax_bps": "SET_EXPLICIT_DECIMAL_BPS",
+    "slippage_bps": "SET_EXPLICIT_DECIMAL_BPS"
+  },
+  "sell_costs": {
+    "commission_bps": "SET_EXPLICIT_DECIMAL_BPS",
+    "tax_bps": "SET_EXPLICIT_DECIMAL_BPS",
+    "slippage_bps": "SET_EXPLICIT_DECIMAL_BPS"
+  },
+  "cost_claim": "explicit_observation_assumption",
+  "fill_policy": "next_registered_open_market",
+  "fill_cap_units": {
+    "SET_INSTRUMENT_ID": "SET_POSITIVE_UNIT_CAP_MULTIPLE_OF_LOT"
+  },
+  "funding_policy": "pre_funded_no_unfilled_sale_credit",
+  "valuation": "close_fresh_quote_only",
+  "benchmark": "cash_zero_interest",
+  "action_policy": "notice_suspend_unresolved",
+  "termination": "preserve_inventory",
+  "stop_policy": "cancel_unelapsed_targets",
+  "max_drawdown": "SET_DRAWDOWN_FRACTION",
+  "account_mode": "indicative_account"
+}

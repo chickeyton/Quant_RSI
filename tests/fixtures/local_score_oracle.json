@@ -1,0 +1,265 @@
+{
+  "evidence": {
+    "episode_ref": "970c43a715e1fed13758302b16a6c9d1129a8bc9d91b39d1c55019bcb89c871c",
+    "grid": {
+      "decisions": [
+        0,
+        2
+      ],
+      "fills": [
+        1,
+        3
+      ],
+      "first_return": "cash_before_first_next_open_fill",
+      "nav0": "1000",
+      "return_count": 4,
+      "terminal_cost": "actual_fill_cost_in_registered_terminal_close_return",
+      "terminal_exit_decision": 2,
+      "terminal_policy": "queue_exit_at_next_eligible_open",
+      "terminal_session": "s4",
+      "valuations": [
+        0,
+        3
+      ]
+    },
+    "instruments": [
+      "A"
+    ],
+    "kind": "LocalScoreConsumptionEvidence",
+    "knowledge_basis": "documented_historical_availability",
+    "qualifications": [
+      "engineering_component_fixture"
+    ],
+    "rows": [
+      {
+        "as_of": "2020-02-01T16:05:00+00:00",
+        "close_at": "2020-02-01T16:00:00+00:00",
+        "close_quotes": {
+          "A": {
+            "payload_ref": "935727ae51cb7d28ec1c768ce4554f6f4bb488819e31c4e6e4988a7261286afd",
+            "price": "100"
+          }
+        },
+        "feature_view": {
+          "as_of": "2020-02-01T16:05:00+00:00",
+          "expected_instruments": [
+            "A"
+          ],
+          "knowledge_basis": "documented_historical_availability",
+          "qualifications": [
+            "engineering_component_fixture"
+          ],
+          "receipt_watermark": 1,
+          "rows": [
+            {
+              "features": [
+                0.02,
+                0.01,
+                0.01
+              ],
+              "instrument": "A",
+              "reasons": [],
+              "source_refs": [],
+              "status": "eligible"
+            }
+          ],
+          "session_id": "s1"
+        },
+        "next_open_at": "2020-02-02T09:00:00+00:00",
+        "next_session_id": "s2",
+        "notices": [],
+        "open_quotes": {},
+        "session_id": "s1"
+      },
+      {
+        "as_of": "2020-02-02T16:05:00+00:00",
+        "close_at": "2020-02-02T16:00:00+00:00",
+        "close_quotes": {
+          "A": {
+            "payload_ref": "c8db19939cb23f144daaa20508ee54be8c78158590612c19d39c924bd1735c24",
+            "price": "110"
+          }
+        },
+        "feature_view": {
+          "as_of": "2020-02-02T16:05:00+00:00",
+          "expected_instruments": [
+            "A"
+          ],
+          "knowledge_basis": "documented_historical_availability",
+          "qualifications": [
+            "engineering_component_fixture"
+          ],
+          "receipt_watermark": 1,
+          "rows": [
+            {
+              "features": [
+                0.02,
+                0.01,
+                0.01
+              ],
+              "instrument": "A",
+              "reasons": [],
+              "source_refs": [],
+              "status": "eligible"
+            }
+          ],
+          "session_id": "s2"
+        },
+        "next_open_at": "2020-02-03T09:00:00+00:00",
+        "next_session_id": "s3",
+        "notices": [],
+        "open_quotes": {
+          "s2": {
+            "A": {
+              "payload_ref": "0086881e0f73692c2f4e7271eae0f924629cd359ebcd939ba34b19489d500912",
+              "price": "100"
+            }
+          }
+        },
+        "session_id": "s2"
+      },
+      {
+        "as_of": "2020-02-03T16:05:00+00:00",
+        "close_at": "2020-02-03T16:00:00+00:00",
+        "close_quotes": {
+          "A": {
+            "payload_ref": "c6cb1b7077a0e9ee10d26248a673db2324e3842b1c66d5ac03c854b37c9064e7",
+            "price": "80"
+          }
+        },
+        "feature_view": {
+          "as_of": "2020-02-03T16:05:00+00:00",
+          "expected_instruments": [
+            "A"
+          ],
+          "knowledge_basis": "documented_historical_availability",
+          "qualifications": [
+            "engineering_component_fixture"
+          ],
+          "receipt_watermark": 1,
+          "rows": [
+            {
+              "features": [
+                0.02,
+                0.01,
+                0.01
+              ],
+              "instrument": "A",
+              "reasons": [],
+              "source_refs": [],
+              "status": "eligible"
+            }
+          ],
+          "session_id": "s3"
+        },
+        "next_open_at": "2020-02-04T09:00:00+00:00",
+        "next_session_id": "s4",
+        "notices": [],
+        "open_quotes": {
+          "s2": {
+            "A": {
+              "payload_ref": "0086881e0f73692c2f4e7271eae0f924629cd359ebcd939ba34b19489d500912",
+              "price": "100"
+            }
+          },
+          "s3": {
+            "A": {
+              "payload_ref": "db67c427a7e889594da1c91c1ab204a6ac565f3d5c2e8d3194063d682020d319",
+              "price": "80"
+            }
+          }
+        },
+        "session_id": "s3"
+      },
+      {
+        "as_of": "2020-02-04T16:05:00+00:00",
+        "close_at": "2020-02-04T16:00:00+00:00",
+        "close_quotes": {
+          "A": {
+            "payload_ref": "96a731270b1197b50c4b0c623b91f9263c9cea9b0cea94a5549bb89ed639b89f",
+            "price": "70"
+          }
+        },
+        "feature_view": null,
+        "next_open_at": null,
+        "next_session_id": null,
+        "notices": [],
+        "open_quotes": {
+          "s2": {
+            "A": {
+              "payload_ref": "0086881e0f73692c2f4e7271eae0f924629cd359ebcd939ba34b19489d500912",
+              "price": "100"
+            }
+          },
+          "s3": {
+            "A": {
+              "payload_ref": "db67c427a7e889594da1c91c1ab204a6ac565f3d5c2e8d3194063d682020d319",
+              "price": "80"
+            }
+          },
+          "s4": {
+            "A": {
+              "payload_ref": "b0d3120cdd702bcce3014bb6086f505eeb2ce53afe091fa8ab98f13d3e41dcb1",
+              "price": "70"
+            }
+          }
+        },
+        "session_id": "s4"
+      }
+    ],
+    "source_ref": "b6be709e5f396b4306ae1f4cb557c1dba925dcdcbf415f8001a786773434249a",
+    "task_ref": "7b5af8699e6240636e8692b25272d686f58c3d371cb8d03c93a45761158e4ed1"
+  },
+  "provenance": {
+    "model_sha256": "e0b7d1f5e28511f06dfa6dd47501b932fbc8a6567bc00b098a263a927eeec850",
+    "registered_regression_changes": [
+      "No feature view outside registered decision grid",
+      "max_drawdown=1 isolates terminal coverage from risk"
+    ],
+    "scope": "Independent invented account oracle with an actual fixed model; unit regression, not authority/market/scientific evidence.",
+    "source_report_sha256": "92db69b1e32af843abe05d73b21a6febbaf9ec610a9e9eea22ea0a01d3a352dc"
+  },
+  "selection": {
+    "factor": {
+      "op": "momentum",
+      "window": 2
+    },
+    "model_ref": "e0b7d1f5e28511f06dfa6dd47501b932fbc8a6567bc00b098a263a927eeec850",
+    "portfolio": {
+      "action_policy": "notice_suspend_unresolved",
+      "allocation": "1",
+      "benchmark": "cash_zero_interest",
+      "buy_costs": {
+        "commission_bps": "100",
+        "slippage_bps": "0",
+        "tax_bps": "0"
+      },
+      "cash_settlement": "immediate_simulation",
+      "cost_claim": "explicit_observation_assumption",
+      "cost_policy": "linear_side_bps",
+      "currency": "FIX",
+      "currency_precision": 2,
+      "fill_cap_units": {
+        "A": 100
+      },
+      "fill_policy": "next_registered_open_market",
+      "funding_policy": "pre_funded_no_unfilled_sale_credit",
+      "initial_cash": "1000",
+      "inventory_unlock": "immediate_simulation",
+      "lot_size": 1,
+      "max_drawdown": "1",
+      "max_positions": 1,
+      "rounding_policy": "half_even_per_component",
+      "sell_costs": {
+        "commission_bps": "100",
+        "slippage_bps": "0",
+        "tax_bps": "0"
+      },
+      "sizing": "long_only_topk",
+      "stop_policy": "cancel_unelapsed_targets",
+      "termination": "queue_exit_at_next_eligible_open",
+      "valuation": "close_fresh_quote_only"
+    },
+    "role": "active"
+  }
+}

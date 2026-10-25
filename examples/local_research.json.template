@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "plan_type": "development_research",
+  "development": {
+    "schema_version": 1,
+    "plan_type": "development",
+    "training_mode": "M0",
+    "data": {
+      "source": "local_event_snapshot",
+      "sessions": "SET_REGISTERED_PREFIX_SESSION_COUNT",
+      "instruments": "SET_REGISTERED_INSTRUMENT_COUNT",
+      "train_cutoff": "SET_ZERO_BASED_CUTOFF_INDEX",
+      "seed": 7,
+      "snapshot_ref": "SET_IMPORTED_SNAPSHOT_SHA256",
+      "decision_delay_seconds": "SET_HISTORICAL_DECISION_DELAY_SECONDS"
+    },
+    "portfolio": {
+      "currency": "SET_CURRENCY",
+      "currency_precision": "SET_INTEGER_CURRENCY_PRECISION",
+      "rounding_policy": "half_even_per_component",
+      "initial_cash": "SET_INITIAL_CASH",
+      "cash_settlement": "immediate_simulation",
+      "inventory_unlock": "immediate_simulation",
+      "sizing": "long_only_topk",
+      "allocation": "SET_ALLOCATION_FRACTION",
+      "max_positions": "SET_MAX_POSITIONS",
+      "lot_size": "SET_POSITIVE_INTEGER_LOT",
+      "cost_policy": "linear_side_bps",
+      "buy_costs": {
+        "commission_bps": "SET_EXPLICIT_DECIMAL_BPS",
+        "tax_bps": "SET_EXPLICIT_DECIMAL_BPS",
+        "slippage_bps": "SET_EXPLICIT_DECIMAL_BPS"
+      },
+      "sell_costs": {
+        "commission_bps": "SET_EXPLICIT_DECIMAL_BPS",
+        "tax_bps": "SET_EXPLICIT_DECIMAL_BPS",
+        "slippage_bps": "SET_EXPLICIT_DECIMAL_BPS"
+      },
+      "cost_claim": "explicit_observation_assumption",
+      "fill_policy": "next_registered_open_market",
+      "fill_cap_units": {
+        "SET_INSTRUMENT_ID": "SET_POSITIVE_UNIT_CAP_MULTIPLE_OF_LOT"
+      },
+      "funding_policy": "pre_funded_no_unfilled_sale_credit",
+      "valuation": "close_fresh_quote_only",
+      "benchmark": "cash_zero_interest",
+      "action_policy": "notice_suspend_unresolved",
+      "termination": "preserve_inventory",
+      "stop_policy": "cancel_unelapsed_targets",
+      "max_drawdown": "SET_DRAWDOWN_FRACTION"
+    },
+    "budget": {
+      "max_attempts": 8,
+      "worker_timeout_seconds": 20,
+      "max_worker_seconds": 160
+    },
+    "annualization": 252,
+    "primary_metric": "annualized_mean_net_active_return",
+    "min_development_sessions": 10,
+    "baseline": "momentum_5",
+    "proposals": [
+      {
+        "name": "momentum_5",
+        "hypothesis": "A five-session factor may change development performance.",
+        "factor": {
+          "op": "momentum",
+          "window": 5
+        }
+      }
+    ]
+  },
+  "policy": {
+    "algorithm": "neighbor_search_v1",
+    "window_min": 1,
+    "window_max": 10,
+    "min_improvement": 0.0,
+    "max_no_progress": 3
+  }
+}

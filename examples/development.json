@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "plan_type": "development",
+  "training_mode": "M0",
+  "data": {"source": "synthetic", "sessions": 80, "instruments": 4, "train_cutoff": 40, "seed": 17},
+  "portfolio": {
+    "kind": "long_only_topk", "initial_cash": 10000.0, "max_positions": 2,
+    "allocation": 0.9, "fee_bps": 2.0, "slippage_bps": 3.0, "max_drawdown": 0.25,
+    "benchmark": "cash_zero_interest", "terminal_policy": "liquidate_at_final_open"
+  },
+  "budget": {"max_attempts": 3, "worker_timeout_seconds": 20, "max_worker_seconds": 40},
+  "annualization": 252,
+  "primary_metric": "annualized_mean_net_active_return",
+  "min_development_sessions": 10,
+  "baseline": "baseline_return_1",
+  "proposals": [
+    {"name": "baseline_return_1", "hypothesis": "Fixed predictor with a one-session return factor.", "factor": {"op": "momentum", "window": 1}},
+    {"name": "momentum_5", "hypothesis": "A five-session factor may change development performance.", "factor": {"op": "momentum", "window": 5}},
+    {"name": "invalid_future_shift", "hypothesis": "Deliberate rejection fixture, not a valid research hypothesis.", "factor": {"op": "lead", "window": 1}}
+  ]
+}

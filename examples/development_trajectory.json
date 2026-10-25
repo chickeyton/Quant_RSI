@@ -1,0 +1,11 @@
+{
+  "name": "local-development-trajectory",
+  "source_directory": "/absolute/path/to/local-c2",
+  "source_checkpoint_ref": "0000000000000000000000000000000000000000000000000000000000000000",
+  "state_policy": "reset",
+  "max_proposal_stages": 2,
+  "budget": {
+    "worker_attempts": 20,
+    "registered_worker_seconds": 400
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "mode": "registered_baseline_observer",
+  "purpose": "developer_visible_observation",
+  "model_bundle_ref": "SET_ACTUAL_SEALED_BUNDLE_SHA256",
+  "contract_ref": "SET_IMPORTED_CONTRACT_SHA256",
+  "max_information_age_seconds": "SET_MARKET_INFORMATION_AGE_LIMIT_SECONDS",
+  "max_model_age_seconds": "SET_ACTUAL_FIT_AGE_LIMIT_SECONDS",
+  "expires_at": "SET_AWARE_EXPIRY_TIMESTAMP",
+  "account_mode": "prediction_only"
+}

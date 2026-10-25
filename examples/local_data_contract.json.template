@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "source_id": "SET_STABLE_SOURCE_ID",
+  "provider_statement": "SET_PROVIDER_AND_PROVENANCE",
+  "currency": "SET_CURRENCY",
+  "price_basis": "raw",
+  "frequency": "daily_equities",
+  "calendar": {
+    "calendar_id": "SET_CALENDAR_ID",
+    "timezone": "SET_IANA_TIMEZONE",
+    "sessions": [
+      {
+        "session_id": "SET_SESSION_ID",
+        "open_at": "SET_AWARE_OPEN_TIMESTAMP",
+        "close_at": "SET_AWARE_CLOSE_TIMESTAMP"
+      }
+    ]
+  },
+  "instruments": [
+    "SET_INSTRUMENT_ID"
+  ],
+  "knowledge_basis": "SET_EXPLICIT_KNOWLEDGE_BASIS",
+  "availability_evidence_ref": null,
+  "availability_claim": "SET_AVAILABILITY_CLAIM",
+  "historical_assumption": null,
+  "universe_provenance": "SET_UNIVERSE_PROVENANCE",
+  "corporate_action_coverage": "SET_ACTION_COVERAGE",
+  "columns": {
+    "event_id": "event_id",
+    "revision": "revision",
+    "kind": "kind",
+    "instrument": "instrument",
+    "session_id": "session_id",
+    "event_at": "event_at",
+    "source_available_at": "source_available_at",
+    "price": "price",
+    "status": "status",
+    "action": "action",
+    "quality": "quality"
+  }
+}
