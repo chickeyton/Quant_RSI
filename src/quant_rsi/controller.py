@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from quant_rsi.accounting import evaluate
 from quant_rsi.artifacts import ArtifactStore, atomic_write, canonical, decode, digest
 from quant_rsi.data import MarketData, synthetic_data
+from quant_rsi.forecast_contracts import parse_development_plan
 from quant_rsi.journal import TERMINAL, BudgetExhausted, Journal
 from quant_rsi.schemas import DevelopmentPlan, FactorSpec
 
@@ -80,7 +81,7 @@ def finish_initialization(root: Path) -> None:
     saved = decode(marker.read_bytes())
     if saved["kind"] != "quant_rsi_initialization_v1":
         raise ValueError("unknown initialization record")
-    plan = DevelopmentPlan.model_validate_json(canonical(saved["plan"]))
+    plan = parse_development_plan(canonical(saved["plan"]))
     if saved["runtime"] != runtime_identity():
         raise ValueError("source/runtime changed during initialization")
     store = ArtifactStore(root / "artifacts")
@@ -122,7 +123,7 @@ def open_run(root: Path, *, verify_runtime: bool = True):
             raise ValueError("run manifest integrity failure")
         manifest = decode(manifest_bytes)
         store = ArtifactStore(root / "artifacts")
-        plan = DevelopmentPlan.model_validate_json(store.get(manifest["plan_ref"]))
+        plan = parse_development_plan(store.get(manifest["plan_ref"]))
         data = MarketData.from_json(store.json(manifest["data_ref"]))
         recorded_runtime = store.json(manifest["runtime_ref"])
         if verify_runtime and recorded_runtime != runtime_identity():

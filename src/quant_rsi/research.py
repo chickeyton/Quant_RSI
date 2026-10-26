@@ -8,10 +8,11 @@ from pathlib import Path
 from quant_rsi import controller, researcher
 from quant_rsi.artifacts import ArtifactStore, atomic_write, canonical, decode, digest
 from quant_rsi.data import MarketData, synthetic_data
+from quant_rsi.forecast_contracts import parse_development_plan
 from quant_rsi.journal import TERMINAL
 from quant_rsi.research_journal import ResearchJournal
 from quant_rsi.researcher import ResearchPlan, advance, factor_identity, initial_state
-from quant_rsi.schemas import DevelopmentPlan, FactorSpec, Proposal
+from quant_rsi.schemas import FactorSpec, Proposal
 
 
 def authorize_managed(
@@ -27,6 +28,10 @@ def authorize_managed(
     committed=0,
 ):
     """Check actual parent authority before any managed research publication."""
+    if plan.development.plan_type == "forecast_development" and (
+        context is not None or view is not None or plan.package_lineage is not None
+    ):
+        raise ValueError("forecast development does not support C4/C5 managed research")
     if context is None:
         if view is not None:
             raise ValueError("bound development data requires a controller grant")
@@ -380,7 +385,7 @@ def sealed_experiment(store, manifest, plan, row, proposal, *, publish=True):
 
     document = plan.development.model_dump(mode="json")
     document.update(baseline=proposal["name"], proposals=[proposal])
-    child = DevelopmentPlan.model_validate_json(canonical(document))
+    child = parse_development_plan(canonical(document))
     context = {
         "campaign_id": manifest["campaign_id"],
         "research_plan_ref": manifest["research_plan_ref"],
@@ -774,7 +779,7 @@ def resume_research(
                 if pending["proposal_ref"] is not None:
                     proposal = store.json(pending["proposal_ref"])
                     experiment = store.json(pending["experiment_ref"])
-                    child = DevelopmentPlan.model_validate_json(store.get(experiment["plan_ref"]))
+                    child = parse_development_plan(store.get(experiment["plan_ref"]))
                     attempt = next(a for a in journal.attempts() if a["ordinal"] == ordinal)
                     if attempt["status"] == "running":
                         controller.recover_attempt(

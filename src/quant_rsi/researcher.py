@@ -7,6 +7,7 @@ from typing import Literal, Self
 from pydantic import Field, model_validator
 
 from quant_rsi.artifacts import canonical, digest
+from quant_rsi.forecast_contracts import ForecastDevelopmentPlan
 from quant_rsi.schemas import DevelopmentPlan, FactorSpec, StrictModel
 
 C2_FINGERPRINT = "16b85204c89093fef074a58f2f445216d17ef81875b4042352babd42dd64230f"
@@ -33,7 +34,7 @@ class PackageLineage(StrictModel):
 class ResearchPlan(StrictModel):
     schema_version: Literal[1]
     plan_type: Literal["development_research"]
-    development: DevelopmentPlan
+    development: DevelopmentPlan | ForecastDevelopmentPlan
     policy: SearchPolicy
     package_lineage: PackageLineage | None = None
 
@@ -44,8 +45,11 @@ class ResearchPlan(StrictModel):
         factor = FactorSpec.model_validate_json(canonical(self.development.proposals[0].factor))
         if not self.policy.window_min <= factor.window <= self.policy.window_max:
             raise ValueError("baseline must belong to the declared search range")
+        label_tail = 1
+        if isinstance(self.development, ForecastDevelopmentPlan):
+            label_tail = self.development.objective.horizon_sessions - 1
         if (
-            self.development.data.train_cutoff - 1 - factor.window
+            self.development.data.train_cutoff - label_tail - factor.window
         ) * self.development.data.instruments < 12:
             raise ValueError("baseline lacks mature training observations")
         return self
@@ -58,7 +62,9 @@ def package_definition(plan: ResearchPlan) -> dict:
         "state_schema_version": 1,
         "backend": "trusted_deterministic_no_llm",
         "engine_generation": (
-            "local_asof_development_v1"
+            "five_session_price_forecast_v1"
+            if isinstance(plan.development, ForecastDevelopmentPlan)
+            else "local_asof_development_v1"
             if plan.development.data.source == "local_event_snapshot"
             else "c5_bound_development_v1"
         ),

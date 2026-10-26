@@ -29,7 +29,15 @@ def qualifications(contract, basis=None):
 
 
 def make_feature_view(
-    snapshot, contract, session_id, as_of, factor: FactorSpec, *, basis=None, watermark=None
+    snapshot,
+    contract,
+    session_id,
+    as_of,
+    factor: FactorSpec,
+    *,
+    basis=None,
+    watermark=None,
+    forecast_objective=None,
 ):
     basis = basis or contract.knowledge_basis
     index = session_index(contract, session_id)
@@ -84,7 +92,17 @@ def make_feature_view(
             and item["event"]["instrument"] == instrument
         ]
         if notices:
-            reasons.append("unsupported_corporate_action_notice")
+            if forecast_objective is None:
+                reasons.append("unsupported_corporate_action_notice")
+            else:
+                from quant_rsi.forecast_kernel import action_assessment
+
+                start = contract.calendar.sessions[max(0, index - factor.window)].close_at
+                action_reasons, _ = action_assessment(
+                    visible, instrument, start, session.close_at, forecast_objective
+                )
+                if action_reasons:
+                    reasons.extend(["unsupported_corporate_action_notice", *action_reasons])
             source_refs.extend(item["payload_ref"] for item in notices)
         if timestamp(as_of) < session.close_at:
             reasons.append("decision_close_not_yet_available")
@@ -148,7 +166,7 @@ def make_feature_view(
                 "source_refs": sorted(set(source_refs)),
             }
         )
-    return {
+    result = {
         "kind": "AsOfFeatureView",
         "contract_ref": snapshot["contract_ref"],
         "snapshot_ref": digest(canonical(snapshot)),
@@ -162,6 +180,11 @@ def make_feature_view(
         "rows": rows,
         "qualifications": qualifications(contract, basis),
     }
+    if forecast_objective is not None:
+        result["forecast_objective_ref"] = digest(
+            canonical(forecast_objective.model_dump(mode="json"))
+        )
+    return result
 
 
 def mature_label(snapshot, contract, session_id, instrument, training_cutoff, *, basis=None):

@@ -17,6 +17,8 @@ def evidence_capsule(root, *, replay=True):
     with controller.controller_lock(root):
         journal, store, manifest, plan, data = research.open_research(root)
         try:
+            if plan.development.plan_type == "forecast_development":
+                raise ValueError("C4/C5 package evidence does not support forecast development")
             if plan.package_lineage is not None or plan.policy.neighbor_order != "window_first":
                 raise ValueError("C4 evidence requires this engine's window_first base package")
             trace = research.verify_trace(journal, store, manifest, plan, data, replay=replay)

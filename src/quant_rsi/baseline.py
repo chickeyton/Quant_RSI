@@ -5,17 +5,29 @@ from pathlib import Path
 from quant_rsi import controller, market_contracts, research
 from quant_rsi.artifacts import canonical, digest
 from quant_rsi.asof import make_feature_view, predict_view
+from quant_rsi.forecast_contracts import parse_development_plan
 from quant_rsi.local_research import LocalResearchData
 from quant_rsi.market_contracts import timestamp
 from quant_rsi.market_data import market_context
-from quant_rsi.schemas import DevelopmentPlan, FactorSpec
+from quant_rsi.schemas import FactorSpec
 
 
 def seal_baseline(root: Path):
+    return _seal_model(root, forecast=False)
+
+
+def seal_forecast(root: Path):
+    return _seal_model(root, forecast=True)
+
+
+def _seal_model(root: Path, *, forecast):
     root = root.resolve()
     with controller.controller_lock(root):
         journal, source, manifest, plan, data = research.open_research(root)
         try:
+            is_forecast = plan.development.plan_type == "forecast_development"
+            if is_forecast != forecast:
+                raise ValueError("forecast models require the forecast seal/consumer interface")
             if plan.development.data.source != "local_event_snapshot":
                 raise ValueError("baseline observer requires an actual local-data C2 model")
             trace = research.verify_trace(journal, source, manifest, plan, data, replay=True)
@@ -37,11 +49,13 @@ def seal_baseline(root: Path):
                 if existing:
                     if len(existing) != 1:
                         raise ValueError("duplicate baseline registration binding")
-                    bundle, _, _, _ = read_bundle(registry, existing[0][0])
+                    bundle, _, _, _ = _read_model(registry, existing[0][0], forecast=forecast)
                     return bundle_report(existing[0][0], bundle)
                 registered_snapshot, contract = registry.snapshot(data.spec.snapshot_ref)
                 if registered_snapshot != data.snapshot or contract != data.contract:
                     raise ValueError("C2 data differs from the actual registered immutable source")
+                if forecast:
+                    validate_forecast_evidence(registry, plan.development.objective, data.snapshot)
                 kernel_result = source.json(selected["result_ref"])
                 job = source.json(kernel_result["job_ref"])
                 metadata = source.json(kernel_result["worker_metadata_ref"])
@@ -60,9 +74,11 @@ def seal_baseline(root: Path):
                     store.put(source.get(ref))
                 store.put_json(manifest)
                 bundle = dict(
-                    kind="RegisteredBaselineModel",
+                    kind="RegisteredForecastModel" if forecast else "RegisteredBaselineModel",
                     schema_version=1,
-                    purpose="developer_visible_observation",
+                    purpose="five_session_price_forecast"
+                    if forecast
+                    else "developer_visible_observation",
                     source_run_ref=source_run_ref,
                     source_checkpoint_ref=checkpoint_ref,
                     kernel_result_ref=selected["result_ref"],
@@ -81,6 +97,13 @@ def seal_baseline(root: Path):
                     qualifications=metadata["qualifications"],
                     promotion_status="none",
                 )
+                if forecast:
+                    objective = plan.development.objective.model_dump(mode="json")
+                    bundle.update(
+                        objective=objective,
+                        objective_ref=digest(canonical(objective)),
+                        primary_metric=plan.development.primary_metric,
+                    )
                 bundle_ref = store.put_json(bundle)
                 with registry.connection:
                     registry.connection.execute(
@@ -93,6 +116,34 @@ def seal_baseline(root: Path):
 
 
 def read_bundle(registry, bundle_ref):
+    return _read_model(registry, bundle_ref, forecast=False)
+
+
+def read_forecast_bundle(registry, bundle_ref):
+    return _read_model(registry, bundle_ref, forecast=True)
+
+
+def validate_forecast_evidence(registry, objective, snapshot):
+    registry.store.get(objective.price_unit_evidence_ref)
+    registry.store.get(objective.calendar_evidence_ref)
+    actions = {
+        item["payload_ref"]: item
+        for item in snapshot["events"]
+        if item["event"]["kind"] == "CORPORATE_ACTION_NOTICE"
+    }
+    from quant_rsi.forecast_kernel import cash_interpretation_matches
+
+    for notice in objective.notices:
+        registry.store.get(notice.evidence_ref)
+        if notice.notice_ref not in actions:
+            raise ValueError("forecast notice is absent from the registered snapshot")
+        if notice.action_kind == "cash_dividend" and not cash_interpretation_matches(
+            actions[notice.notice_ref], notice
+        ):
+            raise ValueError("forecast cash interpretation differs from its source payload")
+
+
+def _read_model(registry, bundle_ref, *, forecast):
     row = registry.connection.execute(
         "SELECT * FROM bundles WHERE bundle_ref=?", (bundle_ref,)
     ).fetchone()
@@ -101,8 +152,9 @@ def read_bundle(registry, bundle_ref):
     store = registry.store
     bundle = store.json(bundle_ref)
     if (
-        bundle["kind"] != "RegisteredBaselineModel"
-        or bundle["purpose"] != "developer_visible_observation"
+        bundle["kind"] != ("RegisteredForecastModel" if forecast else "RegisteredBaselineModel")
+        or bundle["purpose"]
+        != ("five_session_price_forecast" if forecast else "developer_visible_observation")
         or (bundle["source_run_ref"], bundle["source_checkpoint_ref"], bundle["registered_at"])
         != (row["source_run_ref"], row["checkpoint_ref"], row["registered_at"])
     ):
@@ -126,7 +178,18 @@ def read_bundle(registry, bundle_ref):
         raise ValueError("baseline model is not the actual selected C2 incumbent")
     result = store.json(bundle["kernel_result_ref"])
     job = store.json(result["job_ref"])
-    plan = DevelopmentPlan.model_validate_json(store.get(job["binding"]["manifest"]["plan_ref"]))
+    plan = parse_development_plan(store.get(job["binding"]["manifest"]["plan_ref"]))
+    if (plan.plan_type == "forecast_development") != forecast:
+        raise ValueError("forecast target cannot be consumed by the legacy baseline interface")
+    if forecast:
+        objective = plan.objective.model_dump(mode="json")
+        if (
+            bundle.get("objective") != objective
+            or bundle.get("objective_ref") != digest(canonical(objective))
+            or bundle.get("primary_metric") != plan.primary_metric
+        ):
+            raise ValueError("forecast bundle target/objective mismatch")
+        validate_forecast_evidence(registry, plan.objective, data.snapshot)
     if (
         bundle["model_ref"] != result["model_ref"]
         or job["binding"]["proposal"]["factor"] != bundle["factor"]
@@ -150,7 +213,7 @@ def read_bundle(registry, bundle_ref):
 
 
 def bundle_report(bundle_ref, bundle):
-    return dict(
+    report = dict(
         bundle_ref=bundle_ref,
         model_ref=bundle["model_ref"],
         contract_ref=bundle["contract_ref"],
@@ -163,6 +226,9 @@ def bundle_report(bundle_ref, bundle):
         purpose=bundle["purpose"],
         promotion_status="none",
     )
+    if bundle["kind"] == "RegisteredForecastModel":
+        report.update(objective=bundle["objective"], objective_ref=bundle["objective_ref"])
+    return report
 
 
 def inspect_baseline(bundle_ref):

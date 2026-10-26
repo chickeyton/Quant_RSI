@@ -37,12 +37,13 @@ def main() -> None:
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
     from quant_rsi.data import MarketData
+    from quant_rsi.forecast_contracts import parse_development_plan
     from quant_rsi.model import fit_predict
-    from quant_rsi.schemas import DevelopmentPlan, FactorSpec
+    from quant_rsi.schemas import FactorSpec
 
     store = ArtifactStore(args.job.resolve().parents[2] / "artifacts")
     manifest = binding["manifest"]
-    plan = DevelopmentPlan.model_validate_json(store.get(manifest["plan_ref"]))
+    plan = parse_development_plan(store.get(manifest["plan_ref"]))
     ordinal = binding["proposal_index"]
     if (
         type(ordinal) is not int

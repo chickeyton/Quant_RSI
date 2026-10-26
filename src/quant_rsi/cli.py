@@ -16,13 +16,13 @@ from quant_rsi.comparison import (
 )
 from quant_rsi.controller import create_run, inspect_run, resume_run
 from quant_rsi.evidence import ComparisonInput, init_evidence, parse_program
+from quant_rsi.forecast_contracts import parse_development_plan
 from quant_rsi.market_contracts import DataContract, parse_observation_plan
 from quant_rsi.market_data import ingest, inspect_data
 from quant_rsi.observer import advance_observer, inspect_observer, register_observer, stop_observer
 from quant_rsi.package_experiment import create_package, inspect_package, resume_package
 from quant_rsi.research import create_research, inspect_research, resume_research
 from quant_rsi.researcher import ResearchPlan
-from quant_rsi.schemas import DevelopmentPlan
 from quant_rsi.trajectory import init_trajectory, inspect_trajectory, resume_trajectory
 from quant_rsi.trajectory_state import TrajectoryPlan
 
@@ -32,6 +32,15 @@ def main(argv: list[str] | None = None) -> int:
         description="Bounded quant research and development observations"
     )
     commands = parser.add_subparsers(dest="command", required=True)
+    forecast = commands.add_parser("forecast", help="fixed five-session daily price forecast")
+    forecast_commands = forecast.add_subparsers(dest="forecast_command", required=True)
+    forecast_run = forecast_commands.add_parser("run")
+    forecast_run.add_argument("ticker")
+    forecast_run.add_argument("--request-id", required=True)
+    forecast_run.add_argument("--output", type=Path, required=True)
+    forecast_run.add_argument("--prepare-only", action="store_true")
+    for name in ("status", "replay"):
+        forecast_commands.add_parser(name).add_argument("request_id")
     trajectory = commands.add_parser(
         "trajectory", help="finite development trajectory; no promotion"
     )
@@ -135,6 +144,21 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--steps", type=int, default=1)
     args = parser.parse_args(argv)
     try:
+        if args.command == "forecast":
+            from quant_rsi.forecast_requests import inspect_forecast
+            from quant_rsi.forecast_workflow import display_forecast, run_forecast
+
+            if args.forecast_command == "run":
+                report = run_forecast(
+                    args.ticker,
+                    args.output,
+                    request_id=args.request_id,
+                    prepare_only=args.prepare_only,
+                )
+            else:
+                report = inspect_forecast(args.request_id, replay=args.forecast_command == "replay")
+            print(json.dumps(display_forecast(report), indent=2, allow_nan=False))
+            return 0
         if args.command == "trajectory":
             if args.trajectory_command == "init":
                 report = init_trajectory(TrajectoryPlan.model_validate_json(args.plan.read_bytes()))
@@ -220,7 +244,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.run_directory, replay=args.research_command == "replay"
                 )
         elif args.command == "run":
-            plan = DevelopmentPlan.model_validate_json(args.plan.read_bytes())
+            plan = parse_development_plan(args.plan.read_bytes())
             report = create_run(plan, args.output)
         elif args.command == "resume":
             report = resume_run(args.run_directory)

@@ -2,11 +2,11 @@
 
 有限开发轨迹的入口、预算与恢复说明见 [Development trajectory](docs/development_trajectory.md)。
 
-基于 [已确认架构](docs/architecture.md) 的量化研究系统。当前提供合成数据上的 **M0 固定模型内核、C2 动态研究循环、C4 受限研究包实验和 C5 工程保护评估**，以及 [本地数据、同 C2 研究、独立推理和持久化基线观察](docs/local_observer.md)。各运行内程序保持固定；真实市场 pilot、经校准的统计晋升和完整递归自改进仍未完成。
+基于 [已确认架构](docs/architecture.md) 的量化研究系统。当前提供合成数据上的 **M0 固定模型内核、C2 动态研究循环、C4 受限研究包实验和 C5 工程保护评估**，以及 [本地数据、同 C2 研究、独立推理和持久化基线观察](docs/local_observer.md)。各运行内程序保持固定；新增 [五交易日价格预测基线](docs/forecast_baseline.md)；经校准的统计晋升和完整递归自改进仍未完成。
 
 ## 安装与运行
 
-已在 Linux、Python 3.12 验证。进程控制依赖 POSIX `flock`、信号和资源限制；本版本不支持 Windows。安装依赖需要网络，实验运行不需要外部服务、API key 或真实行情。
+已在 Linux、Python 3.12 验证。进程控制依赖 POSIX `flock`、信号和资源限制；本版本不支持 Windows。安装依赖需要网络。合成实验无需外部服务；五日预测的自动采集需要访问公开行情和交易所日历，无需 API key。
 
 ```bash
 python3.12 -m venv .venv
@@ -23,6 +23,17 @@ quant-rsi resume runs/demo
 `run` 使用新输出目录；已完成初始化的实验必须使用 `resume`，不能由 `run` 覆盖。示例包含 `baseline_return_1`、`momentum_5` 两个有效候选，以及应被拒绝的 `invalid_future_shift`。正常结果为两个 `completed`、一个 `rejected`；拒绝本身属于预期验证结果。
 
 命令输出 JSON。`summary.json` 保存运行或恢复时的摘要；`status` 从账本重新读取当前状态。CLI 成功处理请求时返回 0，包括候选失败或预算耗尽；调用方应检查 `execution_status` 和每个候选的 `status`。配置错误、校验失败或运行锁冲突返回非零。
+
+## 五交易日价格预测
+
+~~~bash
+export QUANT_RSI_WORKSPACE="$PWD"
+quant-rsi forecast run SOXL --request-id soxl-first --output runs/soxl-first
+quant-rsi forecast status soxl-first
+quant-rsi forecast replay soxl-first
+~~~
+
+一条命令完成日线采集、来源保存、固定模型研究、封存和持久预测。同一请求 ID 与输出目录重用原始数据和结果；新一期预测使用新的 ID 和目录。支持范围、数据假设、输出解释及故障恢复见 [预测基线说明](docs/forecast_baseline.md)。
 
 ## 合成内核的计算约定
 

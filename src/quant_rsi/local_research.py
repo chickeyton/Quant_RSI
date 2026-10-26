@@ -150,6 +150,10 @@ class LocalResearchData:
 
 
 def training_view(data, plan, factor):
+    if plan.plan_type == "forecast_development":
+        from quant_rsi import forecast_research
+
+        return forecast_research.training_view(data, plan, factor)
     if data.spec != plan.data:
         raise ValueError("local worker data specification differs from the sealed plan")
     cutoff = data.decision_at(plan.data.train_cutoff)
@@ -206,6 +210,10 @@ def training_view(data, plan, factor):
 
 
 def development_predictions(data, plan, factor, model_text):
+    if plan.plan_type == "forecast_development":
+        from quant_rsi import forecast_research
+
+        return forecast_research.development_predictions(data, plan, factor, model_text)
     return [
         predict_view(
             model_text,
@@ -296,6 +304,10 @@ def known_notices(snapshot, contract, as_of, *, basis=None):
 
 
 def evaluate_local(data, plan, predictions):
+    if plan.plan_type == "forecast_development":
+        from quant_rsi import forecast_research
+
+        return forecast_research.evaluate(data, plan, predictions)
     rules = plan.portfolio
     if rules.currency != data.contract.currency or set(rules.fill_cap_units) != set(
         data.instruments
