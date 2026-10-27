@@ -1,0 +1,1024 @@
+{
+  "actual": {
+    "charged_fits": 20,
+    "fit_reservations": 20,
+    "reserved_worker_seconds": 3600
+  },
+  "allocated": {
+    "max_attempts": 20,
+    "max_worker_seconds": 3600
+  },
+  "authority_ref": "4e535e72a171f0b94ba1fad285247cdd282bb21466c4c4117769cc1b46749408",
+  "budget": {
+    "max_fit_reservations": 20,
+    "max_worker_seconds": 3600
+  },
+  "campaign_id": "r1-market-proof-20261027",
+  "campaign_ref": "b188c78bbc7cddc46db00d402d3b901b2ac9210b0806e411e3c85fcf0de2260c",
+  "ci": {
+    "run_id": 40477159469,
+    "test_seconds": 1493.31,
+    "tests_passed": 428
+  },
+  "exposure": {
+    "permitted_evidence": "public_historical_price_context",
+    "predictive_validity_established": false,
+    "prior_exposure": "previously_exposed_historical_exploration",
+    "protected_evidence_access": "none"
+  },
+  "frozen_summary_ref": "97d71294c1f1c86255be550c8af795e35b1b569382f4a899601e757bf98e312c",
+  "kind": "BoundedForecastWorkflowDemonstration",
+  "predictive_validity_established": false,
+  "runs": [
+    {
+      "actual_fit_seconds": 0.050782,
+      "allocation_ref": "e0662d1a3f26ddd9b35d51bd11241db70b1c2944af52f9d16d8330fb9bd71160",
+      "calendar_sources": [
+        {
+          "received_at": "2026-10-27T09:25:02.558771+00:00",
+          "requested_at": "2026-10-27T09:25:00.497987+00:00",
+          "sha256": "3960e64cd7c9581c2e7a6d3f602342344eba1fac7b7476d51ddabb32b343fe11",
+          "source_name": "NYSE_calendar_current.html",
+          "status": 200,
+          "url": "https://www.nyse.com/markets/hours-calendars"
+        },
+        {
+          "received_at": "2026-10-27T09:25:07.704870+00:00",
+          "requested_at": "2026-10-27T09:25:06.137343+00:00",
+          "sha256": "6b79a75c62c7570be66c3aa287f9e7e3ed620aa3cd61b82383117b6b7e4febde",
+          "source_name": "NYSE_closure_20250109.html",
+          "status": 200,
+          "url": "https://ir.theice.com/press/news-details/2024/The-New-York-Stock-Exchange-Will-Close-Markets-on-January-9-to-Honor-the-Passing-of-Former-President-Jimmy-Carter-on-National-Day-of-Mourning/default.aspx"
+        },
+        {
+          "received_at": "2026-10-27T09:25:04.501548+00:00",
+          "requested_at": "2026-10-27T09:25:02.566888+00:00",
+          "sha256": "af2e0b685d9f676629402642145d1408f1702882ea47bc7f24375e7025b2cfac",
+          "source_name": "NYSE_holidays_2023_2025.html",
+          "status": 200,
+          "url": "https://ir.theice.com/press/news-details/2022/NYSE-Group-Announces-2023-2024-and-2025-Holiday-and-Early-Closings-Calendar/default.aspx"
+        },
+        {
+          "received_at": "2026-10-27T09:25:06.129862+00:00",
+          "requested_at": "2026-10-27T09:25:04.518008+00:00",
+          "sha256": "24c6076b94301a519328f48efebecb9e4037d0ea0036d30ac8517d54dd5a8675",
+          "source_name": "NYSE_holidays_2024_2026.html",
+          "status": 200,
+          "url": "https://ir.theice.com/press/news-details/2023/NYSE-Group-Announces-2024-2025-and-2026-Holiday-and-Early-Closings-Calendar/default.aspx"
+        }
+      ],
+      "candidate_metrics": {
+        "B0": {
+          "mae_pp": 15.60501008491558,
+          "negative_mae_pp": -15.60501008491558,
+          "observations": 75,
+          "rmse_pp": 18.957832596610384
+        },
+        "B1": {
+          "mae_pp": 15.336110452051583,
+          "negative_mae_pp": -15.336110452051583,
+          "observations": 75,
+          "rmse_pp": 18.967063427077314
+        },
+        "B2": {
+          "mae_pp": 15.33572204524153,
+          "negative_mae_pp": -15.33572204524153,
+          "observations": 75,
+          "rmse_pp": 19.051510407430122
+        }
+      },
+      "collection_manifest_ref": "8459d37877b4e4f6a7348f8a5ec0bd52bd8f6588e8e735ede10e13c4037231f0",
+      "config": {
+        "calendar": "published_nyse_group",
+        "currency": "USD",
+        "historical_availability": "explicit_assumption",
+        "history_sessions": 756,
+        "horizon_sessions": 5,
+        "industry": "XSD",
+        "kind": "ForecastWorkflowConfig",
+        "market": "SPY",
+        "max_source_age_seconds": 86400,
+        "price_unit": "raw_currency_per_share",
+        "schema_version": 1,
+        "source": "yahoo_chart_5y_daily",
+        "target": "SOXL"
+      },
+      "config_ref": "365f9c4548e402e076106d6a10e8ce126796870db146533ef23f0c5dcbe2fbdf",
+      "controls": {
+        "training_mature_label_mean": {
+          "mae_pp": 14.865511637162653,
+          "negative_mae_pp": -14.865511637162653,
+          "observations": 75,
+          "rmse_pp": 18.214247605507747
+        },
+        "unchanged_price": {
+          "mae_pp": 14.57680625492779,
+          "negative_mae_pp": -14.57680625492779,
+          "observations": 75,
+          "rmse_pp": 18.02976487078178
+        }
+      },
+      "costs": {
+        "elapsed_worker_seconds": 6.405799796000792,
+        "fit_reservations": 10,
+        "reserved_worker_seconds": 1800,
+        "statuses": [
+          [
+            "completed",
+            10
+          ]
+        ]
+      },
+      "experiment_manifest_ref": "3bde5d2900598ea69debe23ff3812f699fec72b627f2fc51e9788f03be6ec3a8",
+      "exposure_ref": "e5ac6ed8a6685c636789e8b9e2bd1b73328067fc40f5a3f031ada53a116e6fe7",
+      "folds": [
+        {
+          "evaluation_mask_ref": "df4eac71ede1c626c0800ed6b18c283d13435d84b69f059902578f4994203e01",
+          "evaluation_origins": [
+            378,
+            383,
+            388,
+            393,
+            398,
+            403,
+            408,
+            413,
+            418,
+            423,
+            428,
+            433,
+            438,
+            443,
+            448,
+            453,
+            458,
+            463,
+            468,
+            473,
+            478,
+            483,
+            488,
+            493,
+            498
+          ],
+          "evaluation_rows": 25,
+          "fold": 0,
+          "training_boundary": "2025-04-25T20:00:00.000000+00:00",
+          "training_mask_ref": "7f3f8939130df6096d87216b8653f0f8933693da6f14db362d67b5eeee21fb1a",
+          "training_rows": 314
+        },
+        {
+          "evaluation_mask_ref": "c3d21c17f4da5ca7582444288bc855fc9b2960ab06deb15a4ffc719672e384be",
+          "evaluation_origins": [
+            504,
+            509,
+            514,
+            519,
+            524,
+            529,
+            534,
+            539,
+            544,
+            549,
+            554,
+            559,
+            564,
+            569,
+            574,
+            579,
+            584,
+            589,
+            594,
+            599,
+            604,
+            609,
+            614,
+            619,
+            624
+          ],
+          "evaluation_rows": 25,
+          "fold": 1,
+          "training_boundary": "2025-10-24T20:00:00.000000+00:00",
+          "training_mask_ref": "ed1a0ff0049387d92552910f184f9189af27824931bebf8ea3faab3145d501a5",
+          "training_rows": 440
+        },
+        {
+          "evaluation_mask_ref": "e65b2fcb68cb58ffc0a14d2f755755c5e4f6f60888632e8d48066edbab748d62",
+          "evaluation_origins": [
+            630,
+            635,
+            640,
+            645,
+            650,
+            655,
+            660,
+            665,
+            670,
+            675,
+            680,
+            685,
+            690,
+            695,
+            700,
+            705,
+            710,
+            715,
+            720,
+            725,
+            730,
+            735,
+            740,
+            745,
+            750
+          ],
+          "evaluation_rows": 25,
+          "fold": 2,
+          "training_boundary": "2026-04-28T20:00:00.000000+00:00",
+          "training_mask_ref": "f82ba30f28e97126264ed3e0475ded29f9ecea4280ed0ba28f3fccaa83fd2a2a",
+          "training_rows": 566
+        }
+      ],
+      "future_sessions": [
+        "2026-10-27",
+        "2026-10-28",
+        "2026-10-29",
+        "2026-10-30",
+        "2026-11-02"
+      ],
+      "historical_sessions": 756,
+      "input_ref": "31dd598da6547393596055d5aef782b4f00e936c16888d2659865e1c5a159966",
+      "instrument_id": "US/SOXL",
+      "models": [
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:33.487504+00:00",
+          "actual_fit_seconds": 0.003319,
+          "actual_fit_started_at": "2026-10-27T09:47:33.484185+00:00",
+          "job_name": "fold_0_b0",
+          "model_ref": "f85ef1a6c0fbbe3ea705f8c4a89783a4f013423378796eaefa7a6ee5655484d1",
+          "ordinal": 0,
+          "purpose": "evaluation",
+          "result_ref": "0a19170927b86647eec9cb830d784a27c94dc1d589f4795bbc60468966cd9580",
+          "training_mask_ref": "7f3f8939130df6096d87216b8653f0f8933693da6f14db362d67b5eeee21fb1a",
+          "training_rows": 314,
+          "worker_metadata_ref": "5785bbe6d8110572037c0206c8838a3be5cdf79a3d0ba8eb118a4875d25d41eb"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:35.033869+00:00",
+          "actual_fit_seconds": 0.003865,
+          "actual_fit_started_at": "2026-10-27T09:47:35.030004+00:00",
+          "job_name": "fold_0_b1",
+          "model_ref": "d485e8a4cb30f81251f4c5e42d5073c946a33817c9988681fa94f534448cb4a6",
+          "ordinal": 1,
+          "purpose": "evaluation",
+          "result_ref": "80a00b5f9c6d00c35797e5e6d95c29ac1f23f7a598e3dbe6305b3f1ef7985555",
+          "training_mask_ref": "7f3f8939130df6096d87216b8653f0f8933693da6f14db362d67b5eeee21fb1a",
+          "training_rows": 314,
+          "worker_metadata_ref": "9e7a8f922f343cee5b30f7607cef025b7c4700203031b4047e32bca096e16213"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:36.553752+00:00",
+          "actual_fit_seconds": 0.00546,
+          "actual_fit_started_at": "2026-10-27T09:47:36.548292+00:00",
+          "job_name": "fold_0_b2",
+          "model_ref": "a4f8b6e95b1f5c774d9885d54dd7842b31c54278f8a07fcb4a7d73dd2919905d",
+          "ordinal": 2,
+          "purpose": "evaluation",
+          "result_ref": "d3643e8d39d635f7421b12242bef5833e2f9187098ceaedacadc9d7702a6afe8",
+          "training_mask_ref": "7f3f8939130df6096d87216b8653f0f8933693da6f14db362d67b5eeee21fb1a",
+          "training_rows": 314,
+          "worker_metadata_ref": "94eb4312f6c2ad9a030ef1b3013b7ce5c6f5b011cab0bbb20fbcf82109fd5fe9"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:38.063615+00:00",
+          "actual_fit_seconds": 0.003539,
+          "actual_fit_started_at": "2026-10-27T09:47:38.060076+00:00",
+          "job_name": "fold_1_b0",
+          "model_ref": "a7f719b724220db332e5bc4b6a6823e06edead69c6da52339321420481eab4ce",
+          "ordinal": 3,
+          "purpose": "evaluation",
+          "result_ref": "536ce6763246bc212002844d8aaaa32428d6f13d6c78c8a99febc48e7678a7e7",
+          "training_mask_ref": "ed1a0ff0049387d92552910f184f9189af27824931bebf8ea3faab3145d501a5",
+          "training_rows": 440,
+          "worker_metadata_ref": "7893df0c79db8b19d9660f4d56c67fc5f658cb8c726eda2507944076a7a538e2"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:39.606079+00:00",
+          "actual_fit_seconds": 0.004342,
+          "actual_fit_started_at": "2026-10-27T09:47:39.601737+00:00",
+          "job_name": "fold_1_b1",
+          "model_ref": "90bf4b942b5c079fb27c985e4f252aaa2ebe1ded7e7140eca3b0a4eed48ff2cb",
+          "ordinal": 4,
+          "purpose": "evaluation",
+          "result_ref": "a4cd7d4dd99416b376167950208cbd70f77f485495d806094bd312644db675d3",
+          "training_mask_ref": "ed1a0ff0049387d92552910f184f9189af27824931bebf8ea3faab3145d501a5",
+          "training_rows": 440,
+          "worker_metadata_ref": "078fd7884e8ba6c9e0ddae276981a7d7a2dd82a36d0a6cf6fc850606b325bfef"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:41.128386+00:00",
+          "actual_fit_seconds": 0.006326,
+          "actual_fit_started_at": "2026-10-27T09:47:41.122060+00:00",
+          "job_name": "fold_1_b2",
+          "model_ref": "6a1ddd7bdaf96212d84b83d2e69c5b24623c3f2d904ac7a6db3da4bd69bac422",
+          "ordinal": 5,
+          "purpose": "evaluation",
+          "result_ref": "b1b11a8e1fcf8724186c43516f37f77a2108b1cbe809f897720ef4ff1dfcb82b",
+          "training_mask_ref": "ed1a0ff0049387d92552910f184f9189af27824931bebf8ea3faab3145d501a5",
+          "training_rows": 440,
+          "worker_metadata_ref": "95df2bfbd699c276be9c17a6ce21e741587b6e20767a14e83abe94fb4ff976d0"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:42.763604+00:00",
+          "actual_fit_seconds": 0.003881,
+          "actual_fit_started_at": "2026-10-27T09:47:42.759723+00:00",
+          "job_name": "fold_2_b0",
+          "model_ref": "0b667c4d2fd46e79000daab1b9e37b6cf8320f4f92625511a8c86f45b585ae9a",
+          "ordinal": 6,
+          "purpose": "evaluation",
+          "result_ref": "844e40ce3df857a16440d50045a790a46e5458324fa882df3fc68f074713966a",
+          "training_mask_ref": "f82ba30f28e97126264ed3e0475ded29f9ecea4280ed0ba28f3fccaa83fd2a2a",
+          "training_rows": 566,
+          "worker_metadata_ref": "415541d7151c5ef01d8ed8746b7bfc997d0b57092feb88dda94e7dd599cba3c4"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:44.359223+00:00",
+          "actual_fit_seconds": 0.004833,
+          "actual_fit_started_at": "2026-10-27T09:47:44.354390+00:00",
+          "job_name": "fold_2_b1",
+          "model_ref": "e57bd69fe5ce058a2016e72a73550be3df6ef19b3cac469b6edb6c587a27abda",
+          "ordinal": 7,
+          "purpose": "evaluation",
+          "result_ref": "d20c3d803275d98bd29273b477f02df5be566a032c66c68a1e8ba7b0addd276f",
+          "training_mask_ref": "f82ba30f28e97126264ed3e0475ded29f9ecea4280ed0ba28f3fccaa83fd2a2a",
+          "training_rows": 566,
+          "worker_metadata_ref": "c3e7438c6384262b8f58142e9595c2b64decdc5c6a42a514fc296dfdec8c9b9d"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:45.970959+00:00",
+          "actual_fit_seconds": 0.007441,
+          "actual_fit_started_at": "2026-10-27T09:47:45.963518+00:00",
+          "job_name": "fold_2_b2",
+          "model_ref": "79f02fce7320e39d868e8ec4fdac6a6cdfa86e5bc8615cab16e7f2dd19e1aec5",
+          "ordinal": 8,
+          "purpose": "evaluation",
+          "result_ref": "3e6352fb846029ec081c389de42ff18d788f47f4c85092b2bb8741923c1b4e70",
+          "training_mask_ref": "f82ba30f28e97126264ed3e0475ded29f9ecea4280ed0ba28f3fccaa83fd2a2a",
+          "training_rows": 566,
+          "worker_metadata_ref": "a36f02569a5269300137812505cc94238fe70f8257bd2ae350fa320751939819"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:47.614182+00:00",
+          "actual_fit_seconds": 0.007776,
+          "actual_fit_started_at": "2026-10-27T09:47:47.606406+00:00",
+          "job_name": "publication",
+          "model_ref": "10ea6eda23a7a3c276f8172a3b85b0e2cc41a0b2961b30aa9587c8ec29de5f12",
+          "ordinal": 9,
+          "purpose": "publication",
+          "result_ref": "b85251ae528f9c6ef51d2566d349884e154539c7b906c34528226c8416437d5f",
+          "training_mask_ref": "8360cc67c3614fe999fbaae7ad3910e3a3fbad25d4f7603934873d0f201a91c8",
+          "training_rows": 691,
+          "worker_metadata_ref": "e82b019453c6529b4f9079026443495a4c3018a831abb5f65986453fa3cbbe7c"
+        }
+      ],
+      "origin_session": "2026-10-26",
+      "price_sources": {
+        "industry": {
+          "age_seconds": 248.253472,
+          "final_url": "https://query1.finance.yahoo.com/v8/finance/chart/XSD?range=5y&interval=1d&events=div%2Csplits",
+          "first_seen_at": "2026-10-27T09:25:08.063295+00:00",
+          "http_receipt_ref": "8291edd75f7765efad5f5f21c025a9f2d23201d3ea4b4060cdace6c4e5d43211",
+          "metadata": {
+            "currency": "USD",
+            "exchangeName": "PCX",
+            "exchangeTimezoneName": "America/New_York",
+            "instrumentType": "ETF",
+            "regularMarketTime": 1793044800,
+            "symbol": "XSD"
+          },
+          "raw_bytes": 135202,
+          "raw_sha256": "c2d8e66b98d83468f3d9c2203b7f5f38756bd1c3906a2b25860c3b0e0318e265",
+          "received_at": "2026-10-27T09:24:56.959479+00:00",
+          "requested_at": "2026-10-27T09:24:55.072231+00:00",
+          "snapshot_ref": "1b3c8b51ced4a168ad46468c57178f5dba31950b4509645164763a29340c7d8c",
+          "status": 200,
+          "ticker": "XSD",
+          "unsupported_actions": [],
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/XSD?range=5y&interval=1d&events=div%2Csplits"
+        },
+        "market": {
+          "age_seconds": 244.720875,
+          "final_url": "https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=5y&interval=1d&events=div%2Csplits",
+          "first_seen_at": "2026-10-27T09:25:10.349904+00:00",
+          "http_receipt_ref": "668aa6f2d7a89c9df7afa81f9e415092bdaa95f951e63f9d3c0219138e68291b",
+          "metadata": {
+            "currency": "USD",
+            "exchangeName": "PCX",
+            "exchangeTimezoneName": "America/New_York",
+            "instrumentType": "ETF",
+            "regularMarketTime": 1793044800,
+            "symbol": "SPY"
+          },
+          "raw_bytes": 137138,
+          "raw_sha256": "be8ba6cd483d2352f9fa9b6b188ebe819ccca8417a39c2140de5afb2bda11440",
+          "received_at": "2026-10-27T09:25:00.492076+00:00",
+          "requested_at": "2026-10-27T09:24:56.965765+00:00",
+          "snapshot_ref": "b7efda04ab0971da4e34f07921fcfda50184a0dadaf8aabf3a2142371e124d43",
+          "status": 200,
+          "ticker": "SPY",
+          "unsupported_actions": [],
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=5y&interval=1d&events=div%2Csplits"
+        },
+        "target": {
+          "age_seconds": 250.147796,
+          "final_url": "https://query1.finance.yahoo.com/v8/finance/chart/SOXL?range=5y&interval=1d&events=div%2Csplits",
+          "first_seen_at": "2026-10-27T09:25:14.428991+00:00",
+          "http_receipt_ref": "e3b4b8734f2934d61debd78f7d024c323aedafb7e82608f0aaaf343d65f5723c",
+          "metadata": {
+            "currency": "USD",
+            "exchangeName": "PCX",
+            "exchangeTimezoneName": "America/New_York",
+            "instrumentType": "ETF",
+            "regularMarketTime": 1793044801,
+            "symbol": "SOXL"
+          },
+          "raw_bytes": 139339,
+          "raw_sha256": "2649bb299fc03437bd26b03a42299b065932f6a123651fd8f8ce2276ec53dee0",
+          "received_at": "2026-10-27T09:24:55.065155+00:00",
+          "requested_at": "2026-10-27T09:24:53.317449+00:00",
+          "snapshot_ref": "5df5b9b3b2fe488513e58f15ee5966cba4f16f44273785ed3f2b5837c89bf9c2",
+          "status": 200,
+          "ticker": "SOXL",
+          "unsupported_actions": [],
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/SOXL?range=5y&interval=1d&events=div%2Csplits"
+        }
+      },
+      "protocol_ref": "af2486c050c2360b646f4a1b813557c5d30d38a54063d86e38ea9df3654ebec4",
+      "publication": {
+        "forecast_price": 89.19029994317933,
+        "forecast_ref": "ec5f70015e319ee67b74cce3bdc96d6afa94b706223a05f7e370696bba2d76a2",
+        "forecast_return": -0.014471823832272595,
+        "forward": true,
+        "forward_deadline": "2026-10-27T13:30:00.000000+00:00",
+        "frozen_input_asof": "2026-10-27T09:25:21.740767+00:00",
+        "horizon_sessions": 5,
+        "instrument": "SOXL",
+        "issued_at": "2026-10-27T09:47:47.805057+00:00",
+        "mode": "forward",
+        "model_ref": "10ea6eda23a7a3c276f8172a3b85b0e2cc41a0b2961b30aa9587c8ec29de5f12",
+        "origin_price": 90.5,
+        "origin_session": "2026-10-26",
+        "post_commit_confirmed_at": "2026-10-27T09:47:47.811408+00:00",
+        "publication_model_inherits_evaluation_scores": false,
+        "publication_model_validation_metrics": null,
+        "publication_result_ref": "b85251ae528f9c6ef51d2566d349884e154539c7b906c34528226c8416437d5f",
+        "recipe_group": "B2",
+        "target_session": "2026-11-02",
+        "training_information_cutoff": "2026-10-27T09:25:21.740767+00:00",
+        "training_rows": 691
+      },
+      "report_ref": "03ee2790ed37a1820b4a4bd730dcd3a943849e05aaebd3da85008e227cdbc915",
+      "run_id": "r1-soxl-20261027-v1",
+      "runtime_ref": "1a3700bf54f6cd9693f108b410658fab8eec9ebf8ec8b73a44dc7ae0be1dca61",
+      "selected_beats_each_control": {
+        "training_mature_label_mean": {
+          "mae_pp": false,
+          "rmse_pp": false
+        },
+        "unchanged_price": {
+          "mae_pp": false,
+          "rmse_pp": false
+        }
+      },
+      "selected_recipe": "B2",
+      "selection_ref": "6eb316585bddb8159fc4b886561d232601c5cbb054bd7a11cefcb6008b00a22d",
+      "workflow_manifest_ref": "206e1b0bf391184008c6b3181d6d629ce4bcaeed902c72945c6d6051171f35a7"
+    },
+    {
+      "actual_fit_seconds": 0.056953000000000004,
+      "allocation_ref": "f2d657844cdd3f054997b840183c2ea48b1fa206bec9975768007ecc5ffb45c9",
+      "calendar_sources": [
+        {
+          "received_at": "2026-10-27T09:26:12.478705+00:00",
+          "requested_at": "2026-10-27T09:26:09.367060+00:00",
+          "sha256": "3960e64cd7c9581c2e7a6d3f602342344eba1fac7b7476d51ddabb32b343fe11",
+          "source_name": "NYSE_calendar_current.html",
+          "status": 200,
+          "url": "https://www.nyse.com/markets/hours-calendars"
+        },
+        {
+          "received_at": "2026-10-27T09:26:19.919666+00:00",
+          "requested_at": "2026-10-27T09:26:18.036719+00:00",
+          "sha256": "6b79a75c62c7570be66c3aa287f9e7e3ed620aa3cd61b82383117b6b7e4febde",
+          "source_name": "NYSE_closure_20250109.html",
+          "status": 200,
+          "url": "https://ir.theice.com/press/news-details/2024/The-New-York-Stock-Exchange-Will-Close-Markets-on-January-9-to-Honor-the-Passing-of-Former-President-Jimmy-Carter-on-National-Day-of-Mourning/default.aspx"
+        },
+        {
+          "received_at": "2026-10-27T09:26:16.414125+00:00",
+          "requested_at": "2026-10-27T09:26:12.495145+00:00",
+          "sha256": "57aba527fd8bce7bdc18d035ea2e221b735f81e467a474df7079f0ac5af1d2b8",
+          "source_name": "NYSE_holidays_2023_2025.html",
+          "status": 200,
+          "url": "https://ir.theice.com/press/news-details/2022/NYSE-Group-Announces-2023-2024-and-2025-Holiday-and-Early-Closings-Calendar/default.aspx"
+        },
+        {
+          "received_at": "2026-10-27T09:26:18.030170+00:00",
+          "requested_at": "2026-10-27T09:26:16.421614+00:00",
+          "sha256": "24c6076b94301a519328f48efebecb9e4037d0ea0036d30ac8517d54dd5a8675",
+          "source_name": "NYSE_holidays_2024_2026.html",
+          "status": 200,
+          "url": "https://ir.theice.com/press/news-details/2023/NYSE-Group-Announces-2024-2025-and-2026-Holiday-and-Early-Closings-Calendar/default.aspx"
+        }
+      ],
+      "candidate_metrics": {
+        "B0": {
+          "mae_pp": 1.8828673321829263,
+          "negative_mae_pp": -1.8828673321829263,
+          "observations": 75,
+          "rmse_pp": 2.4766483302035174
+        },
+        "B1": {
+          "mae_pp": 1.940416616361853,
+          "negative_mae_pp": -1.940416616361853,
+          "observations": 75,
+          "rmse_pp": 2.5215653214196982
+        },
+        "B2": {
+          "mae_pp": 1.8382766697781419,
+          "negative_mae_pp": -1.8382766697781419,
+          "observations": 75,
+          "rmse_pp": 2.4279136240555985
+        }
+      },
+      "collection_manifest_ref": "b99a1bdf77df06cfe7337591724df9725ad0e864e8e93cc9c852e0dd5abb8c4a",
+      "config": {
+        "calendar": "published_nyse_group",
+        "currency": "USD",
+        "historical_availability": "explicit_assumption",
+        "history_sessions": 756,
+        "horizon_sessions": 5,
+        "industry": "XLP",
+        "kind": "ForecastWorkflowConfig",
+        "market": "SPY",
+        "max_source_age_seconds": 86400,
+        "price_unit": "raw_currency_per_share",
+        "schema_version": 1,
+        "source": "yahoo_chart_5y_daily",
+        "target": "KO"
+      },
+      "config_ref": "4bc272fe982a4ff8d8a7f4fa4d952afda810cde0f2a5e6d964916bfdbc4bb984",
+      "controls": {
+        "training_mature_label_mean": {
+          "mae_pp": 1.8306156875310133,
+          "negative_mae_pp": -1.8306156875310133,
+          "observations": 75,
+          "rmse_pp": 2.426161959693438
+        },
+        "unchanged_price": {
+          "mae_pp": 1.8163329292451218,
+          "negative_mae_pp": -1.8163329292451218,
+          "observations": 75,
+          "rmse_pp": 2.4393204145181677
+        }
+      },
+      "costs": {
+        "elapsed_worker_seconds": 7.108468771992193,
+        "fit_reservations": 10,
+        "reserved_worker_seconds": 1800,
+        "statuses": [
+          [
+            "completed",
+            10
+          ]
+        ]
+      },
+      "experiment_manifest_ref": "d8f40f6b051904a03dd54173c284481abd6e3715910b810ef2098fff5110fa3b",
+      "exposure_ref": "e5ac6ed8a6685c636789e8b9e2bd1b73328067fc40f5a3f031ada53a116e6fe7",
+      "folds": [
+        {
+          "evaluation_mask_ref": "9a6abde2fccd87d148090a20bdb6939bfb48bfd684c80acd80d6ecf2306acc91",
+          "evaluation_origins": [
+            378,
+            383,
+            388,
+            393,
+            398,
+            403,
+            408,
+            413,
+            418,
+            423,
+            428,
+            433,
+            438,
+            443,
+            448,
+            453,
+            458,
+            463,
+            468,
+            473,
+            478,
+            483,
+            488,
+            493,
+            498
+          ],
+          "evaluation_rows": 25,
+          "fold": 0,
+          "training_boundary": "2025-04-25T20:00:00.000000+00:00",
+          "training_mask_ref": "5e64afde6ead7522230589e4507fd22c75c5e73706019e19b17ff42369daa673",
+          "training_rows": 314
+        },
+        {
+          "evaluation_mask_ref": "9024c15dfd370e74faaa2ce7ca043ed70265d144b955d59cca6b7b1bbcb51c1f",
+          "evaluation_origins": [
+            504,
+            509,
+            514,
+            519,
+            524,
+            529,
+            534,
+            539,
+            544,
+            549,
+            554,
+            559,
+            564,
+            569,
+            574,
+            579,
+            584,
+            589,
+            594,
+            599,
+            604,
+            609,
+            614,
+            619,
+            624
+          ],
+          "evaluation_rows": 25,
+          "fold": 1,
+          "training_boundary": "2025-10-24T20:00:00.000000+00:00",
+          "training_mask_ref": "f7f2ab5c3b7cb74eb3dc7ab824fb4078fa0c61bb0261ffeb6c48e9a366816072",
+          "training_rows": 440
+        },
+        {
+          "evaluation_mask_ref": "dcbed9b696ba09acdb9d5efb727fcc36aa313547771b02ec129a8b255f5cb815",
+          "evaluation_origins": [
+            630,
+            635,
+            640,
+            645,
+            650,
+            655,
+            660,
+            665,
+            670,
+            675,
+            680,
+            685,
+            690,
+            695,
+            700,
+            705,
+            710,
+            715,
+            720,
+            725,
+            730,
+            735,
+            740,
+            745,
+            750
+          ],
+          "evaluation_rows": 25,
+          "fold": 2,
+          "training_boundary": "2026-04-28T20:00:00.000000+00:00",
+          "training_mask_ref": "c6b6891cd33db310d37b0afea477c090efdfe63aaa3f10565187eb1b0d0dd1ec",
+          "training_rows": 566
+        }
+      ],
+      "future_sessions": [
+        "2026-10-27",
+        "2026-10-28",
+        "2026-10-29",
+        "2026-10-30",
+        "2026-11-02"
+      ],
+      "historical_sessions": 756,
+      "input_ref": "313d5d70b49716687006b1eec36bbde16ac1f1d0c18fcbc1d9fff408254eccab",
+      "instrument_id": "US/KO",
+      "models": [
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:52.430944+00:00",
+          "actual_fit_seconds": 0.003301,
+          "actual_fit_started_at": "2026-10-27T09:47:52.427643+00:00",
+          "job_name": "fold_0_b0",
+          "model_ref": "6833ba4f7b1766a63f54bba5d04c5ecd50c2ef2bdc586a5265d10a2f03d4ee75",
+          "ordinal": 0,
+          "purpose": "evaluation",
+          "result_ref": "c4beea2c952397f0fe69d5128b3ada8755787b88ac14b5bf5ce7dddd531f0159",
+          "training_mask_ref": "5e64afde6ead7522230589e4507fd22c75c5e73706019e19b17ff42369daa673",
+          "training_rows": 314,
+          "worker_metadata_ref": "63788cd7e432aa2468dd1a53cfd1caa2e8151c759594113588f5e5aa2543c89a"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:54.088084+00:00",
+          "actual_fit_seconds": 0.003822,
+          "actual_fit_started_at": "2026-10-27T09:47:54.084262+00:00",
+          "job_name": "fold_0_b1",
+          "model_ref": "1b5527d2fc19a69d450f66dd90f93815ea16981336eebb9ef28258f940612eae",
+          "ordinal": 1,
+          "purpose": "evaluation",
+          "result_ref": "1c807970e392e783997fa0c27240f95e44daa55cfb873e09aba0053efcdfb07f",
+          "training_mask_ref": "5e64afde6ead7522230589e4507fd22c75c5e73706019e19b17ff42369daa673",
+          "training_rows": 314,
+          "worker_metadata_ref": "b7b386031f696965b5bdde605d4dddfb295c4acdcdd362d26da447bde20d48ea"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:55.711140+00:00",
+          "actual_fit_seconds": 0.006971,
+          "actual_fit_started_at": "2026-10-27T09:47:55.704169+00:00",
+          "job_name": "fold_0_b2",
+          "model_ref": "bcce9c17dbabeaa708af2b8d809d1ecbb6a2e247d16fb03980cf463b3cd052e5",
+          "ordinal": 2,
+          "purpose": "evaluation",
+          "result_ref": "e3172b04f9ba5db83803e9d82f30d90f2d89babdda57ffb239fe3b844109e96e",
+          "training_mask_ref": "5e64afde6ead7522230589e4507fd22c75c5e73706019e19b17ff42369daa673",
+          "training_rows": 314,
+          "worker_metadata_ref": "831799a49ee5f4c419aab3f84075a9f694ba2761eea9d4ede78345db58f09cd6"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:57.361961+00:00",
+          "actual_fit_seconds": 0.003929,
+          "actual_fit_started_at": "2026-10-27T09:47:57.358032+00:00",
+          "job_name": "fold_1_b0",
+          "model_ref": "75c5d0c12bb73ae184731605a3e2767f82da36cd4c1150b3b1effeaaf0ba17e6",
+          "ordinal": 3,
+          "purpose": "evaluation",
+          "result_ref": "5b8a616a3719eac2a54a342b7cf7bcbf764eb4e80f46bc0edf03c5d59de1f4b5",
+          "training_mask_ref": "f7f2ab5c3b7cb74eb3dc7ab824fb4078fa0c61bb0261ffeb6c48e9a366816072",
+          "training_rows": 440,
+          "worker_metadata_ref": "abfe4cab462d56c71a283c90f4172519e9ee181158c5dec48d8daa7dfb1c47bc"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:47:59.043340+00:00",
+          "actual_fit_seconds": 0.004476,
+          "actual_fit_started_at": "2026-10-27T09:47:59.038864+00:00",
+          "job_name": "fold_1_b1",
+          "model_ref": "a5646967dc15a5ec0d0b6629d230637402c3c8fb9761f68594ab3241d52447bd",
+          "ordinal": 4,
+          "purpose": "evaluation",
+          "result_ref": "75fb25a8ee8fd804bc04e2574b62547b2e358afaa8ec89448faf3e033591e8a3",
+          "training_mask_ref": "f7f2ab5c3b7cb74eb3dc7ab824fb4078fa0c61bb0261ffeb6c48e9a366816072",
+          "training_rows": 440,
+          "worker_metadata_ref": "5ad95fbfc7604cc0b7517cc73f54b6bdf0fe90f3a40a87098c3a27688fc4ce11"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:48:00.867662+00:00",
+          "actual_fit_seconds": 0.007118,
+          "actual_fit_started_at": "2026-10-27T09:48:00.860544+00:00",
+          "job_name": "fold_1_b2",
+          "model_ref": "ce9be66e7017b424d87832b208e5fcd9bd0efbf2eeffcdeacee582580a554e4f",
+          "ordinal": 5,
+          "purpose": "evaluation",
+          "result_ref": "9421a7b07533b4609e1777d5c9fca6c532770f9bc151d918ab69196bb9acbe2a",
+          "training_mask_ref": "f7f2ab5c3b7cb74eb3dc7ab824fb4078fa0c61bb0261ffeb6c48e9a366816072",
+          "training_rows": 440,
+          "worker_metadata_ref": "1c4fc38d74c40a0ba1935df91f68378c839b57245f785adf6a43de58770bd7f2"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:48:02.712121+00:00",
+          "actual_fit_seconds": 0.006225,
+          "actual_fit_started_at": "2026-10-27T09:48:02.705896+00:00",
+          "job_name": "fold_2_b0",
+          "model_ref": "dc2698ed355fad6141ac6e265d69a80eebbd2aa492f8b007197d6352d4ed43fd",
+          "ordinal": 6,
+          "purpose": "evaluation",
+          "result_ref": "65cbdc157d03c585fdbb677235e45e6a7e4164ec087c791c969a2f9d7ef15157",
+          "training_mask_ref": "c6b6891cd33db310d37b0afea477c090efdfe63aaa3f10565187eb1b0d0dd1ec",
+          "training_rows": 566,
+          "worker_metadata_ref": "75ecdb2087450ae3405fd41fda8ef93983763f26a1edc718f59db694f6eff465"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:48:04.574078+00:00",
+          "actual_fit_seconds": 0.005009,
+          "actual_fit_started_at": "2026-10-27T09:48:04.569069+00:00",
+          "job_name": "fold_2_b1",
+          "model_ref": "a7b9faf35021a6437ce8dc3e92dbe3dd46bea7a9f6f15fe7acd34e276204b46a",
+          "ordinal": 7,
+          "purpose": "evaluation",
+          "result_ref": "90f44886f95747c8a34586e6f962a31e46ced892a5018c4571b4063b41be7b35",
+          "training_mask_ref": "c6b6891cd33db310d37b0afea477c090efdfe63aaa3f10565187eb1b0d0dd1ec",
+          "training_rows": 566,
+          "worker_metadata_ref": "59b36f9be3ee344e7a017ce45b30453d35170c035ed08eb36edadf2135577c3f"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:48:06.453038+00:00",
+          "actual_fit_seconds": 0.007578,
+          "actual_fit_started_at": "2026-10-27T09:48:06.445460+00:00",
+          "job_name": "fold_2_b2",
+          "model_ref": "74a3baadf3262f23c3f03a2c011e8c7bbdf3e3a05688b94424d27a332911ed58",
+          "ordinal": 8,
+          "purpose": "evaluation",
+          "result_ref": "9d2bf711546c97029046b33d457f5d237ec10bfea78f9c5870b0246856a3505e",
+          "training_mask_ref": "c6b6891cd33db310d37b0afea477c090efdfe63aaa3f10565187eb1b0d0dd1ec",
+          "training_rows": 566,
+          "worker_metadata_ref": "0ac13fc5a23fb70ff81cbc870258a7e8cf267f8a295d4f425e962c552c936cb1"
+        },
+        {
+          "actual_fit_completed_at": "2026-10-27T09:48:08.366312+00:00",
+          "actual_fit_seconds": 0.008524,
+          "actual_fit_started_at": "2026-10-27T09:48:08.357788+00:00",
+          "job_name": "publication",
+          "model_ref": "b62e88280e837c974cc656eafa21e4b5058838eecff950ee9e40c01585a20f5b",
+          "ordinal": 9,
+          "purpose": "publication",
+          "result_ref": "c8f65bd746e7fdda5aece3bb120044b69795b2aff5ea29b4994b06f2863e1a78",
+          "training_mask_ref": "d14a779bf390807dccd497b40c041a6408b501657ba60938f609f288b4cde145",
+          "training_rows": 691,
+          "worker_metadata_ref": "1db2dc45922c1d2d5a79c88163559b0464a826f23caabba1af061efdc9145cfe"
+        }
+      ],
+      "origin_session": "2026-10-26",
+      "price_sources": {
+        "industry": {
+          "age_seconds": 177.380622,
+          "final_url": "https://query1.finance.yahoo.com/v8/finance/chart/XLP?range=5y&interval=1d&events=div%2Csplits",
+          "first_seen_at": "2026-10-27T09:26:20.245821+00:00",
+          "http_receipt_ref": "78b3cd1d1edef659c9c14e3cbf958172c33cfd176f5809ec2ada0bdb497c16d4",
+          "metadata": {
+            "currency": "USD",
+            "exchangeName": "PCX",
+            "exchangeTimezoneName": "America/New_York",
+            "instrumentType": "ETF",
+            "regularMarketTime": 1793044800,
+            "symbol": "XLP"
+          },
+          "raw_bytes": 135926,
+          "raw_sha256": "322f63be0bf9b109fe1b9b2153d743b77b0211324160caf7c3f5113d247a8b77",
+          "received_at": "2026-10-27T09:26:07.832329+00:00",
+          "requested_at": "2026-10-27T09:26:06.221882+00:00",
+          "snapshot_ref": "5db61272aef31742e406ab76ab6befd87d0612221eeb3159a671e9a5fff8e629",
+          "status": 200,
+          "ticker": "XLP",
+          "unsupported_actions": [],
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/XLP?range=5y&interval=1d&events=div%2Csplits"
+        },
+        "market": {
+          "age_seconds": 175.85164,
+          "final_url": "https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=5y&interval=1d&events=div%2Csplits",
+          "first_seen_at": "2026-10-27T09:26:22.421593+00:00",
+          "http_receipt_ref": "02fd6ac3e42a42b08a953079b26820dc08932f824a7025147ef948e98b5cb97c",
+          "metadata": {
+            "currency": "USD",
+            "exchangeName": "PCX",
+            "exchangeTimezoneName": "America/New_York",
+            "instrumentType": "ETF",
+            "regularMarketTime": 1793044800,
+            "symbol": "SPY"
+          },
+          "raw_bytes": 137188,
+          "raw_sha256": "11451399a20f768e33a55ea8cc6df53f9dc7fb2b5892d18aacafe97c84d04608",
+          "received_at": "2026-10-27T09:26:09.361311+00:00",
+          "requested_at": "2026-10-27T09:26:07.837527+00:00",
+          "snapshot_ref": "45d29454f1f877049177123026b606f76785e2a007a2a5f7e633b251aa6bf2b2",
+          "status": 200,
+          "ticker": "SPY",
+          "unsupported_actions": [],
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=5y&interval=1d&events=div%2Csplits"
+        },
+        "target": {
+          "age_seconds": 179.012135,
+          "final_url": "https://query1.finance.yahoo.com/v8/finance/chart/KO?range=5y&interval=1d&events=div%2Csplits",
+          "first_seen_at": "2026-10-27T09:26:24.582323+00:00",
+          "http_receipt_ref": "d88580958231744a6826273bf10e3994ebc5813f2700cd18a2406c6ffd97915b",
+          "metadata": {
+            "currency": "USD",
+            "exchangeName": "NYQ",
+            "exchangeTimezoneName": "America/New_York",
+            "instrumentType": "EQUITY",
+            "regularMarketTime": 1793044802,
+            "symbol": "KO"
+          },
+          "raw_bytes": 137311,
+          "raw_sha256": "44013b8b2dc2911c0fce05523bc92d821930be7287703cc8021c2421eba30b92",
+          "received_at": "2026-10-27T09:26:06.200816+00:00",
+          "requested_at": "2026-10-27T09:25:59.417304+00:00",
+          "snapshot_ref": "985e4c5330b92e16bdaa9b2a9d80576f6fd99a7555bc7e9c4082882ed0feccbd",
+          "status": 200,
+          "ticker": "KO",
+          "unsupported_actions": [],
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/KO?range=5y&interval=1d&events=div%2Csplits"
+        }
+      },
+      "protocol_ref": "149057a27020f0e1e17eb4838740b69861e67e4a860134c086894f5c1e258e0c",
+      "publication": {
+        "forecast_price": 94.12575887491415,
+        "forecast_ref": "f2b17d664a20055fc2397320353c5e2a9b28cc7a1f8541f59ae1e3013357d497",
+        "forecast_return": 0.01538038806482597,
+        "forward": true,
+        "forward_deadline": "2026-10-27T13:30:00.000000+00:00",
+        "frozen_input_asof": "2026-10-27T09:26:31.325295+00:00",
+        "horizon_sessions": 5,
+        "instrument": "KO",
+        "issued_at": "2026-10-27T09:48:08.567857+00:00",
+        "mode": "forward",
+        "model_ref": "b62e88280e837c974cc656eafa21e4b5058838eecff950ee9e40c01585a20f5b",
+        "origin_price": 92.699996948242,
+        "origin_session": "2026-10-26",
+        "post_commit_confirmed_at": "2026-10-27T09:48:08.572667+00:00",
+        "publication_model_inherits_evaluation_scores": false,
+        "publication_model_validation_metrics": null,
+        "publication_result_ref": "c8f65bd746e7fdda5aece3bb120044b69795b2aff5ea29b4994b06f2863e1a78",
+        "recipe_group": "B2",
+        "target_session": "2026-11-02",
+        "training_information_cutoff": "2026-10-27T09:26:31.325295+00:00",
+        "training_rows": 691
+      },
+      "report_ref": "f76e85284521b7151c2c5890b1d33a8731c956abaf8cf7884d0270e0db428ae6",
+      "run_id": "r1-ko-20261027-v1",
+      "runtime_ref": "1a3700bf54f6cd9693f108b410658fab8eec9ebf8ec8b73a44dc7ae0be1dca61",
+      "selected_beats_each_control": {
+        "training_mature_label_mean": {
+          "mae_pp": false,
+          "rmse_pp": false
+        },
+        "unchanged_price": {
+          "mae_pp": false,
+          "rmse_pp": true
+        }
+      },
+      "selected_recipe": "B2",
+      "selection_ref": "6deee3f48e072def77a9df6fa169a69b254184187255eaf89fd28035f3146aa6",
+      "workflow_manifest_ref": "00bc6502d2317bc316d7b23e6edb39fbf6237c9388768df87a35440e274edb61"
+    }
+  ],
+  "schema_version": 1,
+  "source_commit": "a4d7b4d27ff193d070742aee7acb415bb06f0fa2",
+  "terminal_verification": {
+    "additional_fit_reservations": 0,
+    "additional_reserved_worker_seconds": 0,
+    "after_manifest_ref": "cffc8aa5dfe29240639e55c5214c745f8fc105083bfc6b1e5ca1f0e5f552023e",
+    "before_manifest_ref": "cffc8aa5dfe29240639e55c5214c745f8fc105083bfc6b1e5ca1f0e5f552023e",
+    "bytes": 96283240,
+    "changed_files": [],
+    "commands": [
+      [
+        "forecast-workflow",
+        "prepare",
+        "r1-soxl-20261027-v1"
+      ],
+      [
+        "forecast-workflow",
+        "run",
+        "r1-soxl-20261027-v1"
+      ],
+      [
+        "forecast-workflow",
+        "status",
+        "r1-soxl-20261027-v1"
+      ],
+      [
+        "forecast-workflow",
+        "replay",
+        "r1-soxl-20261027-v1"
+      ],
+      [
+        "forecast-workflow",
+        "prepare",
+        "r1-ko-20261027-v1"
+      ],
+      [
+        "forecast-workflow",
+        "run",
+        "r1-ko-20261027-v1"
+      ],
+      [
+        "forecast-workflow",
+        "status",
+        "r1-ko-20261027-v1"
+      ],
+      [
+        "forecast-workflow",
+        "replay",
+        "r1-ko-20261027-v1"
+      ],
+      [
+        "forecast-campaign",
+        "status",
+        "r1-market-proof-20261027"
+      ],
+      [
+        "forecast-campaign",
+        "replay",
+        "r1-market-proof-20261027"
+      ]
+    ],
+    "files": 13774,
+    "receipt_ref": "a96cbeedccb7655ee5388a314b6ddab822874f51de072a6c0c07d694508ea6be"
+  }
+}
