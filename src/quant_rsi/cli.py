@@ -68,9 +68,26 @@ def main(argv: list[str] | None = None) -> int:
     enhanced_prepare = enhanced_commands.add_parser("prepare")
     enhanced_prepare.add_argument("workflow_id")
     enhanced_prepare.add_argument("--campaign-id")
+    enhanced_prepare.add_argument("--profile", type=Path)
+    enhanced_prepare.add_argument("--output", type=Path)
+    enhanced_preflight = enhanced_commands.add_parser("preflight")
+    enhanced_preflight.add_argument("workflow_id")
+    enhanced_preflight.add_argument("--campaign-id")
+    enhanced_preflight.add_argument("--profile", type=Path)
+    enhanced_execute = enhanced_commands.add_parser("execute")
+    enhanced_execute.add_argument("workflow_id")
+    enhanced_execute.add_argument("--campaign-id", required=True)
+    enhanced_execute.add_argument("--profile", type=Path, required=True)
+    enhanced_execute.add_argument("--max-fits", type=int, required=True)
+    enhanced_execute.add_argument("--output", type=Path)
+    enhanced_report = enhanced_commands.add_parser("report")
+    enhanced_report.add_argument("workflow_id")
+    enhanced_report.add_argument("--output", type=Path, required=True)
+    enhanced_report.add_argument("--replay", action="store_true")
     for name in ("run", "status", "replay"):
         command = enhanced_commands.add_parser(name)
         command.add_argument("workflow_id")
+        command.add_argument("--output", type=Path)
         if name == "run":
             command.add_argument("--config-ref")
             command.add_argument("--protocol-ref")
@@ -205,25 +222,75 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(report, indent=2, allow_nan=False))
             return 0
         if args.command == "forecast-workflow":
+            from quant_rsi import forecast_usability as usability
             from quant_rsi.enhanced_forecast_workflow import (
                 inspect_workflow,
                 prepare_workflow,
                 run_workflow,
             )
 
-            if args.enhanced_command == "prepare":
-                report = prepare_workflow(args.workflow_id, campaign_id=args.campaign_id)
-            elif args.enhanced_command == "run":
-                report = run_workflow(
-                    args.workflow_id,
-                    config_ref=args.config_ref,
-                    protocol_ref=args.protocol_ref,
-                    max_fits=args.max_fits,
+            action = args.enhanced_command
+            stage, parent, files = action, None, None
+            output = getattr(args, "output", None)
+            try:
+                profile = None
+                if getattr(args, "profile", None) is not None:
+                    stage = "profile"
+                    profile = usability.load_profile(args.profile)
+                    stage = action
+                if action == "preflight":
+                    report = usability.preflight(
+                        args.workflow_id, campaign_id=args.campaign_id, profile=profile
+                    )
+                elif action == "execute":
+                    report, parent = usability.execute(
+                        args.workflow_id,
+                        campaign_id=args.campaign_id,
+                        profile=profile,
+                        max_fits=args.max_fits,
+                    )
+                    if output is None:
+                        output = Path(report["workspace"]) / "reports" / args.workflow_id
+                elif action == "report":
+                    report, parent = usability.report_context(args.workflow_id, replay=args.replay)
+                elif action == "prepare":
+                    report = prepare_workflow(
+                        args.workflow_id, campaign_id=args.campaign_id, config=profile
+                    )
+                elif action == "run":
+                    report = run_workflow(
+                        args.workflow_id,
+                        config_ref=args.config_ref,
+                        protocol_ref=args.protocol_ref,
+                        max_fits=args.max_fits,
+                    )
+                else:
+                    report = inspect_workflow(args.workflow_id, replay=action == "replay")
+                if output is not None:
+                    stage = "report"
+                    if parent is None:
+                        _, parent = usability.report_context(args.workflow_id)
+                    files = usability.write_reports(report, parent, output)
+            except usability.ACTION_ERRORS as exc:
+                try:
+                    retry = usability.retry_command(argv if argv is not None else sys.argv[1:])
+                except usability.HANDLED_ERRORS:
+                    retry = None
+                report, parent = usability.failure_report(
+                    args.workflow_id, exc, stage=stage, retry=retry
                 )
-            else:
-                report = inspect_workflow(
-                    args.workflow_id, replay=args.enhanced_command == "replay"
-                )
+                if output is not None:
+                    try:
+                        files = usability.write_reports(report, parent, output)
+                    except usability.HANDLED_ERRORS as report_error:
+                        print(f"quant-rsi: report not written: {report_error}", file=sys.stderr)
+                if files is not None:
+                    report = dict(report, report_files=files)
+                print(json.dumps(report, indent=2, allow_nan=False))
+                print(f"quant-rsi: {report['failure']['message']}", file=sys.stderr)
+                return 130 if isinstance(exc, KeyboardInterrupt) else 1
+            if files is not None:
+                report = dict(report, report_files=files)
             print(json.dumps(report, indent=2, allow_nan=False))
             return 0
         if args.command == "forecast-compare":
