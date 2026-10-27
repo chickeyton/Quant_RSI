@@ -454,7 +454,11 @@ def _ingest_prepared(prepared_path):
         signals=prepared["signals"],
         evidence_hex=evidence_hex,
     )
-    ForecastInputs(inputs)
+    validated = ForecastInputs(inputs)
+    # Forecast sealing resolves unit, calendar and action evidence from this registry.
+    with market_context() as (registry, _):
+        for raw in validated.evidence.values():
+            registry.store.put(raw)
     _json_file(out / "inputs.json", inputs)
     _json_file(out / "imports.json", imports)
 
