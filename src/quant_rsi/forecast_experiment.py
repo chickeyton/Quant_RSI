@@ -138,6 +138,8 @@ def validate_ledger(journal, store, plan):
             charges and charges[0]["payload"] != {"seconds": 180}
         ):
             raise ValueError("forecast fit charge differs from its committed reservation")
+        if row["status"] in {"completed", "failed", "interrupted"} and not charges:
+            raise ValueError("executed forecast attempt is missing its fit charge")
         finished = [e for e in finishes if e["ordinal"] == ordinal]
         if row["status"] in {"reserved", "running"}:
             if finished or (row["status"] == "running") != bool(charges):

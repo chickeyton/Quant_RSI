@@ -278,3 +278,29 @@ def test_tampered_slot_charge_cannot_reset_remaining_budget(experiment, dummy_wo
     with pytest.raises(ValueError, match="charge differs"):
         resume_experiment("engineering-context", protocol_ref=prepared["protocol_ref"])
     assert dummy_worker["launches"] == [0]
+
+
+def test_publication_confirmation_recovers_without_another_fit(
+    experiment, dummy_worker, monkeypatch
+):
+    from quant_rsi import forecast_experiment
+
+    _, _, prepared = experiment
+    original = forecast_experiment.commit_event
+    once = [True]
+
+    def crash(journal, kind, payload):
+        if once[0] and kind == "forecast_publication_confirmed":
+            once[0] = False
+            raise RuntimeError("crash after publication commit")
+        return original(journal, kind, payload)
+
+    monkeypatch.setattr(forecast_experiment, "commit_event", crash)
+    with pytest.raises(RuntimeError, match="after publication commit"):
+        resume_experiment("engineering-context", protocol_ref=prepared["protocol_ref"], max_fits=4)
+    intermediate = inspect_experiment("engineering-context")
+    assert intermediate["forecast"] is None and intermediate["fit_reservations"] == 4
+    result = resume_experiment("engineering-context", protocol_ref=prepared["protocol_ref"])
+    assert result["forecast"] is not None and dummy_worker["fits"] == 4
+    assert dummy_worker["launches"] == [0, 1, 2, 3]
+    assert result == inspect_experiment("engineering-context", replay=True)
