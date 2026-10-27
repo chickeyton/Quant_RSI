@@ -1,12 +1,12 @@
 # Quant RSI
 
-有限开发轨迹的入口、预算与恢复说明见 [Development trajectory](docs/development_trajectory.md)。
+See [Development trajectory](docs/development_trajectory.md) for entry points, budgets, and recovery of bounded development runs.
 
-基于 [已确认架构](docs/architecture.md) 的量化研究系统。当前提供合成数据上的 **M0 固定模型内核、C2 动态研究循环、C4 受限研究包实验和 C5 工程保护评估**，以及 [本地数据、同 C2 研究、独立推理和持久化基线观察](docs/local_observer.md)。各运行内程序保持固定；新增 [五交易日价格预测基线](docs/forecast_baseline.md)；经校准的统计晋升和完整递归自改进仍未完成。
+A quantitative research system based on the [agreed architecture](docs/architecture.md). It currently provides an **M0 fixed-model kernel, C2 dynamic research loop, C4 bounded research-package experiments, and C5 protected engineering evaluation** on synthetic data, plus [local data, the same C2 research path, standalone inference, and persistent baseline observation](docs/local_observer.md). Programs remain fixed within each run. A [five-session price forecast baseline](docs/forecast_baseline.md) is also available; calibrated statistical promotion and full recursive self-improvement remain unfinished.
 
-## 安装与运行
+## Installation and Usage
 
-已在 Linux、Python 3.12 验证。进程控制依赖 POSIX `flock`、信号和资源限制；本版本不支持 Windows。安装依赖需要网络。合成实验无需外部服务；五日预测的自动采集需要访问公开行情和交易所日历，无需 API key。
+Validated on Linux with Python 3.12. Process control relies on POSIX `flock`, signals, and resource limits; Windows is not supported. Installing dependencies requires network access. Synthetic experiments need no external services. Automatic data collection for five-session forecasts requires access to public market data and exchange calendars, without an API key.
 
 ```bash
 python3.12 -m venv .venv
@@ -20,11 +20,11 @@ quant-rsi replay runs/demo
 quant-rsi resume runs/demo
 ```
 
-`run` 使用新输出目录；已完成初始化的实验必须使用 `resume`，不能由 `run` 覆盖。示例包含 `baseline_return_1`、`momentum_5` 两个有效候选，以及应被拒绝的 `invalid_future_shift`。正常结果为两个 `completed`、一个 `rejected`；拒绝本身属于预期验证结果。
+`run` requires a new output directory. Once an experiment is initialized, use `resume`; `run` cannot overwrite it. The example contains two valid candidates, `baseline_return_1` and `momentum_5`, and an `invalid_future_shift` candidate that should be rejected. The expected result is two `completed` candidates and one `rejected` candidate; that rejection is part of the intended validation.
 
-命令输出 JSON。`summary.json` 保存运行或恢复时的摘要；`status` 从账本重新读取当前状态。CLI 成功处理请求时返回 0，包括候选失败或预算耗尽；调用方应检查 `execution_status` 和每个候选的 `status`。配置错误、校验失败或运行锁冲突返回非零。
+Commands return JSON. `summary.json` stores the summary produced by a run or resume, while `status` reads the current state from the ledger. The CLI returns 0 when it successfully handles a request, including candidate failures or budget exhaustion; callers must inspect `execution_status` and each candidate's `status`. Configuration errors, validation failures, and run-lock conflicts return a nonzero exit code.
 
-## 五交易日价格预测
+## Five-Session Price Forecasts
 
 ~~~bash
 export QUANT_RSI_WORKSPACE="$PWD"
@@ -33,40 +33,40 @@ quant-rsi forecast status soxl-first
 quant-rsi forecast replay soxl-first
 ~~~
 
-一条命令完成日线采集、来源保存、固定模型研究、封存和持久预测。同一请求 ID 与输出目录重用原始数据和结果；新一期预测使用新的 ID 和目录。支持范围、数据假设、输出解释及故障恢复见 [预测基线说明](docs/forecast_baseline.md)。
+One command collects daily bars, preserves source evidence, runs fixed-model research, seals the model, and persists a forecast. Reusing a request ID and output directory reuses the original inputs and result; use a new ID and directory for a new forecast. This is an engineering baseline; practical forecasting quality has not been established. See the [forecast baseline guide](docs/forecast_baseline.md) for supported markets, data assumptions, output interpretation, and recovery.
 
-## 合成内核的计算约定
+## Synthetic Kernel Conventions
 
-- 数据是固定随机种子生成的完整价格面板，使用工作日和合成 UTC 时间，不代表交易所日历、公司行动或真实可交易标的。
-- `train_cutoff` 为从零计数的训练截止日。收盘 `t` 的标签是 `open[t+2] / open[t+1] - 1`；只有在截止日已成熟的标签可以训练。LightGBM 参数固定，每个候选拟合一次，开发期不重新拟合。
-- 受限因子只支持 `momentum` 和 `mean_return`，窗口 1–30。特征包含该因子、单日收益率和当日开收盘收益率；不执行候选提供的 Python 代码。
-- 收盘 `t` 形成整数股目标和订单，开盘 `t+1` 成交。订单只使用当时已知的现金、持仓、收盘价与预测；未来开盘跳空可以影响实际成交数量。
-- 组合为等权目标的 long-only top-k，先卖后买，同侧按标的顺序成交；现金不足时部分成交。费用和滑点均按单边基点计算。最后一个标签区间结束时强制平仓，并扣除退出费用和滑点。
-- 主指标为相对零利率现金基准的**净主动收益算术均值 × annualization**，不是 CAGR。最大回撤按各区间结束的开盘净值计算；超限结果保留，但不进入开发期最优候选选择。
-- `development_incumbent` 仅是本次开发比较的最优可行候选。所有结果均标记 `development_only`、`capacity_status=unverified`、`promotion_decision=not_requested`。
+- Data is a complete price panel generated with a fixed random seed. It uses weekdays and synthetic UTC timestamps, not an exchange calendar, corporate actions, or actual tradable instruments.
+- `train_cutoff` is the zero-based training cutoff index. The label at close `t` is `open[t+2] / open[t+1] - 1`; only labels that have matured by the cutoff are eligible for training. LightGBM parameters are fixed, with one fit per candidate and no refitting during development.
+- The bounded factor language supports only `momentum` and `mean_return`, with windows of 1–30 sessions. Features comprise the factor, the one-session return, and the current session's open-to-close return. Candidate-supplied Python code is not executed.
+- Whole-share targets and orders are formed at close `t` and filled at open `t+1`. Orders use only the cash, holdings, closing prices, and predictions known at the decision time. A subsequent opening-price gap can affect the quantity filled.
+- The portfolio targets equal weights across a long-only top-k selection. Sells precede buys, and orders on each side execute in instrument order. Insufficient cash produces partial fills. Fees and slippage are charged per side in basis points. Positions are liquidated after the final label interval, with exit fees and slippage deducted.
+- The primary metric is **arithmetic mean net active return × annualization**, relative to a zero-interest cash benchmark; it is not CAGR. Maximum drawdown uses portfolio equity at each interval's ending open. Results that breach the limit are retained but excluded from development incumbent selection.
+- `development_incumbent` is only the best feasible candidate in the current development comparison. All results are marked `development_only`, `capacity_status=unverified`, and `promotion_decision=not_requested`.
 
-## 实验账本与恢复
+## Experiment Ledger and Recovery
 
 ```text
 runs/demo/
-  manifest.json       # 计划、数据和运行环境的内容哈希引用
-  journal.sqlite      # 候选状态、预算占用、事务性事件
-  artifacts/<sha256>  # 数据、模型文本、预测、账务、日志等产物
-  work/0000/          # worker 输入、原始日志和原子提交的输出
-  summary.json        # 可读摘要
+  manifest.json       # Content hashes for the plan, data, and runtime
+  journal.sqlite      # Candidate states, budget reservations, transactional events
+  artifacts/<sha256>  # Data, model text, predictions, accounting, logs, and other artifacts
+  work/0000/          # Worker input, raw logs, and atomically committed output
+  summary.json        # Readable summary
 ```
 
-每个候选先占用一次尝试额度；无效因子也计数。有效候选启动前占用一个完整的 `worker_timeout_seconds` 额度，计入 `max_worker_seconds`，完成、失败和中断均不退款。这是保守的 worker 时间槽预算；实际经过时间另记为 `elapsed_seconds`，恢复时无法测得则为 `null`。
+Each candidate reserves one attempt before execution; invalid factors also count. Before a valid candidate starts, a full `worker_timeout_seconds` slot is charged against `max_worker_seconds`. Completion, failure, and interruption do not refund it. This is a conservative worker-slot budget. Actual elapsed time is reported separately as `elapsed_seconds`, or `null` when recovery cannot determine it.
 
-创建阶段先原子写入 `initialization.json`，固定计划和环境；账本建表、身份和 `run_created` 事件在同一 SQLite 事务中提交，之后移除初始化记录，才允许启动候选。创建中断时，可用 `resume` 或相同计划的 `run` 完成初始化；不同计划会被拒绝。若中断发生在首条记录发布前，只能用 `run` 重试空目录（可能含锁或临时文件）。已完成初始化但账本缺失、身份冲突或结构损坏的实验不会被自动重建。
+Creation first writes `initialization.json` atomically, fixing the plan and runtime. Ledger tables, identity, and the `run_created` event are committed in one SQLite transaction. The initialization marker is then removed before any candidate can start. After interrupted creation, `resume` or `run` with the same plan can finish initialization; a different plan is rejected. If interruption occurred before the first record was published, retry `run` on the empty directory, which may contain a lock or temporary files. An initialized experiment with a missing ledger, conflicting identity, or damaged structure is never rebuilt automatically.
 
-worker 输入只有一份带完整哈希的计算绑定，计划和数据按内容哈希加载，因子必须与计划内该候选一致。worker 在计算前验证绑定，父进程在接受结果时核对落盘输入和返回身份，避免错误载荷沿用原提案的身份通过评分或重放。
+Worker input contains one fully hashed computation binding. Plans and data are loaded by content hash, and the factor must match the candidate in the bound plan. The worker verifies the binding before computation. Before accepting a result, the parent checks the persisted input and returned identity so a mismatched payload cannot reuse the original proposal's identity for scoring or replay.
 
-单个实验只允许一个 controller；worker 继承运行锁，并有独立截止信号。父进程中断后，worker 尚未退出时恢复会被拒绝；稍后可重试 `resume`。存在完整且绑定正确的 worker 输出时，恢复只完成验证和记账；没有有效输出则记为 `interrupted`。终态候选不会隐式重跑。
+Only one controller may own an experiment. The worker inherits the run lock and has its own deadline signal. If the parent is interrupted, recovery is rejected while that worker remains alive; retry `resume` later. Complete, correctly bound worker output is reused for verification and accounting. Without valid output, the attempt is recorded as `interrupted`. Terminal candidates are never rerun implicitly.
 
-`replay` 验证内容哈希、计算绑定及运行环境，从已保存的预测重新计算全部订单、成交和净账务，并要求与保存报告一致；它不会重新训练或产生新的证据。源码或已安装包版本改变时，`resume`/`replay` 会拒绝执行；恢复原环境后再运行。`status` 仍可读取旧结果。实验目录可以整体移动，但不要编辑内部文件。哈希用于发现损坏和不一致，不是对拥有文件写权限者的签名认证。
+`replay` verifies content hashes, computation bindings, and runtime identity. It recomputes all orders, fills, and net accounting from saved predictions and requires an exact match with the stored report; it neither retrains nor creates new evidence. `resume` and `replay` reject changes to source code or installed package versions; restore the recorded environment before running them. `status` can still read old results. Experiment directories may be moved as a whole, but their internal files must not be edited. Hashes detect corruption and inconsistency; they are not signatures protecting against someone with write access.
 
-## 开发与验证
+## Development and Validation
 
 ```bash
 pytest -q
@@ -74,25 +74,25 @@ ruff check src tests
 ruff format --check src tests
 ```
 
-测试包含真实 LightGBM worker 的端到端运行、独立手算账务、未来数据扰动、完整预测覆盖、预算耗尽、无效输出、锁互斥、产物损坏和崩溃恢复。没有设置覆盖率百分比门槛。
+Tests cover end-to-end execution with real LightGBM workers, independently calculated accounting, future-data perturbations, complete prediction coverage, budget exhaustion, invalid output, lock exclusion, artifact corruption, and crash recovery. No coverage-percentage threshold is configured.
 
-目录与职责：
+Directory and module responsibilities:
 
-| 路径 | 内容 |
+| Path | Purpose |
 | --- | --- |
-| `src/quant_rsi/schemas.py` | 严格 DevelopmentPlan 与受限因子定义 |
-| `src/quant_rsi/data.py`, `model.py`, `worker.py` | 合成数据、因果特征、固定训练与子进程入口 |
-| `src/quant_rsi/accounting.py` | controller 使用的独立账务与主指标计算 |
-| `src/quant_rsi/controller.py`, `journal.py`, `artifacts.py` | 调度、生命周期、预算和产物校验 |
-| `market_contracts.py`, `market_data.py`, `asof.py`, `local_research.py`（均在 `src/quant_rsi/`） | 显式本地合同、不可变回执、因果视图和同 C2 本地输入 |
-| `baseline.py`, `execution_account.py`, `observer*.py`（均在 `src/quant_rsi/`） | 实际模型封存、独立推理、共享账务和有限步观察器 |
-| `tests/` | pytest 测试，文件使用 `test_*.py` 命名 |
-| `examples/development.json` | 可直接运行的开发计划 |
-| `docs/`, `discussion_boards/` | 已确认设计、评审讨论和历史记录 |
+| `src/quant_rsi/schemas.py` | Strict DevelopmentPlan schemas and bounded factor definitions |
+| `src/quant_rsi/data.py`, `model.py`, `worker.py` | Synthetic data, causal features, fixed training, and worker entry point |
+| `src/quant_rsi/accounting.py` | Independent accounting and primary-metric calculation used by the controller |
+| `src/quant_rsi/controller.py`, `journal.py`, `artifacts.py` | Scheduling, lifecycle, budgets, and artifact verification |
+| `market_contracts.py`, `market_data.py`, `asof.py`, `local_research.py` (under `src/quant_rsi/`) | Explicit local contracts, immutable receipts, causal views, and local inputs for the same C2 kernel |
+| `baseline.py`, `execution_account.py`, `observer*.py` (under `src/quant_rsi/`) | Model sealing, standalone inference, shared accounting, and finite-step observers |
+| `tests/` | pytest tests named `test_*.py` |
+| `examples/development.json` | Runnable development plan |
+| `docs/`, `discussion_boards/` | Agreed designs, review discussions, and historical records |
 
-Python 使用四空格缩进、`snake_case` 函数和模块、`PascalCase` 类；Ruff 负责格式与静态检查，行宽 100。依赖版本固定在 `requirements-dev.lock`；修改依赖时同步更新并验证。提交应使用简洁祈使句，PR 说明目的、行为变化和验证结果。详细运行命令以本 README 为准；原有 `AGENTS.md` 按要求保留。
+Use four-space indentation in Python, `snake_case` for functions and modules, and `PascalCase` for classes. Ruff handles formatting and static checks with a line length of 100. Dependencies are pinned in `requirements-dev.lock`; update and validate the lock file when changing dependencies. Use concise imperative commit subjects. Pull requests should explain the purpose, behavior changes, and validation results. This README is the reference for current commands; the existing `AGENTS.md` is preserved as requested.
 
-## C2：有限步动态研究
+## C2: Finite-Step Dynamic Research
 
 ```bash
 quant-rsi research run examples/research_development.json --output runs/research_demo --steps 1
@@ -101,27 +101,27 @@ quant-rsi research resume runs/research_demo --steps 3
 quant-rsi research replay runs/research_demo
 ```
 
-每次 run/resume 的 --steps 为 1–100 的正整数，默认 1，表示本次调用最多新提交的 observation/checkpoint 数。未提交观察的 pending 步骤恢复完成后占其中一步；在上次调用已经提交的步骤不重复计数。调用在提交边界返回 paused/step_limit 后，不留后台 controller，不再提案或派发；只有显式 resume 才继续。此有限步流程就是本版本的停止方式，没有异步 stop/cancel 命令。预算或研究停止条件满足时返回 completed 和具体 stop_reason；终态 resume 不启动新研究。
+For each run or resume, `--steps` is an integer from 1 to 100, defaulting to 1. It limits the number of newly committed observation/checkpoint pairs in that invocation. Finishing a pending step without a committed observation consumes one step; previously committed steps are not counted again. When an invocation returns `paused`/`step_limit` at a commit boundary, no background controller remains and no further proposals or dispatches occur. Only an explicit `resume` continues the run. This finite-step interface is the stopping mechanism; there is no asynchronous stop or cancel command. Budget exhaustion or a research stopping condition returns `completed` with a specific `stop_reason`. Resuming a terminal run does not start new research.
 
-进程中断后，status 中 running 表示有未收尾状态，并不保证进程仍活跃。用 research resume 处理原步骤；尚存活的 worker 通过继承锁和 deadline 阻止并发恢复。已提交提案和结果复用；未发布提案的纯确定性计算只允许按同一请求/父状态重算，不重新预留 attempt。无有效 worker 输出则保留真实 interrupted/failed 及原费用。旧步骤的恢复、继续新的合法步骤和只读 replay 是不同操作。
+After a process interruption, `running` in `status` means state remains unfinished; it does not prove that a process is still alive. Use `research resume` to recover the original step. A surviving worker's inherited lock and deadline prevent concurrent recovery. Committed proposals and results are reused. Unpublished deterministic proposal computation may only be repeated for the same request and parent state, without reserving another attempt. Missing valid worker output preserves the actual `interrupted`/`failed` outcome and original charges. Recovering an old step, continuing with a new valid step, and read-only replay are distinct operations.
 
-冻结的 neighbor_search_v1 从 baseline 开始，依次检查当前 incumbent 的同算子窗口 +1、-1、另一算子同窗口，跳过越界、训练样本不足或已见邻居。只有可行候选的主指标严格改善超过有限非负 min_improvement，才移动开发 incumbent 并将 no-progress 清零；相等不移动。baseline 有效时初始化 incumbent/no-progress=0，否则停止。之后失败、重复、不合格和不改善各递增一次 no-progress；达到配置上限、注册邻域耗尽或预算不足就停止。
+The frozen `neighbor_search_v1` policy starts from the baseline. It checks the current incumbent's same-operator window +1, window −1, then the other operator at the same window, skipping out-of-range, underpopulated, or previously visited neighbors. A feasible candidate becomes the development incumbent and resets no-progress only when its primary metric improves by strictly more than the finite, nonnegative `min_improvement`; ties do not move the incumbent. A valid baseline initializes the incumbent with no-progress = 0; otherwise research stops. Subsequent failures, duplicates, ineligible candidates, and non-improvements each increment no-progress once. Research stops when that limit is reached, the registered neighborhood is exhausted, or the remaining budget is insufficient.
 
-所以同样试过 momentum(6)，改善时可继续 momentum(7)，未改善时可回到 momentum(4)。这是固定程序下的记忆/搜索状态学习，不是 researcher package 自改写。候选逐个形成新的封存 singleton DevelopmentPlan，原模板和旧计划不修改；模型、数据与会计仍走原 Kernel。仅允许已提交且当前 task 可见的 development observation 影响提案。重复开发选择的收益不能作为独立验证证据。
+For example, after trying `momentum(6)`, an improvement may lead to `momentum(7)`, while no improvement may lead back to `momentum(4)`. This updates memory and search state under a fixed program; it does not rewrite the researcher package. Each candidate receives a newly sealed singleton DevelopmentPlan, leaving the template and earlier plans unchanged. Models, data, and accounting still use the original kernel. Only committed development observations visible to the current task may influence proposals. Gains from repeated development selection are not independent validation evidence.
 
-全 campaign 只有一个 SQLite 总账：proposer 调用前预留 1 attempt，baseline 也计数。attempts_reserved = kernel_attempts + unmapped_proposal_reservations；尚未物化候选、生成失败等预留不会消失。每次实际启动按完整 timeout 计 worker-slot，启动前崩溃、失败和中断也不退款。剩余完整 slot 不足时不派发。checkpoint 不含可覆盖额度，续跑不会重置预算。未接入 LLM，不报告虚构的 token/billing 成本。
+One SQLite ledger covers the entire campaign. One attempt is reserved before each proposer call, including the baseline. `attempts_reserved = kernel_attempts + unmapped_proposal_reservations`; reservations for unmaterialized candidates or generation failures remain recorded. Each actual dispatch charges a full timeout slot, with no refunds for a crash before launch, failure, or interruption. Dispatch is refused if less than one complete slot remains. Checkpoints cannot overwrite budget allowances, and resuming does not reset them. No LLM is connected, so no fabricated token or billing costs are reported.
 
-程序代码/配置作为 ResearcherPackage 固定；MemorySnapshot 保留 observations，ResearchStateCheckpoint 保存父状态、incumbent、visited、no-progress、continuation 和 ledger 身份。请求、实际响应、决策、每个 experiment manifest 及 provenance 都是内容寻址产物；proposal response 的原文另保存在 proposals/。候选和 Kernel plan 内的 proposal_index 分别标识，避免单候选计划与全局 attempt ID 混用。
+Program code and configuration are fixed as a ResearcherPackage. MemorySnapshot retains observations; ResearchStateCheckpoint records the parent state, incumbent, visited candidates, no-progress count, continuation, and ledger identity. Requests, actual responses, decisions, experiment manifests, and provenance are content-addressed artifacts. Original proposal responses are also saved under `proposals/`. Candidate indices and the kernel plan's `proposal_index` are identified separately to avoid confusing singleton-plan indices with global attempt IDs.
 
-接受缓存与语义重放会按冻结的纯策略校验预期提案。合法但不符合该请求预期的缓存候选也会被明确拒绝，保留 response artifact 和 reservation，不训练替换候选。真实 proposer 失败则保持缺失分数。observation 应用、父 checkpoint CAS 和事件在同一事务提交，避免重复学习。
+Cache acceptance and semantic replay verify expected proposals against the frozen pure policy. A cached candidate that is valid but differs from the request's expected candidate is explicitly rejected. Its response artifact and reservation remain, and no substitute candidate is trained. An actual proposer failure retains a missing score. Applying an observation, comparing and swapping the parent checkpoint, and recording events happen in one transaction to prevent learning from an observation twice.
 
-报告提供数据/package/checkpoint 引用、输入 evidence、假设与失败原因、相对固定 baseline/前一 incumbent 的开发差值、选择结果、剩余额度和停止原因。逐次 elapsed_seconds 为实测值，恢复时不确定则为 null；不要与逻辑 worker-slot 额度混淆。status/replay 不发布研究状态；replay 还重新计算 Kernel 账务和研究状态转移，不产生新请求。
+Reports include data, package, and checkpoint references; input evidence; hypotheses and failure reasons; development deltas against the fixed baseline and previous incumbent; selection results; remaining budgets; and stopping reasons. Per-attempt `elapsed_seconds` is measured, or `null` if recovery cannot determine it; it is distinct from the logical worker-slot allowance. `status` and `replay` do not publish research state. Replay additionally recomputes kernel accounting and research-state transitions without creating requests.
 
-新增模块：researcher.py 为冻结策略，research.py 为 campaign 编排/报告，research_journal.py 为同数据库内的 reservation/观察事务；对应回归在 tests/test_research.py。保留已验收版本的源码/依赖快照（M0 位于 runs/accepted_source/m0_f54aa55ddba7），以匹配源码锁定的旧运行；不要用新源码覆盖旧运行产物。
+The added modules are `researcher.py` for the frozen policy, `research.py` for campaign orchestration and reporting, and `research_journal.py` for reservations and observation transactions in the same database. Regression tests are in `tests/test_research.py`. Keep source and dependency snapshots of accepted versions (M0 is under `runs/accepted_source/m0_f54aa55ddba7`) to replay runs bound to those versions. Never overwrite old run artifacts with a newer implementation.
 
-## C4：受限研究包实验
+## C4: Bounded Research-Package Experiments
 
-先用当前源码生成可重放的基包证据，再显式启动一次补丁实验：
+First generate replayable base-package evidence with the current source, then explicitly start one patch experiment:
 
 ```bash
 quant-rsi research run examples/research_development.json --output runs/c4_evidence --steps 100
@@ -132,29 +132,31 @@ quant-rsi package resume runs/c4_trial --steps 100
 quant-rsi package replay runs/c4_trial
 ```
 
-一次 package campaign 只有一个 change request 和至多一对父子研究。ChangeProposer 在生成前永久预留一次请求。源 run 必须属于当前源码的 window_first 基包、没有 pending observation；入口核验完整已提交链与 Kernel 账务，然后封存只读证据副本。旧 C2 证据不绕过版本检查导入；可用原快照重放，或在新引擎下创建新的研究。
+A package campaign contains one change request and at most one parent/candidate research pair. ChangeProposer permanently reserves that request before generation. The source run must use the current implementation's `window_first` base package and have no pending observations. The entry point verifies the complete committed chain and kernel accounting, then seals a read-only evidence copy. Older C2 evidence cannot bypass version checks; replay it with its original snapshot or create new research under the current engine.
 
-冻结规则按提交顺序寻找最近一组共享同一真实 incumbent 的合格观察：同算子相邻窗口与同窗口另一算子。换算子分数严格高于该组最后一个窗口候选时，生成 operator_first 补丁；否则返回明确 no_patch，包括证据不足。该规则只提出开发假说，历史证据重用不等于独立验证。实际响应单独保存；exact base、来源/水位、接口、reset、唯一字段和值，以及冻结程序的完整预期输出均受校验。非法或错误缓存保留原文、拒绝原因和已扣请求，不采样替代响应。
+The frozen rule scans committed observations for the most recent eligible group sharing the same actual incumbent: a neighboring window with the same operator, and the other operator at the same window. If the alternate operator's score is strictly higher than the group's last window candidate, it proposes an `operator_first` patch. Otherwise it returns an explicit `no_patch`, including when evidence is insufficient. This is a development hypothesis; reusing historical evidence is not independent validation. The actual response is saved separately. Validation covers the exact base, source and watermark, interface, reset policy, sole allowed field and value, and the frozen program's complete expected output. Invalid or mismatched cached responses retain their original text, rejection reason, and charged request; no replacement response is sampled.
 
-唯一干预是 policy.neighbor_order：window_first 顺序为窗口+1、-1、换算子；operator_first 顺序为换算子、窗口+1、-1。搜索域、模型、数据、费用、风险、指标和额度不变。candidate 包绑定 parent/patch/proposer/request 谱系，父子 run 显式绑定各自 package，从同一 baseline 和空 memory 重置启动。迁移、跨包 checkpoint、独立 research resume 子臂均拒绝；用 package resume 统一恢复。
+The sole intervention is `policy.neighbor_order`: `window_first` checks window +1, window −1, then the alternate operator; `operator_first` checks the alternate operator, window +1, then window −1. The search space, model, data, costs, risk rules, metric, and allowances stay fixed. The candidate package binds its parent/patch/proposer/request lineage. Parent and candidate runs bind their respective packages and restart from the same baseline with empty memory. State migration, checkpoints from another package, and independently resuming a child arm through `research resume` are rejected; use `package resume` for coordinated recovery.
 
-本地 CSV 的 C2 证据也可通过相同 `package run` 入口使用。父子读取证据副本中同一份 `LocalResearchData` 与账户规则，不重新读取源 CSV 或最新 registry；启动校验实际 C4 grant、锁、包、输入及持久轮次额度。已有合格后代模型可通过 `baseline seal runs/c4_trial/arms/candidate` 封存，再使用 `infer`。没有满足真实配对条件时仍返回 `no_patch`。本地 C5 使用独立登记任务、裁切开发视图和原账户规则，见[本地 C5 工程比较](docs/local_c5.md)。详见[本地 C4 操作说明](docs/local_observer.md#6-本地-c4-开发比较)。
+C2 evidence from local CSV data can use the same `package run` entry point. Both arms read the same LocalResearchData and account rules from the evidence copy, without rereading the original CSV or latest registry. Launch checks verify the actual C4 grant, locks, package, inputs, and persisted round allowances. An eligible descendant model can be sealed with `baseline seal runs/c4_trial/arms/candidate` and then used with `infer`. Without evidence satisfying the actual pairing conditions, the result remains `no_patch`. Local C5 uses separately registered tasks, restricted development views, and the original account rules; see [Local C5 engineering comparison](docs/local_c5.md). See also the [local C4 operating guide](docs/local_observer.md#6-本地-c4-开发比较).
 
-外层在任一子臂初始化前原子拨付两个完整 grant：总研究 attempt 和 worker-slot 上限各为单臂计划的两倍。grant 固定目录/ID/plan/package，永不回收；子臂只在原账本扣实际消耗。research_budget 分别报告限额、granted、consumed、outstanding 与 unallocated，始终满足：
-- limit = granted + unallocated；
-- granted = consumed + outstanding。
-历史源证据消耗单列，patch request 单列；worker-slot 是保守逻辑额度，不是实测耗时。未启动或未知的 grant 不释放，失败不伪装成零收益。
+Before initializing either child arm, the outer controller atomically allocates two complete grants: total research-attempt and worker-slot limits are each twice the per-arm plan. Grants bind a directory, ID, plan, and package and are never reclaimed. Each arm charges its actual consumption to its original ledger. `research_budget` reports limits, granted, consumed, outstanding, and unallocated amounts separately, maintaining:
 
---steps 为本次**每臂**最多新提交的观察数。每轮先封存目标计数；崩溃后用原 --steps 恢复未完成轮次，已提交观察不重复执行。若上一轮已完整提交，再次 resume 是新一轮有限继续。子臂初始化回执在执行前持久化，已初始化但损坏/丢失的账本不会重建。worker 同时继承外层和子臂锁，孤儿进程未退出时不能绕过锁恢复。
+- `limit = granted + unallocated`;
+- `granted = consumed + outstanding`.
 
-status/replay 仅观察，不提交缺失的外层回执或补造 artifact。committed_completion_ref 表示已提交的外层最终结果；子臂完成而此字段为 null 时，显式 resume 才收尾。终态 resume 不产生新请求、实验、轮次或事件。不存在 promote 命令；accepted_pointer 是本次只读工程基准引用，不是 C5 晋升注册表。候选开发成绩不能更新它。
+Historical source-evidence consumption and patch requests are reported separately. Worker slots are conservative logical allowances, not measured elapsed time. Unstarted or unresolved grants are not released, and failures are not represented as zero returns.
 
-C4 引擎生成新的基包身份，并标记相对已验收 C2 的工程来源，不把旧 digest 贴到新源码。原 C2 源码位于 runs/accepted_source/c2_16b85204c890/。新模块为 changes.py、package_journal.py、package_experiment.py；机制、负例、初始化/提交窗口和孤儿锁回归见 tests/test_packages.py。真实合成示例中，父子可分别完成6和8次实验、最终开发差值为0；这不是收益改善证明。
+`--steps` limits newly committed observations **per arm** for the current invocation. Each round's target counts are sealed first. After a crash, resume the unfinished round with its original `--steps`; committed observations are not repeated. If the previous round was fully committed, another resume starts a new finite continuation round. Child-arm initialization receipts are persisted before execution. Initialized ledgers that are missing or corrupted are never rebuilt. Workers inherit both outer and arm locks, so recovery cannot bypass an orphan worker that still holds them.
+
+`status` and `replay` only inspect state; they do not commit missing outer receipts or manufacture artifacts. `committed_completion_ref` identifies the committed outer result. If both arms have finished but this field is `null`, an explicit resume is required to finalize the campaign. Resuming a terminal campaign creates no requests, experiments, rounds, or events. There is no `promote` command. `accepted_pointer` is a read-only engineering baseline reference for this campaign, not a C5 promotion registry; candidate development scores cannot update it.
+
+The C4 engine generates a new base-package identity and records its engineering ancestry relative to accepted C2; it does not attach an old digest to new source code. The original C2 source is preserved under `runs/accepted_source/c2_16b85204c890/`. New modules are `changes.py`, `package_journal.py`, and `package_experiment.py`. Mechanism, negative-case, initialization/commit-window, and orphan-lock tests are in `tests/test_packages.py`. In an executed synthetic example, the parent and candidate completed 6 and 8 experiments respectively, with a final development delta of 0; this does not demonstrate improved returns.
 
 
-## C5：工程保护评估
+## C5: Protected Engineering Evaluation
 
-参见 [C5 运行与恢复指南](docs/c5_protocol.md)及[本地 C5 输入与会计边界](docs/local_c5.md)。必须显式设置绝对路径 `QUANT_RSI_WORKSPACE`，其唯一 authority 统一记录证据曝光、开发 grant、评分 slot、报告和 registry。修改输出目录或标签不能重新获得额度。
+See the [C5 execution and recovery guide](docs/c5_protocol.md) and [local C5 input and accounting boundaries](docs/local_c5.md). Set `QUANT_RSI_WORKSPACE` explicitly to an absolute path. Its single authority records evidence exposure, development grants, scoring slots, reports, and the registry. Changing output directories or labels does not renew allowances.
 
 ```bash
 export QUANT_RSI_WORKSPACE="$PWD"
@@ -167,19 +169,19 @@ quant-rsi compare replay runs/c5_comparison
 quant-rsi compare decide runs/c5_comparison --request-id first-retain
 ```
 
-首版仅支持 `engineering_only`：真实执行开发搜索和固定模型评分，但强制留任；`confirmatory` 在任何评分数据读取或新 grant 之前拒绝。`initial` 是 `parent` 的同一运行/模型/评分别名，不另计预算或经济质量。每个 task 有80个开发日、40个评分决策日及2个成交/清仓尾日。
+The initial version supports only `engineering_only`: it executes development searches and fixed-model scoring but requires retaining the incumbent. `confirmatory` is rejected before reading scoring data or allocating a new grant. `initial` aliases the same run, model, and score as `parent`; it does not add budget consumption or economic-quality evidence. Each task has 80 development sessions, 40 scoring decision sessions, and 2 execution/liquidation tail sessions.
 
-新源码需要新 runtime/package 身份。原 C4 r2 源码保留在 `runs/accepted_source/c4_b4ad09985d3e/`；历史运行使用对应快照重放，不修改旧 manifest。C5 的具体模块为 `evidence.py`、`comparison.py`、`protected_scoring.py` 和 `promotion.py`；故障与会计回归见 `tests/test_comparison.py`、`tests/test_protected_accounting.py`。
+New source code requires a new runtime/package identity. The original C4 r2 source is preserved under `runs/accepted_source/c4_b4ad09985d3e/`; replay historical runs with the matching snapshot, without modifying their manifests. C5 modules are `evidence.py`, `comparison.py`, `protected_scoring.py`, and `promotion.py`. Failure and accounting regression tests are in `tests/test_comparison.py` and `tests/test_protected_accounting.py`.
 
-## 后续能力边界
+## Current Limitations and Future Work
 
-本地适配器支持显式映射的事件 CSV，观察器支持纯预测或有限规则下的指示性账户；它们不等于完成真实市场 pilot 或 broker paper trading。当前没有在线 provider/broker、Qlib/RD-Agent 适配、LLM 提案、自改代码、经校准的确认性推断、生产晋升或 M1 定期重训。C5 的 CI/p/power 为 null 且附具体未校准原因，formal tests 为0。配置拒绝不支持的计划和模式。worker 是受信计算的进程边界，不是运行任意生成代码的安全沙箱。
+The local adapter supports explicitly mapped event CSV files. Observers support predictions alone or indicative accounts under bounded rules; these do not constitute a completed real-market pilot or broker paper trading. Beyond public daily-data collection, there is no live provider/broker execution integration, Qlib/RD-Agent adapter, LLM proposer, self-modifying code, calibrated confirmatory inference, production promotion, or M1 scheduled retraining. C5 reports `null` for confidence intervals, p-values, and power, with specific reasons why calibration is absent; the formal-test count is 0. Unsupported plans and modes are rejected. The worker is a process boundary for trusted computation, not a security sandbox for arbitrary generated code.
 
-后续应按 [架构中的能力依赖与验收条件](docs/architecture.md) 逐项扩展；合成数据的收益结果不能用来推断策略有效性。
+Extend capabilities according to the [architecture's dependencies and acceptance criteria](docs/architecture.md). Returns on synthetic data cannot establish strategy effectiveness.
 
-## 本地数据与持久化观察
+## Local Data and Persistent Observation
 
-按 [本地观察指南](docs/local_observer.md) 填写合同和计划。市场、日历、provider、历史可用性、标的集合、币种和费用必须显式选择；`examples/local_*.json.template` 中的占位符会被验证器拒绝，不能直接当作市场默认值使用。
+Complete contracts and plans using the [local observation guide](docs/local_observer.md). Markets, calendars, providers, historical availability, instrument universes, currencies, and costs must be chosen explicitly. Placeholders in `examples/local_*.json.template` are rejected by validation and cannot be used as market defaults.
 
 ```bash
 export QUANT_RSI_WORKSPACE="$PWD"
@@ -193,4 +195,4 @@ quant-rsi observer replay baseline-v1
 quant-rsi observer stop baseline-v1 --request-id stop-001
 ```
 
-`data ingest` 和 `baseline seal` 返回后续计划所需的哈希引用。每次新行情导入后使用新的 poll request；中断恢复使用原 request。`status`/`replay` 不修复或写入状态，不调用训练或提案器。尚未选择本金、费用或结算规则时，可使用无财务字段的 `prediction_only` 计划；市场日历、标的身份、知识口径及完整 DataContract 仍须明确提供。
+`data ingest` and `baseline seal` return the hash references required by subsequent plans. Use a new poll request after each new market-data import; use the original request when recovering an interruption. `status` and `replay` neither repair nor write state and do not call training or proposal generation. If capital, costs, or settlement rules have not been chosen, use a `prediction_only` plan without financial fields. The market calendar, instrument identities, knowledge basis, and full DataContract must still be supplied explicitly.
