@@ -18,6 +18,24 @@ returns and relative returns: 3, 7 and 15 columns respectively. Missing prices o
 misaligned closes are exclusions, with no filling. See
 [the input contract](forecast_context_inputs.md).
 
+## Preparing actual inputs
+
+The source adapter accepts a saved audit package and a new output directory:
+
+~~~python
+from quant_rsi.forecast_context_data import prepare_context_data
+
+prepared = prepare_context_data("evidence/market_audit", "runs/context_inputs")
+~~~
+
+It writes the standalone input envelope to runs/context_inputs/inputs.json.
+The audit manifest must bind original price responses, their HTTP receipts, and
+official exchange calendars. The adapter preserves original HTTP times and
+performs ingestion/export in its own child-process workspace; registry receipt
+times reflect that actual ingestion. No fit occurs. Optional collected signals
+and all supplied evidence can be passed through the signals argument. Keep
+generated inputs and verbose evidence outside version control.
+
 ## Evaluation and publication
 
 The production grid uses 756 completed sessions. Zero-based evaluation origins
