@@ -196,7 +196,16 @@ Record forecast timing, charged attempts, confirmed fits, unknown outcomes, actu
 generations and any faults exercised. Keep an early no-patch result as a result; it
 does not establish a successful two-generation run.
 
-`trajectory replay` and `forecast-campaign replay recursive-soxl` inspect the
-original evidence and accounting. A replay performed with original source paths
-present does not prove independence from those paths. Pure policy tests and
-zero-fit registration tests do not establish a continuous live execution.
+Use `quant-rsi forecast replay recursive-soxl-final` to verify the issued forecast.
+Use `quant-rsi trajectory replay` to verify the recursive receipts, head, terminal
+state, and frozen authority/evidence, and report the recorded cumulative accounting.
+Trajectory replay does not reread the mutable shared campaign registry; check
+current registry and ledger counts separately when verifying unchanged accounting.
+
+`forecast-campaign status` and `forecast-campaign replay` apply only to comparison
+campaigns. They reject recursive grants, so do not use them for `recursive-soxl`.
+Preserve any failed invocation and its error when reporting replay outcomes.
+
+A replay performed with original source paths present does not prove independence
+from those paths. Pure policy tests and zero-fit registration tests do not
+establish a continuous live execution.
