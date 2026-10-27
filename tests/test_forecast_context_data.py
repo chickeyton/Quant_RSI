@@ -77,12 +77,21 @@ def write_manifest(audit):
     (audit / "manifest.json").write_bytes(canonical({"files": rows}))
 
 
-def audit_package(tmp_path, origin="2026-10-26", *, cash=True, split=False, received=None):
+def audit_package(
+    tmp_path,
+    origin="2026-10-26",
+    *,
+    cash=True,
+    split=False,
+    received=None,
+    history=42,
+    roles=None,
+):
     audit = tmp_path / "audit"
     (audit / "raw").mkdir(parents=True)
     end = date.fromisoformat(origin)
     days, day = [], end
-    while len(days) < 42:
+    while len(days) < history:
         if session(day):
             days.append(day)
         day -= timedelta(days=1)
@@ -99,7 +108,7 @@ def audit_package(tmp_path, origin="2026-10-26", *, cash=True, split=False, rece
             b"Thursday, January 9, 2025, including NYSE Arca Equities.</p>"
         ),
     }
-    for ticker in context.ROLES.values():
+    for ticker in (context.ROLES if roles is None else roles).values():
         actions = {}
         stamp = int(datetime.combine(days[-4], time(9, 30), ET).timestamp())
         if cash:
@@ -125,8 +134,8 @@ def audit_package(tmp_path, origin="2026-10-26", *, cash=True, split=False, rece
                         "meta": {
                             "symbol": ticker,
                             "currency": "USD",
-                            "instrumentType": "ETF",
-                            "exchangeName": "PCX",
+                            "instrumentType": "EQUITY" if ticker == "KO" else "ETF",
+                            "exchangeName": "NYQ" if ticker == "KO" else "PCX",
                             "exchangeTimezoneName": "America/New_York",
                             "dataGranularity": "1d",
                         },
@@ -342,3 +351,94 @@ def test_cash_precision_is_not_rounded_into_a_supported_notice(tmp_path):
             objective,
         )
     )
+
+
+def test_interrupted_initial_intent_can_resume_without_inventing_a_receipt(tmp_path):
+    audit = audit_package(tmp_path)
+    out = tmp_path / "prepared"
+    out.mkdir()
+    (out / ".pending-intent").write_bytes(b'{"unfinished":')
+    result = context.prepare_context_data(audit, out, history_sessions=32, resume=True)
+    assert result["meta"]["historical_sessions"] == 32
+    assert (out / ".pending-intent").read_bytes() == b'{"unfinished":'
+    assert context.verify_preparation(out)["meta"]["inputs_ref"] == result["meta"]["inputs_ref"]
+
+
+def test_ingestion_retains_both_ancestor_locks_after_controller_death(tmp_path):
+    import fcntl
+    import signal
+    import subprocess
+    import sys
+    import time as clock
+
+    audit = audit_package(tmp_path / "source")
+    workflow_lock = tmp_path / "workflow.lock"
+    campaign_lock = tmp_path / "campaign.lock"
+    ready = tmp_path / "child-ready"
+    script = """
+import fcntl, os, subprocess, sys
+from pathlib import Path
+from quant_rsi import forecast_context_data as context
+audit, out, workflow_lock, campaign_lock, ready = sys.argv[1:]
+fds = [os.open(path, os.O_RDWR | os.O_CREAT, 0o600) for path in (workflow_lock, campaign_lock)]
+for fd in fds:
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+original = subprocess.run
+def hold_ingestion(command, **kwargs):
+    assert kwargs["pass_fds"] == tuple(fds), "ancestor descriptors must be deduplicated"
+    child = (
+        "import os, signal, sys; from pathlib import Path; "
+        "Path(sys.argv[1]).write_text(str(os.getpid())); signal.pause()"
+    )
+    return original([sys.executable, "-c", child, ready], **kwargs)
+context.subprocess.run = hold_ingestion
+context.prepare_context_data(
+    audit, out, history_sessions=24, parent_lock_fd=(fds[0], fds[1], fds[0])
+)
+"""
+    with (tmp_path / "controller.log").open("wb") as log:
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                script,
+                str(audit),
+                str(tmp_path / "prepared"),
+                str(workflow_lock),
+                str(campaign_lock),
+                str(ready),
+            ],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        try:
+            deadline = clock.monotonic() + 15
+            while not ready.exists() and process.poll() is None and clock.monotonic() < deadline:
+                clock.sleep(0.02)
+            assert ready.exists(), f"ingestion handoff failed; see {tmp_path / 'controller.log'}"
+            child_pid = int(ready.read_text())
+            process.kill()
+            process.wait(timeout=5)
+            os.kill(child_pid, 0)
+            for path in (workflow_lock, campaign_lock):
+                with path.open("r+") as probe:
+                    with pytest.raises(BlockingIOError):
+                        fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=5)
+        deadline = clock.monotonic() + 5
+        for path in (workflow_lock, campaign_lock):
+            with path.open("r+") as probe:
+                while True:
+                    try:
+                        fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        break
+                    except BlockingIOError:
+                        if clock.monotonic() >= deadline:
+                            raise
+                        clock.sleep(0.02)

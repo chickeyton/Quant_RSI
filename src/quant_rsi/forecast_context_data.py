@@ -1,4 +1,4 @@
-"""Prepare frozen SOXL/XSD/SPY context data from a supplied audit package.
+"""Prepare frozen target/industry/market context data from a supplied audit package.
 
 No HTTP, fits, or old-registry access. Required package layout is raw/<response>
 and <response>.receipt.json, covered by manifest.json, as in the source audit.
@@ -18,13 +18,13 @@ from decimal import Decimal
 from pathlib import Path
 
 from quant_rsi import daily_data
-from quant_rsi.artifacts import canonical, decode, digest
+from quant_rsi.artifacts import atomic_write, canonical, decode, digest
 from quant_rsi.forecast_contracts import ForecastNotice, ForecastObjective
 from quant_rsi.forecast_inputs import ForecastInputs, SignalSnapshot
 from quant_rsi.forecast_kernel import cash_interpretation_matches
 from quant_rsi.local_research import export_local_data
 from quant_rsi.market_contracts import CSV_FIELDS, DataContract, timestamp
-from quant_rsi.market_data import ingest
+from quant_rsi.market_data import DataRegistry, ingest, market_context
 from quant_rsi.schemas import LocalDataSpec
 
 ROLES = {"target": "SOXL", "industry": "XSD", "market": "SPY"}
@@ -55,16 +55,19 @@ QUALIFICATIONS = [
 
 
 def _json_file(path, value):
-    with path.open("xb") as stream:
-        stream.write(canonical(value))
+    body = canonical(value)
+    if path.exists():
+        if path.read_bytes() != body:
+            raise ValueError(f"preparation content conflict: {path.name}")
+    else:
+        atomic_write(path, body)
 
 
 def _evidence(out, body, paths):
     ref = digest(body)
     path = out / "evidence" / ref
     if not path.exists():
-        with path.open("xb") as stream:
-            stream.write(body)
+        atomic_write(path, body)
     elif path.read_bytes() != body:
         raise ValueError("evidence content conflict")
     paths[ref] = str(path)
@@ -353,6 +356,17 @@ def _ingest_prepared(prepared_path):
     if os.environ.get("QUANT_RSI_WORKSPACE") != str(workspace):
         raise ValueError("preparation child requires its exact isolated workspace")
     paths = prepared["evidence_paths"]
+    anchor = out / "registry.identity.json"
+    registry_root = workspace / ".quant_rsi" / "market"
+    if anchor.exists():
+        if (registry_root / "identity.json").read_bytes() != anchor.read_bytes():
+            raise ValueError("preparation registry identity changed")
+        with DataRegistry(registry_root):
+            pass
+    else:
+        # Persist outside the registry before any receipt can be imported.
+        with market_context(initialize=True) as (registry, _):
+            _json_file(anchor, registry.anchor)
     markets, imports = {}, {}
     for role, item in prepared["collections"].items():
         contract = DataContract.model_validate_json(canonical(item["contract"]))
@@ -416,7 +430,7 @@ def _ingest_prepared(prepared_path):
                     notices=notices,
                     unknown_action_policy="affected_or_unknown_interval_abstain",
                     prior_exposure="previously_exposed_historical_exploration",
-                    source_qualifications=QUALIFICATIONS
+                    source_qualifications=prepared.get("qualifications", QUALIFICATIONS)
                     + (
                         [f"{len(unsupported)} unknown notices retained for kernel abstention"]
                         if unsupported
@@ -446,20 +460,60 @@ def _ingest_prepared(prepared_path):
 
 
 def prepare_context_data(
-    audit_dir, output_dir, *, history_sessions=756, origin_session_id=None, signals=None
+    audit_dir,
+    output_dir,
+    *,
+    history_sessions=756,
+    origin_session_id=None,
+    signals=None,
+    roles=None,
+    resume=False,
+    parent_lock_fd=None,
 ):
     """Return inputs/evidence_paths/receipt_path/qualifications/meta; no implicit source paths."""
     if type(history_sessions) is not int or not 24 <= history_sessions <= 1000:
         raise ValueError("history_sessions must be an integer in 24..1000")
+    roles = validate_roles(ROLES if roles is None else roles)
+    qualifications = context_qualifications(roles)
     audit = Path(audit_dir).resolve(strict=True)
     out = Path(output_dir).absolute()
-    if out.is_symlink() or (out.exists() and (not out.is_dir() or any(out.iterdir()))):
+    if out.is_symlink() or (out.exists() and not out.is_dir()):
+        raise ValueError("preparation output must be a directory, not a symlink")
+    nonempty = out.exists() and any(out.iterdir())
+    if nonempty and not resume:
         raise FileExistsError("context preparation requires a fresh/empty output directory")
     out = out.resolve()
     if out.is_relative_to(audit) or audit.is_relative_to(out):
         raise ValueError("output and audit package must be disjoint")
+    binding = dict(
+        audit_manifest_ref=digest((audit / "manifest.json").read_bytes()),
+        history_sessions=history_sessions,
+        origin_session_id=origin_session_id,
+        roles=roles,
+        signals=signals,
+    )
+    intent = out / "intent.json"
+    if nonempty:
+        pending_only = all(
+            p.name.startswith(".pending-")
+            and p.is_file()
+            and not p.is_symlink()
+            and p.stat().st_size <= daily_data.MAX_RESPONSE_BYTES + 1
+            for p in out.iterdir()
+        )
+        if intent.exists():
+            if decode(intent.read_bytes()) != binding:
+                raise ValueError("preparation identity is missing or binds different inputs")
+        elif not pending_only:
+            raise ValueError("preparation identity is missing or binds different inputs")
     out.mkdir(parents=True, exist_ok=True)
-    (out / "evidence").mkdir()
+    _json_file(intent, binding)
+    (out / "evidence").mkdir(exist_ok=True)
+    if (out / "prepared.binding.json").exists():
+        _verify_prepared_binding(out)
+        return _finish_preparation(out, parent_lock_fd=parent_lock_fd)
+    if (out / "registry.identity.json").exists():
+        raise ValueError("prepared binding missing from initialized registry")
     paths = {}
     try:
         manifest_body = (audit / "manifest.json").read_bytes()
@@ -474,7 +528,7 @@ def prepare_context_data(
         }
         holidays, early = _calendar(calendars)
         responses, last = {}, []
-        for ticker in ROLES.values():
+        for ticker in roles.values():
             name = f"{ticker}_chart_5y.json"
             url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=5y&interval=1d&events=div%2Csplits"
             response = _response(audit, members, name, url, out, paths)
@@ -507,7 +561,7 @@ def prepare_context_data(
             paths,
         )
         collections = {}
-        for role, ticker in ROLES.items():
+        for role, ticker in roles.items():
             raw, receipt, raw_ref, receipt_ref, data, stamps, quotes = responses[ticker]
             prices = _quotes(
                 data, stamps, quotes, history, timestamp(receipt["received_at"]), holidays, early
@@ -532,7 +586,7 @@ def prepare_context_data(
                     raise ValueError("signal evidence hash mismatch")
                 _evidence(out, body, paths)
         workspace = out / "workspace"
-        workspace.mkdir()
+        workspace.mkdir(exist_ok=True)
         prepared = dict(
             history_sessions=history_sessions,
             origin_session_id=origin.isoformat(),
@@ -540,76 +594,186 @@ def prepare_context_data(
             collections=collections,
             evidence_paths=paths,
             signals=signal_snapshot,
+            roles=roles,
+            qualifications=qualifications,
+            future_sessions=[item["session_id"] for item in future],
         )
         prepared_path = out / "prepared.json"
         _json_file(prepared_path, prepared)
-        env = dict(
-            os.environ,
-            QUANT_RSI_WORKSPACE=str(workspace),
-            PYTHONPATH=str(Path(__file__).absolute().parent.parent),
-            PYTHONDONTWRITEBYTECODE="1",
-        )
-        with (out / "ingest.log").open("xb") as log:
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    "-c",
-                    "import sys; from quant_rsi.forecast_context_data import _ingest_prepared; "
-                    "_ingest_prepared(sys.argv[1])",
-                    str(prepared_path),
-                ],
-                env=env,
-                cwd=out,
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                timeout=120,
-            )
-        if completed.returncode:
-            raise ValueError(f"isolated registry preparation failed; see {out / 'ingest.log'}")
-        inputs = decode((out / "inputs.json").read_bytes())
-        parsed = ForecastInputs(inputs)
-        imports = decode((out / "imports.json").read_bytes())
-        receipt = dict(
-            schema_version=1,
-            kind="forecast_context_preparation_receipt",
-            status="complete",
-            audit_manifest_ref=audit_ref,
-            inputs_ref=parsed.ref,
-            origin_session_id=origin.isoformat(),
-            historical_sessions=history_sessions,
-            future_sessions=[s["session_id"] for s in future],
-            workspace=str(workspace),
-            registry_path=str(workspace / ".quant_rsi" / "market"),
-            imports=imports,
-            qualifications=QUALIFICATIONS,
-            completed_at=datetime.now(timezone.utc).isoformat(),
-        )
-        _json_file(out / "preparation.receipt.json", receipt)
-        return dict(
-            inputs=inputs,
-            evidence_paths=paths,
-            receipt_path=str(out / "preparation.receipt.json"),
-            qualifications=list(QUALIFICATIONS),
-            meta={
-                key: receipt[key]
-                for key in (
-                    "workspace",
-                    "registry_path",
-                    "origin_session_id",
-                    "historical_sessions",
-                    "future_sessions",
-                    "inputs_ref",
-                )
-            },
-        )
-    except Exception as exc:
         _json_file(
-            out / "failure.receipt.json",
+            out / "prepared.binding.json",
             dict(
-                kind="forecast_context_preparation_failure",
-                error=f"{type(exc).__name__}: {exc}",
-                recorded_at=datetime.now(timezone.utc).isoformat(),
-                qualification="Partial output retained; no fit was requested.",
+                intent_ref=digest((out / "intent.json").read_bytes()),
+                prepared_ref=digest(prepared_path.read_bytes()),
             ),
         )
+        return _finish_preparation(out, parent_lock_fd=parent_lock_fd)
+    except Exception as exc:
+        # Keep the first failure as evidence, and never replace a successful receipt.
+        failure = out / "failure.receipt.json"
+        if not failure.exists():
+            _json_file(
+                failure,
+                dict(
+                    kind="forecast_context_preparation_failure",
+                    error=f"{type(exc).__name__}: {exc}",
+                    recorded_at=datetime.now(timezone.utc).isoformat(),
+                    qualification="Partial output retained; no fit was requested.",
+                ),
+            )
         raise
+
+
+def validate_roles(roles):
+    if not isinstance(roles, dict) or set(roles) != set(ROLES):
+        raise ValueError("exact target, industry and market tickers are required")
+    if (
+        any(
+            not isinstance(t, str) or not re.fullmatch(r"[A-Z][A-Z0-9.-]{0,11}", t)
+            for t in roles.values()
+        )
+        or len(set(roles.values())) != 3
+    ):
+        raise ValueError("three distinct explicit uppercase tickers are required")
+    return {role: roles[role] for role in ROLES}
+
+
+def context_qualifications(roles):
+    if roles == ROLES:
+        return list(QUALIFICATIONS)
+    return [
+        (
+            f"{roles['industry']} and {roles['market']} are explicitly selected context proxies "
+            f"for {roles['target']}; no benchmark replication or economic equivalence is implied."
+        )
+        if text == QUALIFICATIONS[2]
+        else text
+        for text in QUALIFICATIONS
+    ]
+
+
+def _verify_prepared_binding(out):
+    binding = decode((out / "prepared.binding.json").read_bytes())
+    if binding != dict(
+        intent_ref=digest((out / "intent.json").read_bytes()),
+        prepared_ref=digest((out / "prepared.json").read_bytes()),
+    ):
+        raise ValueError("prepared input binding changed")
+
+
+def _preparation_result(out):
+    prepared = decode((out / "prepared.json").read_bytes())
+    inputs = decode((out / "inputs.json").read_bytes())
+    receipt = decode((out / "preparation.receipt.json").read_bytes())
+    if ForecastInputs(inputs).ref != receipt["inputs_ref"]:
+        raise ValueError("prepared inputs differ from receipt")
+    if decode((out / "imports.json").read_bytes()) != receipt["imports"]:
+        raise ValueError("prepared imports differ from receipt")
+    return dict(
+        inputs=inputs,
+        evidence_paths=prepared["evidence_paths"],
+        receipt_path=str(out / "preparation.receipt.json"),
+        qualifications=receipt["qualifications"],
+        meta={
+            key: receipt[key]
+            for key in (
+                "workspace",
+                "registry_path",
+                "origin_session_id",
+                "historical_sessions",
+                "future_sessions",
+                "inputs_ref",
+            )
+        },
+    )
+
+
+def verify_preparation(output_dir):
+    """Read-only integrity check, including the original first-seen authority."""
+    out = Path(output_dir)
+    _verify_prepared_binding(out)
+    prepared = decode((out / "prepared.json").read_bytes())
+    for ref, path in prepared["evidence_paths"].items():
+        member = Path(path)
+        if member.is_symlink() or not member.resolve().is_relative_to(out.resolve()):
+            raise ValueError("preparation evidence leaves its registered directory")
+        if digest(member.read_bytes()) != ref:
+            raise ValueError("prepared evidence changed or is missing")
+    registry_root = out / "workspace" / ".quant_rsi" / "market"
+    if (registry_root / "identity.json").read_bytes() != (
+        out / "registry.identity.json"
+    ).read_bytes():
+        raise ValueError("preparation registry identity changed")
+    with DataRegistry(registry_root) as registry:
+        for item in decode((out / "imports.json").read_bytes()).values():
+            saved = item["receipt"]
+            row = registry.connection.execute(
+                "SELECT snapshot_ref, first_seen_at FROM receipts WHERE request_id=?",
+                (saved["request_id"],),
+            ).fetchone()
+            if row is None or tuple(row) != (saved["snapshot_ref"], saved["first_seen_at"]):
+                raise ValueError("preparation receipt history changed")
+            registry.snapshot(saved["snapshot_ref"])
+    return _preparation_result(out)
+
+
+def _finish_preparation(out, *, parent_lock_fd=None):
+    _verify_prepared_binding(out)
+    prepared_path = out / "prepared.json"
+    prepared = decode(prepared_path.read_bytes())
+    for ref, path in prepared["evidence_paths"].items():
+        if digest(Path(path).read_bytes()) != ref:
+            raise ValueError("prepared evidence changed")
+    if (out / "preparation.receipt.json").exists():
+        return verify_preparation(out)
+    workspace = out / "workspace"
+    env = dict(
+        os.environ,
+        QUANT_RSI_WORKSPACE=str(workspace),
+        PYTHONPATH=str(Path(__file__).absolute().parent.parent),
+        PYTHONDONTWRITEBYTECODE="1",
+    )
+    with (out / "ingest.log").open("ab") as log:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import sys; from quant_rsi.forecast_context_data import _ingest_prepared; "
+                "_ingest_prepared(sys.argv[1])",
+                str(prepared_path),
+            ],
+            env=env,
+            cwd=out,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            timeout=120,
+            pass_fds=tuple(
+                dict.fromkeys(
+                    ()
+                    if parent_lock_fd is None
+                    else (parent_lock_fd,)
+                    if isinstance(parent_lock_fd, int)
+                    else parent_lock_fd
+                )
+            ),
+        )
+    if completed.returncode:
+        raise ValueError(f"isolated registry preparation failed; see {out / 'ingest.log'}")
+    inputs = ForecastInputs(decode((out / "inputs.json").read_bytes()))
+    receipt = dict(
+        schema_version=1,
+        kind="forecast_context_preparation_receipt",
+        status="complete",
+        audit_manifest_ref=prepared["audit_manifest_ref"],
+        inputs_ref=inputs.ref,
+        origin_session_id=prepared["origin_session_id"],
+        historical_sessions=prepared["history_sessions"],
+        future_sessions=prepared["future_sessions"],
+        workspace=str(workspace),
+        registry_path=str(workspace / ".quant_rsi" / "market"),
+        imports=decode((out / "imports.json").read_bytes()),
+        qualifications=prepared["qualifications"],
+        completed_at=datetime.now(timezone.utc).isoformat(),
+    )
+    _json_file(out / "preparation.receipt.json", receipt)
+    return verify_preparation(out)

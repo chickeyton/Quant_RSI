@@ -1,0 +1,49 @@
+{
+  "kind": "ForecastCampaign",
+  "schema_version": 1,
+  "campaign_id": "example-context",
+  "budget": {
+    "max_fit_reservations": 20,
+    "max_worker_seconds": 3600
+  },
+  "runs": [
+    {
+      "instrument_id": "US/SOXL",
+      "run_id": "soxl-context-example",
+      "config": {
+        "schema_version": 1,
+        "kind": "ForecastWorkflowConfig",
+        "target": "SOXL",
+        "industry": "XSD",
+        "market": "SPY",
+        "history_sessions": 756,
+        "horizon_sessions": 5,
+        "source": "yahoo_chart_5y_daily",
+        "calendar": "published_nyse_group",
+        "currency": "USD",
+        "price_unit": "raw_currency_per_share",
+        "historical_availability": "explicit_assumption",
+        "max_source_age_seconds": 86400
+      }
+    },
+    {
+      "instrument_id": "US/KO",
+      "run_id": "ko-context-example",
+      "config": {
+        "schema_version": 1,
+        "kind": "ForecastWorkflowConfig",
+        "target": "KO",
+        "industry": "XLP",
+        "market": "SPY",
+        "history_sessions": 756,
+        "horizon_sessions": 5,
+        "source": "yahoo_chart_5y_daily",
+        "calendar": "published_nyse_group",
+        "currency": "USD",
+        "price_unit": "raw_currency_per_share",
+        "historical_availability": "explicit_assumption",
+        "max_source_age_seconds": 86400
+      }
+    }
+  ]
+}
