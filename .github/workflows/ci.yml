@@ -17,7 +17,7 @@ jobs:
   verify:
     name: Python 3.12 / Linux
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       PYTHONHASHSEED: "0"
       OMP_NUM_THREADS: "1"

@@ -5,10 +5,14 @@ with at most two cap advances. It searches target-price momentum and mean-return
 using M0 training and negative MAE in simple-return percentage points. This development
 mechanism does not establish predictive advantage, promotion, or profitability.
 
+For the explicit schema-4 proposer and market preparation bridge, see
+[Recursive Market Exploration](recursive_market_exploration.md). Existing schema-3
+grants retain the policy described below.
+
 ## Register the task and allowance
 
 Use one absolute QUANT_RSI_WORKSPACE and an already registered local engineering snapshot.
-This implementation labels its exposure engineering_fixture. R1 comparison allowances
+The original schema-3 grant labels its exposure engineering_fixture. R1 comparison allowances
 do not authorize this work.
 
 Prepare research-v3.json with ResearchPlan schema_version 3, forecast development,

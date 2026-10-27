@@ -145,10 +145,16 @@ def init_trajectory(plan: TrajectoryPlan):
                 boundary="development_only_no_protected_evidence_or_promotion",
             )
             if plan.schema_version == 3:
+                from quant_rsi.forecast_recursive_campaign import policy_binding
                 from quant_rsi.forecast_recursive_trajectory import terminal_proposer
                 from quant_rsi.task_definition import domain_ref, forecast_profile_ref
 
+                policy = policy_binding(registration["identity"]["grant"])
                 program.update(
+                    **policy,
+                    proposer_ref=store.put_json(
+                        changes.proposer_definition(source_plan, authorization=policy)
+                    ),
                     schema_version=3,
                     profile="registered_forecast_cap_v3",
                     authority_root=str(root),

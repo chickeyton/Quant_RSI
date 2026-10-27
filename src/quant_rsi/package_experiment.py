@@ -49,13 +49,12 @@ def evidence_capsule(root, *, replay=True, authorization=None):
                 "reuse": "historical_development_not_independent_validation",
             }
             if plan.neighbor_domain is not None:
-                from quant_rsi.forecast_recursive_changes import extend_capsule
                 from quant_rsi.trajectory_evidence import require_settled_research
 
                 require_settled_research(
                     journal, research.summarize(journal, store, manifest, plan, trace)
                 )
-                capsule = extend_capsule(
+                capsule = changes.registered_proposer(authorization).extend_capsule(
                     capsule,
                     plan,
                     trace[0],
@@ -183,7 +182,11 @@ def finish_initialization(root, *, trajectory_owner_fd=None):
         store.put_json(source_store.json(ref))
     base_ref = store.put_json(researcher.package_definition(plan))
     evidence_ref = store.put_json(evidence)
-    proposer_ref = store.put_json(changes.proposer_definition(plan))
+    proposer_ref = store.put_json(
+        changes.proposer_definition(
+            plan, authorization=binding["authorization"] if binding else None
+        )
+    )
     request = changes.request_definition(
         saved["campaign_id"] + ":change:0", base_ref, proposer_ref, evidence_ref, evidence
     )
@@ -259,7 +262,9 @@ def verify_package_header(journal, store, manifest):
         raise ValueError("package experiment requires a window_first base")
     if store.json(manifest["base_package_ref"]) != researcher.package_definition(plan):
         raise ValueError("package exact base mismatch")
-    if store.json(manifest["proposer_ref"]) != changes.proposer_definition(plan):
+    if store.json(manifest["proposer_ref"]) != changes.proposer_definition(
+        plan, authorization=binding["authorization"] if binding else None
+    ):
         raise ValueError("frozen change proposer mismatch")
     if store.json(manifest["accepted_pointer_ref"]) != {
         "kind": "ReadOnlyLaunchBaseline",

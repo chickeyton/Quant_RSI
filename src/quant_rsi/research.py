@@ -304,11 +304,16 @@ def finish_initialization(root: Path, *, owner_fd=None, trajectory_owner_fd=None
     if saved.get("launch_context") is not None:
         manifest["launch_context_ref"] = store.put_json(saved["launch_context"])
     if plan.schema_version == 3 and saved.get("launch_context") is None:
-        from quant_rsi.forecast_recursive_registration import require_root_identity
-
-        manifest["root_registration_identity_ref"] = store.put_json(
-            require_root_identity(plan, root, saved["campaign_id"], trajectory_owner_fd)
+        from quant_rsi.forecast_recursive_registration import (
+            bind_root_market_evidence,
+            require_root_identity,
         )
+
+        registration_identity = require_root_identity(
+            plan, root, saved["campaign_id"], trajectory_owner_fd
+        )
+        bind_root_market_evidence(registration_identity, store, data_ref)
+        manifest["root_registration_identity_ref"] = store.put_json(registration_identity)
     if bound_view is not None:
         manifest["bound_view_ref"] = store.put_json(bound_view)
     path = root / "manifest.json"

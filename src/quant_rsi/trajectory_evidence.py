@@ -250,9 +250,9 @@ def source_evidence_capsule(store, receipt, authorization=None):
 
     plan = ResearchPlan.model_validate_json(store.get(receipt["research_plan_ref"]))
     if plan.neighbor_domain is not None:
-        from quant_rsi.forecast_recursive_changes import extend_capsule
+        from quant_rsi.changes import registered_proposer
 
-        capsule = extend_capsule(
+        capsule = registered_proposer(authorization).extend_capsule(
             capsule,
             plan,
             receipt["checkpoint_ref"],

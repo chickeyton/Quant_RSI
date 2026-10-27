@@ -43,6 +43,19 @@ The [enhanced workflow guide](docs/enhanced_forecast_workflow.md) provides one r
 
 Register the finite roster and shared allowance with the [campaign example](examples/forecast_campaign.json). Preparation performs no training. Each child uses the existing cumulative ten-job limit and reports development errors against unchanged-price and training-mean controls. Parent allocations persist across failures and copies, while actual charges stay in the original child journals. Completed requests do not collect or fit again. Candidate selection is not evidence of predictive advantage, and news/fundamentals are not model inputs in this workflow.
 
+After registering the campaign, use the explicit profile with the guided commands:
+
+~~~bash
+quant-rsi forecast-workflow preflight soxl-context-example \
+  --campaign-id example-context --profile instruments/US/SOXL/forecast.json
+quant-rsi forecast-workflow execute soxl-context-example \
+  --campaign-id example-context --profile instruments/US/SOXL/forecast.json \
+  --max-fits 10 --output runs/enhanced/soxl
+quant-rsi forecast-workflow report soxl-context-example --output runs/enhanced/soxl
+~~~
+
+Preflight checks existing authority, configuration, runtime, and budget without collection or training. Execution saves `forecast.json` and a standalone `forecast.html` showing timing, actual inputs, naive controls, and usage. The [guide](docs/enhanced_forecast_workflow.md#preflight-and-execute-an-explicit-profile) includes complete installation, registration, both instrument profiles, and recovery instructions. Retain the original workspace and run ID; use the structured failure's recovery command when provided.
+
 ## Synthetic Kernel Conventions
 
 - Data is a complete price panel generated with a fixed random seed. It uses weekdays and synthetic UTC timestamps, not an exchange calendar, corporate actions, or actual tradable instruments.
@@ -138,7 +151,9 @@ The added modules are `researcher.py` for the frozen policy, `research.py` for c
 The version 3 profile connects the five-session forecast worker to a separately registered,
 bounded two-generation development trajectory. See the [registration, execution and output
 guide](docs/forecast_recursive_research.md). Its engineering allowance is separate from
-enhanced forecast comparisons; generation advancement is not predictive validation.
+enhanced forecast comparisons; generation advancement is not predictive validation. The
+[market exploration guide](docs/recursive_market_exploration.md) describes explicit
+profile preparation, the schema-4 frontier proposer and preserved market evidence.
 
 ## C4: Bounded Research-Package Experiments
 

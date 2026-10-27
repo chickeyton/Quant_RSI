@@ -16,6 +16,7 @@ from pydantic import Field, model_validator
 from quant_rsi import forecast_campaign as campaign
 from quant_rsi.artifacts import canonical, digest
 from quant_rsi.contracts_base import StrictModel
+from quant_rsi.market_contracts import Hash
 from quant_rsi.researcher import ResearchPlan
 
 EXPOSURE = {
@@ -78,6 +79,51 @@ class _Plan(StrictModel):
         return self
 
 
+class _FrontierPlan(_Plan):
+    schema_version: Literal[4]
+    proposer_policy: Literal["terminal_frontier_first_divergence_v1"]
+    proposer_definition: dict
+    exposure_mode: Literal["engineering_fixture", "historical_market_exploration"]
+    market_evidence_ref: Hash | None = None
+
+    @model_validator(mode="after")
+    def explicit_policy_and_exposure(self):
+        from quant_rsi.forecast_frontier_policy import _require_descriptor
+
+        _require_descriptor(self.model_dump(mode="json"))
+        if (self.exposure_mode == "historical_market_exploration") != (
+            self.market_evidence_ref is not None
+        ):
+            raise ValueError("market evidence is required only for historical market exposure")
+        return self
+
+
+def exposure_definition(plan):
+    if plan["schema_version"] == 3 or plan["exposure_mode"] == "engineering_fixture":
+        return dict(EXPOSURE)
+    return {
+        "prior_exposure": "previously_exposed_historical_exploration",
+        "permitted_evidence": "historical_market_development",
+        "protected_evidence_access": "none",
+        "predictive_validity_established": False,
+    }
+
+
+def policy_binding(grant):
+    """Only the outer grant may introduce the immutable new policy selector."""
+    from quant_rsi.forecast_frontier_policy import _require_descriptor
+
+    fields = ("proposer_policy", "proposer_definition")
+    if grant.get("schema_version") == 3:
+        if any(key in grant for key in (*fields, "exposure_mode", "market_evidence_ref")):
+            raise ValueError("legacy recursive grant cannot carry frontier or market selectors")
+        return {}
+    if grant.get("schema_version") != 4:
+        raise ValueError("unsupported recursive grant version")
+    _require_descriptor(grant)
+    return {key: grant[key] for key in fields}
+
+
 @dataclass(frozen=True)
 class RecursiveScope:
     binding: dict
@@ -90,7 +136,8 @@ class RecursiveScope:
 def _normalize(plan):
     if isinstance(plan, _Plan):
         plan = plan.model_dump(mode="json")
-    return _Plan.model_validate_json(canonical(plan)).model_dump(mode="json")
+    model = _FrontierPlan if plan.get("schema_version") == 4 else _Plan
+    return model.model_validate_json(canonical(plan)).model_dump(mode="json")
 
 
 def _grant(authority, plan):
@@ -100,7 +147,7 @@ def _grant(authority, plan):
         "authority_ref": authority.authority_ref,
         "workspace": authority.identity["workspace"],
         "research_plan_ref": digest(canonical(plan["research_plan"])),
-        "exposure_ref": digest(canonical(EXPOSURE)),
+        "exposure_ref": digest(canonical(exposure_definition(plan))),
     }
 
 
@@ -122,9 +169,12 @@ def validate_registration(authority, payload):
         grant != _grant(authority, normalized)
         or payload["campaign_id"] != normalized["campaign_id"]
         or authority.store.json(grant["research_plan_ref"]) != normalized["research_plan"]
-        or authority.store.json(grant["exposure_ref"]) != EXPOSURE
+        or authority.store.json(grant["exposure_ref"]) != exposure_definition(normalized)
     ):
         raise ValueError("recursive grant, plan or exposure binding differs")
+    from quant_rsi.forecast_recursive_preparation import verify_market_registration
+
+    verify_market_registration(grant, authority.store)
     return normalized, grant
 
 
@@ -164,18 +214,40 @@ def _scope(authority, ref, grant):
 def _report(scope):
     return {
         "kind": "ForecastRecursiveCampaignReport",
-        "schema_version": 3,
+        "schema_version": scope.grant["schema_version"],
         "binding": scope.binding,
         "grant": scope.grant,
         "reserved": scope.grant["budget"],
-        "exposure": dict(EXPOSURE),
+        "exposure": exposure_definition(scope.grant),
         "actual_costs": "derive_from_original_research_and_trajectory_journals",
     }
 
 
-def init_recursive_campaign(plan):
+def init_recursive_campaign(plan, *, market_preparation=None):
     """Reserve one immutable source and two full reset pairs; do not start research."""
     normalized = _normalize(plan)
+    projection = None
+    if normalized.get("exposure_mode") == "historical_market_exploration":
+        from quant_rsi.evidence import authority_root
+        from quant_rsi.forecast_recursive_preparation import (
+            market_research_plan,
+            read_prepared_projection,
+            verify_actual_export,
+        )
+
+        if market_preparation is None:
+            raise ValueError("market registration requires its original completed preparation")
+        prepared, projection = read_prepared_projection(market_preparation)
+        if (
+            prepared["meta"]["workspace"] != str(authority_root().parent)
+            or projection["market_evidence_ref"] != normalized["market_evidence_ref"]
+            or market_research_plan(projection).model_dump(mode="json")
+            != normalized["research_plan"]
+        ):
+            raise ValueError("market registration differs from its original preparation/profile")
+        verify_actual_export(projection)
+    elif market_preparation is not None:
+        raise ValueError("engineering registration cannot adopt market preparation")
     with campaign._authority(initialize=True) as authority:
         campaigns, registrations, acks = campaign._registry(authority)
         campaign._children(authority, registrations, acks)
@@ -200,7 +272,11 @@ def init_recursive_campaign(plan):
             raise ValueError("recursive source overlaps the shared authority directory")
         grant = _grant(authority, normalized)
         authority.store.put_json(normalized["research_plan"])
-        authority.store.put_json(EXPOSURE)
+        authority.store.put_json(exposure_definition(normalized))
+        if projection is not None:
+            from quant_rsi.forecast_recursive_preparation import store_market_projection
+
+            store_market_projection(authority.store, projection)
         ref = authority.store.put_json(grant)
         with authority.journal.connection:
             authority.journal.event(

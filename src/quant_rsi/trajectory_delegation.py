@@ -58,6 +58,18 @@ def verify_delegation(manifest, store):
         raise ValueError("delegated C4 immutable binding mismatch")
     if authorization.get("profile") == "registered_forecast_cap_v3":
         evidence = store.json(manifest["evidence_ref"])
+        from quant_rsi.changes import registered_proposer
+
+        descriptor = registered_proposer(authorization).proposer_definition()
+        if (
+            registered_proposer(evidence).proposer_definition() != descriptor
+            or store.json(manifest["proposer_ref"]) != descriptor
+            or any(
+                evidence.get(key) != authorization.get(key)
+                for key in ("proposer_policy", "proposer_definition")
+            )
+        ):
+            raise ValueError("registered C4 proposer differs from its exact stage authorization")
         if (
             evidence.get("profile") != "registered_forecast_cap_v3"
             or evidence["source_receipt_ref"] != authorization["source_receipt_ref"]

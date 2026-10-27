@@ -28,11 +28,27 @@ class PolicyPatch(StrictModel):
     expected_effect: str
 
 
-def proposer_definition(plan=None):
-    if plan is not None and plan.neighbor_domain is not None:
-        from quant_rsi.forecast_recursive_changes import proposer_definition as registered_proposer
+def registered_proposer(binding=None):
+    """Dispatch only an exact explicit selector; an absent selector retains the legacy policy."""
+    if binding is not None and any(
+        key in binding for key in ("proposer_policy", "proposer_definition")
+    ):
+        from quant_rsi import forecast_frontier_policy
 
-        return registered_proposer()
+        forecast_frontier_policy._require_descriptor(binding)
+        return forecast_frontier_policy
+    from quant_rsi import forecast_recursive_changes
+
+    return forecast_recursive_changes
+
+
+def proposer_definition(plan=None, *, authorization=None):
+    if plan is not None and plan.neighbor_domain is not None:
+        return registered_proposer(authorization).proposer_definition()
+    if authorization is not None and any(
+        key in authorization for key in ("proposer_policy", "proposer_definition")
+    ):
+        raise ValueError("frontier policy requires the registered forecast profile")
     return {
         "kind": "ProposerPackage",
         "version": 1,
@@ -124,9 +140,12 @@ def expected_change(request_ref, request, evidence):
         raise ValueError("change request reference mismatch")
     validate_evidence(request, evidence)
     if evidence.get("profile") == "registered_forecast_cap_v3":
-        from quant_rsi.forecast_recursive_changes import expected_change as registered_change
-
-        return registered_change(request_ref, request, evidence)
+        proposer = registered_proposer(evidence)
+        if request["proposer_ref"] != digest(canonical(proposer.proposer_definition())):
+            raise ValueError("registered request differs from its explicit proposer descriptor")
+        return proposer.expected_change(request_ref, request, evidence)
+    if any(key in evidence for key in ("proposer_policy", "proposer_definition")):
+        raise ValueError("frontier policy requires the registered forecast evidence profile")
     windows = {}
     pair = None
     for entry in evidence["entries"]:
@@ -187,13 +206,14 @@ def validate_response(response, request_ref, request, evidence):
     expected = expected_change(request_ref, request, evidence)
     if canonical(response) == canonical(expected):
         if response["patch"] is not None:
+            from quant_rsi.forecast_frontier_policy import FrontierCapPatch
             from quant_rsi.forecast_recursive_changes import RegisteredCapPatch
 
-            patch_type = (
-                RegisteredCapPatch
-                if request["allowed_path"] == ("policy.window_max")
-                else PolicyPatch
-            )
+            patch_type = PolicyPatch
+            if request["allowed_path"] == "policy.window_max":
+                patch_type = (
+                    FrontierCapPatch if "proposer_policy" in evidence else RegisteredCapPatch
+                )
             patch_type.model_validate_json(canonical(response["patch"]))
         return response["outcome"], None
     if (
@@ -280,7 +300,8 @@ def validate_registered_lineage(plan, store):
             or request["proposer_ref"] != lineage.proposer_ref
             or request["evidence_ref"] != lineage.evidence_ref
             or evidence.get("research_plan") != parent.model_dump(mode="json")
-            or store.json(lineage.proposer_ref) != proposer_definition(parent)
+            or store.json(lineage.proposer_ref)
+            != proposer_definition(parent, authorization=evidence)
         ):
             raise ValueError("registered lineage parent/source/request mismatch")
         expected = expected_change(lineage.request_ref, request, evidence)

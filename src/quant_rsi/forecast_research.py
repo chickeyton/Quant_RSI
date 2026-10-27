@@ -5,7 +5,7 @@ import math
 import numpy as np
 
 from quant_rsi.artifacts import canonical, digest
-from quant_rsi.asof import predict_view, qualifications
+from quant_rsi.asof import _view_predictor, qualifications
 from quant_rsi.forecast_kernel import (
     forecast_errors,
     forecast_feature_view,
@@ -99,6 +99,7 @@ def training_view(data, plan, factor):
 def development_predictions(data, plan, factor, model_text):
     result = []
     objective_ref = digest(canonical(plan.objective.model_dump(mode="json")))
+    predict = _view_predictor(model_text)
     for index in evaluation_origins(plan):
         view = forecast_feature_view(
             data.snapshot,
@@ -108,7 +109,7 @@ def development_predictions(data, plan, factor, model_text):
             factor,
             plan.objective,
         )
-        prediction = predict_view(model_text, view)
+        prediction = predict(view)
         target = target_session(data.contract, data.dates[index], plan.objective)
         prediction.update(
             kind="FiveSessionForecastPrediction",

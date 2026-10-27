@@ -26,7 +26,14 @@ def authorization_definition(authority, index, source_head, source_cas_ref):
     receipt = store.json(source_head["research_receipt_ref"])
     manifest = store.json(receipt["manifest_ref"])
     plan = ResearchPlan.model_validate_json(store.get(receipt["research_plan_ref"]))
+    from quant_rsi.forecast_recursive_campaign import policy_binding
+
+    registration = store.json(program["root_registration_ref"])
+    policy = policy_binding(registration["identity"]["grant"])
+    if any(program.get(key) != value for key, value in policy.items()):
+        raise ValueError("stage proposer differs from its original grant")
     return dict(
+        **policy,
         kind="TrajectoryC4Authorization",
         profile="registered_forecast_cap_v3",
         authority_id=state["authority_id"],
@@ -201,7 +208,8 @@ def verify_authority(authority):
         or program["source_plan_ref"] != initial["research_plan_ref"]
         or program["source_data_ref"] != initial["data_ref"]
         or program["input"]["source_checkpoint_ref"] != initial["checkpoint_ref"]
-        or store.json(program["proposer_ref"]) != changes.proposer_definition(root_plan)
+        or store.json(program["proposer_ref"])
+        != changes.proposer_definition(root_plan, authorization=program)
         or store.json(program["saturation_proposer_ref"]) != terminal_proposer()
     ):
         raise ValueError("registered trajectory root/domain/descriptor binding mismatch")

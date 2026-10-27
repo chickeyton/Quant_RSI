@@ -36,11 +36,27 @@ def require_disjoint_source(source, root):
 
 def identity_definition(plan, campaign_id, binding, grant):
     """Pure frozen identity; no mutable campaign or registration path is consulted."""
+    from quant_rsi.forecast_recursive_campaign import (
+        _normalize,
+        exposure_definition,
+        policy_binding,
+    )
+
+    policy_binding(grant)
+    frozen_plan = {
+        key: value
+        for key, value in grant.items()
+        if key not in {"authority_ref", "workspace", "research_plan_ref", "exposure_ref"}
+    } | {"kind": "ForecastRecursiveCampaign"}
+    if _normalize(frozen_plan) != frozen_plan:
+        raise ValueError("recursive frozen grant differs from its explicit normalized plan")
+    if grant["exposure_ref"] != digest(canonical(exposure_definition(grant))):
+        raise ValueError("recursive frozen grant exposure differs")
     if (
         plan.schema_version != 3
         or plan.package_lineage is not None
         or grant.get("kind") != "ForecastRecursiveCampaignGrant"
-        or grant.get("schema_version") != 3
+        or grant.get("schema_version") not in (3, 4)
         or grant["research_plan"] != plan.model_dump(mode="json")
         or grant["research_plan_ref"] != digest(canonical(plan.model_dump(mode="json")))
         or grant["source_campaign_id"] != campaign_id
@@ -211,6 +227,23 @@ def registered_resume(function):
     return wrapped
 
 
+def bind_root_market_evidence(identity, store, data_ref):
+    """Carry the original full market closure into the actual initialized source."""
+    if identity["grant"].get("exposure_mode") != "historical_market_exploration":
+        return
+    from quant_rsi.forecast_recursive_campaign import require_recursive_owner
+    from quant_rsi.forecast_recursive_preparation import (
+        store_market_projection,
+        verify_market_registration,
+    )
+
+    scope = require_recursive_owner()
+    if identity["grant"] != scope.grant:
+        raise ValueError("source market closure belongs to another original grant")
+    projection = verify_market_registration(scope.grant, scope._authority.store, data_ref=data_ref)
+    store_market_projection(store, projection)
+
+
 def verify_root_manifest(plan, store, manifest):
     if plan.schema_version == 3 and "launch_context_ref" not in manifest:
         identity = store.json(manifest["root_registration_identity_ref"])
@@ -218,6 +251,10 @@ def verify_root_manifest(plan, store, manifest):
             plan, manifest["campaign_id"], identity["binding"], identity["grant"]
         ):
             raise ValueError("forecast root manifest differs from its frozen grant/identity")
+        from quant_rsi.forecast_recursive_preparation import verify_market_registration
+
+        if identity["grant"].get("exposure_mode") == "historical_market_exploration":
+            verify_market_registration(identity["grant"], store, data_ref=manifest["data_ref"])
 
 
 def effective_budget(plan, store, manifest):
@@ -305,6 +342,17 @@ def verify_frozen_handoff(program, initial, store):
     manifest = store.json(initial["manifest_ref"])
     identity = record["identity"]
     grant = identity["grant"]
+    from quant_rsi.forecast_recursive_campaign import policy_binding
+
+    policy = policy_binding(grant)
+    from quant_rsi.forecast_recursive_preparation import verify_market_registration
+
+    verify_market_registration(grant, store, data_ref=initial["data_ref"])
+    if any(
+        (key in program) != (key in policy) or program.get(key) != policy.get(key)
+        for key in ("proposer_policy", "proposer_definition")
+    ):
+        raise ValueError("trajectory proposer selector differs from its immutable grant")
     match_trajectory_input(TrajectoryPlan.model_validate_json(canonical(program["input"])), grant)
     if (
         record["kind"] != "ForecastRootRegistration"
