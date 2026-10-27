@@ -20,8 +20,10 @@ def experiment_root(experiment_id):
     return authority_root() / "forecast_experiments" / experiment_id
 
 
-def prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS):
+def _prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS, managed=None):
     inputs = ForecastInputs(value)
+    if managed is not None:
+        _managed_inputs(managed, inputs, fold_origins)
     root = experiment_root(experiment_id)
     root.parent.mkdir(parents=True, exist_ok=True)
     origins = [list(values) for values in fold_origins]
@@ -37,6 +39,7 @@ def prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS):
                         or [f["evaluation_origins"] for f in protocol["folds"]] != origins
                     ):
                         raise ValueError("experiment ID already binds different inputs/protocol")
+                    _bind_parent(managed, manifest, plan)
                     return summarize(journal, store, manifest, plan)
                 finally:
                     journal.close()
@@ -46,6 +49,8 @@ def prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS):
                 intent = decode(marker.read_bytes())
                 if intent["input_ref"] != inputs.ref or intent["fold_origins"] != origins:
                     raise ValueError("unfinished initialization binds different inputs")
+                if intent.get("managed_run") != (managed.binding if managed else None):
+                    raise ValueError("initialization parent campaign binding differs")
                 if store.json(intent["runtime_ref"]) != controller.runtime_identity():
                     raise ValueError("initialization requires its recorded runtime")
             else:
@@ -58,6 +63,8 @@ def prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS):
                     publication_asof=market_contracts.trusted_now(),
                     runtime_ref=store.put_json(controller.runtime_identity()),
                 )
+                if managed is not None:
+                    intent["managed_run"] = managed.binding
                 atomic_write(marker, canonical(intent))
             plan = freeze_protocol(
                 inputs, store, publication_asof=intent["publication_asof"], fold_origins=origins
@@ -71,16 +78,19 @@ def prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS):
                 protocol_ref=plan.protocol_ref,
                 runtime_ref=intent["runtime_ref"],
             )
+            if managed is not None:
+                manifest["managed_run"] = managed.binding
             journal = Journal(root, digest(canonical(manifest)))
             try:
                 atomic_write(root / "manifest.json", canonical(manifest))
                 marker.unlink()
+                _bind_parent(managed, manifest, plan)
                 return summarize(journal, store, manifest, plan)
             finally:
                 journal.close()
 
 
-def open_experiment(root, *, verify_runtime=True):
+def _open_experiment(root, *, verify_runtime=True, managed=None):
     manifest_raw = (root / "manifest.json").read_bytes()
     journal = Journal(root)
     try:
@@ -102,6 +112,7 @@ def open_experiment(root, *, verify_runtime=True):
         if verify_runtime and store.json(manifest["runtime_ref"]) != controller.runtime_identity():
             raise ValueError("source/runtime changed; use the frozen version for resume/replay")
         validate_ledger(journal, store, plan)
+        _verify_parent(managed, manifest, plan)
         return journal, store, manifest, plan, inputs
     except Exception:
         journal.close()
@@ -220,15 +231,18 @@ def publish(journal, store, manifest, plan, inputs):
         commit_event(journal, "forecast_publication_confirmed", confirmation)
 
 
-def resume_experiment(experiment_id, *, protocol_ref, max_fits=1):
-    if type(max_fits) is not int or not 1 <= max_fits <= 10:
-        raise ValueError("max_fits must be an integer from 1 to 10")
+def _resume_experiment(
+    experiment_id, *, protocol_ref, max_fits=1, parent_lock_fd=None, managed=None
+):
+    if type(max_fits) is not int or not 0 <= max_fits <= 10:
+        raise ValueError("max_fits must be an integer from 0 to 10")
     root = experiment_root(experiment_id)
     with controller.controller_lock(root) as owner_fd:
         journal, store, manifest, plan, inputs = open_experiment(root)
         try:
             if protocol_ref != plan.protocol_ref:
                 raise ValueError("run requires the exact frozen protocol reference")
+            _verify_parent(managed, manifest, plan, for_dispatch=True)
             dispatched = 0
             while True:
                 rows = journal.attempts()
@@ -261,6 +275,10 @@ def resume_experiment(experiment_id, *, protocol_ref, max_fits=1):
                     break
                 if dispatched >= max_fits:
                     break
+                if managed is not None:
+                    from quant_rsi.enhanced_forecast_workflow import validate_managed_dispatch
+
+                    validate_managed_dispatch(managed, inputs, plan)
                 ordinal = len(rows) - 1 if rows and rows[-1]["status"] == "reserved" else len(rows)
                 proposal = plan.proposals[ordinal]
                 if ordinal == evaluations and selection is None:
@@ -279,7 +297,7 @@ def resume_experiment(experiment_id, *, protocol_ref, max_fits=1):
                     inputs,
                     store,
                     journal,
-                    owner_fd,
+                    _owner_descriptors(owner_fd, parent_lock_fd, managed),
                 )
                 dispatched += 1
             return summarize(journal, store, manifest, plan)
@@ -311,7 +329,7 @@ def summarize(journal, store, manifest, plan):
     )
 
 
-def inspect_experiment(experiment_id, *, replay=False):
+def _inspect_experiment(experiment_id, *, replay=False):
     root = experiment_root(experiment_id)
     with controller.controller_lock(root):
         journal, store, manifest, plan, inputs = open_experiment(root, verify_runtime=replay)
@@ -362,3 +380,109 @@ def inspect_experiment(experiment_id, *, replay=False):
             return summarize(journal, store, manifest, plan)
         finally:
             journal.close()
+
+
+def _campaign_scope(experiment_id, manifest=None):
+    from quant_rsi.forecast_campaign import run_scope
+
+    return run_scope(experiment_id, manifest=manifest)
+
+
+def _saved_manifest(experiment_id):
+    path = experiment_root(experiment_id) / "manifest.json"
+    return decode(path.read_bytes()) if path.exists() else None
+
+
+def _bind_parent(managed, manifest, plan):
+    if managed is not None:
+        from quant_rsi.forecast_campaign import bind_experiment
+
+        bind_experiment(managed, manifest, plan)
+
+
+def _verify_parent(managed, manifest, plan, *, for_dispatch=False):
+    if managed is not None:
+        from quant_rsi.forecast_campaign import verify_experiment
+
+        verify_experiment(managed, manifest, plan, for_dispatch=for_dispatch)
+    elif "managed_run" in manifest:
+        raise ValueError("managed experiment requires its original campaign authority")
+
+
+def _owner_descriptors(owner_fd, parent_lock_fd, managed):
+    descriptors = [owner_fd]
+    if parent_lock_fd is not None:
+        descriptors.append(parent_lock_fd)
+    if managed is not None:
+        descriptors.append(managed.owner_fd)
+    unique = tuple(dict.fromkeys(descriptors))
+    return unique[0] if len(unique) == 1 else unique
+
+
+def _managed_inputs(managed, inputs, fold_origins):
+    config = managed.config
+    if [list(row) for row in fold_origins] != [list(row) for row in DEFAULT_FOLDS]:
+        raise ValueError("managed campaign requires the fixed registered fold protocol")
+    markets = {"target": inputs.target, **inputs.contexts}
+    if (
+        set(markets) != {"target", "industry", "market"}
+        or inputs.signals is not None
+        or any(
+            list(market[0].instruments) != [config[role]]
+            or market[0].spec.sessions != config["history_sessions"]
+            or market[1].prior_exposure != "previously_exposed_historical_exploration"
+            or market[1].currency != config["currency"]
+            or market[1].price_unit != config["price_unit"]
+            or market[1].horizon_sessions != config["horizon_sessions"]
+            for role, market in markets.items()
+        )
+    ):
+        raise ValueError("managed inputs differ from registered roles/objective/exposure")
+    root = authority_root() / "enhanced_forecast_workflows" / managed.binding["run_id"]
+    manifest = decode((root / "manifest.json").read_bytes())
+    journal = Journal(root)
+    try:
+        identity = dict(journal.connection.execute("SELECT key,value FROM metadata"))
+        if (
+            identity != {"manifest_digest": digest(canonical(manifest))}
+            or manifest.get("managed_run") != managed.binding
+            or manifest["config_ref"] != digest(canonical(config))
+        ):
+            raise ValueError("managed workflow initialization binding differs")
+        frozen = event_payload(journal, "inputs_committed")
+        if frozen is None or frozen["input_ref"] != inputs.ref:
+            raise ValueError("managed experiment requires its workflow-frozen inputs")
+    finally:
+        journal.close()
+
+
+def prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS):
+    with _campaign_scope(experiment_id, _saved_manifest(experiment_id)) as managed:
+        return _prepare_experiment(
+            value,
+            experiment_id,
+            fold_origins=fold_origins,
+            managed=managed,
+        )
+
+
+def open_experiment(root, *, verify_runtime=True):
+    manifest = decode((root / "manifest.json").read_bytes())
+    with _campaign_scope(manifest["experiment_id"], manifest) as managed:
+        return _open_experiment(root, verify_runtime=verify_runtime, managed=managed)
+
+
+def resume_experiment(experiment_id, *, protocol_ref, max_fits=1, parent_lock_fd=None):
+    with _campaign_scope(experiment_id, _saved_manifest(experiment_id)) as managed:
+        return _resume_experiment(
+            experiment_id,
+            protocol_ref=protocol_ref,
+            max_fits=max_fits,
+            parent_lock_fd=parent_lock_fd,
+            managed=managed,
+        )
+
+
+def inspect_experiment(experiment_id, *, replay=False):
+    with _campaign_scope(experiment_id, _saved_manifest(experiment_id)):
+        return _inspect_experiment(experiment_id, replay=replay)

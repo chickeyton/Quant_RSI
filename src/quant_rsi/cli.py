@@ -54,6 +54,27 @@ def main(argv: list[str] | None = None) -> int:
         if name == "run":
             command.add_argument("--protocol-ref", required=True)
             command.add_argument("--max-fits", type=int, default=1)
+    campaigns = commands.add_parser(
+        "forecast-campaign", help="shared immutable allowances for registered forecast runs"
+    )
+    campaign_commands = campaigns.add_subparsers(dest="campaign_command", required=True)
+    campaign_commands.add_parser("init").add_argument("plan", type=Path)
+    for name in ("status", "replay"):
+        campaign_commands.add_parser(name).add_argument("campaign_id")
+    enhanced = commands.add_parser(
+        "forecast-workflow", help="configurable enhanced price forecast with durable recovery"
+    )
+    enhanced_commands = enhanced.add_subparsers(dest="enhanced_command", required=True)
+    enhanced_prepare = enhanced_commands.add_parser("prepare")
+    enhanced_prepare.add_argument("workflow_id")
+    enhanced_prepare.add_argument("--campaign-id")
+    for name in ("run", "status", "replay"):
+        command = enhanced_commands.add_parser(name)
+        command.add_argument("workflow_id")
+        if name == "run":
+            command.add_argument("--config-ref")
+            command.add_argument("--protocol-ref")
+            command.add_argument("--max-fits", type=int, default=1)
     trajectory = commands.add_parser(
         "trajectory", help="finite development trajectory; no promotion"
     )
@@ -171,6 +192,39 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 report = inspect_forecast(args.request_id, replay=args.forecast_command == "replay")
             print(json.dumps(display_forecast(report), indent=2, allow_nan=False))
+            return 0
+        if args.command == "forecast-campaign":
+            from quant_rsi.forecast_campaign import init_campaign, inspect_campaign
+
+            if args.campaign_command == "init":
+                report = init_campaign(json.loads(args.plan.read_text()))
+            else:
+                report = inspect_campaign(
+                    args.campaign_id, replay=args.campaign_command == "replay"
+                )
+            print(json.dumps(report, indent=2, allow_nan=False))
+            return 0
+        if args.command == "forecast-workflow":
+            from quant_rsi.enhanced_forecast_workflow import (
+                inspect_workflow,
+                prepare_workflow,
+                run_workflow,
+            )
+
+            if args.enhanced_command == "prepare":
+                report = prepare_workflow(args.workflow_id, campaign_id=args.campaign_id)
+            elif args.enhanced_command == "run":
+                report = run_workflow(
+                    args.workflow_id,
+                    config_ref=args.config_ref,
+                    protocol_ref=args.protocol_ref,
+                    max_fits=args.max_fits,
+                )
+            else:
+                report = inspect_workflow(
+                    args.workflow_id, replay=args.enhanced_command == "replay"
+                )
+            print(json.dumps(report, indent=2, allow_nan=False))
             return 0
         if args.command == "forecast-compare":
             from quant_rsi.forecast_experiment import (

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "ForecastWorkflowConfig",
+  "target": "KO",
+  "industry": "XLP",
+  "market": "SPY",
+  "history_sessions": 756,
+  "horizon_sessions": 5,
+  "source": "yahoo_chart_5y_daily",
+  "calendar": "published_nyse_group",
+  "currency": "USD",
+  "price_unit": "raw_currency_per_share",
+  "historical_availability": "explicit_assumption",
+  "max_source_age_seconds": 86400
+}

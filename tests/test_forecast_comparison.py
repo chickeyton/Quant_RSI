@@ -304,3 +304,21 @@ def test_publication_confirmation_recovers_without_another_fit(
     assert result["forecast"] is not None and dummy_worker["fits"] == 4
     assert dummy_worker["launches"] == [0, 1, 2, 3]
     assert result == inspect_experiment("engineering-context", replay=True)
+
+
+def test_legacy_nested_calls_prepare_inspect_and_zero_fit_resume(experiment, monkeypatch):
+    _, envelope, frozen = experiment
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("zero-fit legacy operations must not dispatch")
+
+    monkeypatch.setattr(controller, "execute_attempt", forbidden)
+    assert (
+        prepare_experiment(envelope, "engineering-context", fold_origins=((80, 85, 90),)) == frozen
+    )
+    assert inspect_experiment("engineering-context") == frozen
+    assert inspect_experiment("engineering-context", replay=True) == frozen
+    result = resume_experiment(
+        "engineering-context", protocol_ref=frozen["protocol_ref"], max_fits=0
+    )
+    assert result["fit_reservations"] == 0

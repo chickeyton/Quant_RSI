@@ -37,6 +37,12 @@ One command collects daily bars, preserves source evidence, runs fixed-model res
 
 A [paired forecast comparison](docs/forecast_comparison.md) adds longer price history and industry/market context, three frozen evaluation folds, and a separate publication fit. Its B0/B1/B2 models use price features; collected news and financial statements remain sidecar evidence. Each experiment has a cumulative limit of nine evaluation fits plus one publication fit. The [first completed batch](docs/forecast_context_results.md) passed engineering validation but did not outperform the naive price baselines.
 
+## Configurable Enhanced Forecasts
+
+The [enhanced workflow guide](docs/enhanced_forecast_workflow.md) provides one recoverable path from explicit target/industry/market configuration through collection, frozen B0/B1/B2 comparison, a separate publication fit, status, and replay. Start with [SOXL/XSD/SPY](instruments/US/SOXL/forecast.json) or the explicit [KO/XLP/SPY](instruments/US/KO/forecast.json) configuration. Other inputs must satisfy the documented source and market contracts; proxies are never substituted automatically. A [completed two-instrument demonstration](docs/enhanced_forecast_results.md) verifies shared accounting and read-only terminal repeats; neither selected model beats both naive controls on MAE.
+
+Register the finite roster and shared allowance with the [campaign example](examples/forecast_campaign.json). Preparation performs no training. Each child uses the existing cumulative ten-job limit and reports development errors against unchanged-price and training-mean controls. Parent allocations persist across failures and copies, while actual charges stay in the original child journals. Completed requests do not collect or fit again. Candidate selection is not evidence of predictive advantage, and news/fundamentals are not model inputs in this workflow.
+
 ## Synthetic Kernel Conventions
 
 - Data is a complete price panel generated with a fixed random seed. It uses weekdays and synthetic UTC timestamps, not an exchange calendar, corporate actions, or actual tradable instruments.
@@ -93,6 +99,12 @@ Directory and module responsibilities:
 | `docs/`, `discussion_boards/` | Agreed designs, review discussions, and historical records |
 
 Use four-space indentation in Python, `snake_case` for functions and modules, and `PascalCase` for classes. Ruff handles formatting and static checks with a line length of 100. Dependencies are pinned in `requirements-dev.lock`; update and validate the lock file when changing dependencies. Use concise imperative commit subjects. Pull requests should explain the purpose, behavior changes, and validation results. This README is the reference for current commands; the existing `AGENTS.md` is preserved as requested.
+
+### Contributor Delivery
+
+Submit code changes on a feature branch through a pull request targeting main. Include the concrete behavior change, related issue, validation commands and results, and any checks not run. Merge after the required checks and review; do not push code directly to main. Keep public documentation, issues and pull requests in English.
+
+[CI](.github/workflows/ci.yml) runs the pinned Python 3.12 environment, Ruff and the offline regression suite. Tests use synthetic/local fixtures and mocked public data; model-training fixture tests are separate from live-market research budgets. CI does not establish predictive quality. Preserve completed experiment workspaces and their recorded runtimes during upgrades.
 
 ## C2: Finite-Step Dynamic Research
 
