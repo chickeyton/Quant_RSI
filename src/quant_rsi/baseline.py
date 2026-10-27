@@ -104,6 +104,10 @@ def _seal_model(root: Path, *, forecast):
                         objective_ref=digest(canonical(objective)),
                         primary_metric=plan.development.primary_metric,
                     )
+                if forecast and plan.schema_version == 3:
+                    from quant_rsi.forecast_recursive_output import bind_final_forecast
+
+                    bundle = bind_final_forecast(root, manifest, checkpoint_ref, bundle, store)
                 bundle_ref = store.put_json(bundle)
                 with registry.connection:
                     registry.connection.execute(
@@ -162,6 +166,16 @@ def _read_model(registry, bundle_ref, *, forecast):
     if store.json(bundle["runtime_ref"]) != controller.runtime_identity():
         raise ValueError("baseline source/runtime changed; use the recorded implementation")
     manifest = store.json(bundle["source_run_ref"])
+    if forecast:
+        source_plan = research.ResearchPlan.model_validate_json(
+            store.get(manifest["research_plan_ref"])
+        )
+        if source_plan.schema_version == 3:
+            from quant_rsi.forecast_recursive_output import verify_final_forecast
+
+            verify_final_forecast(store, bundle)
+        elif bundle.get("schema_version") != 1 or "recursive_lineage_ref" in bundle:
+            raise ValueError("legacy forecast cannot acquire a recursive output identity")
     data = LocalResearchData.from_json(store.json(bundle["data_ref"]))
     if (
         manifest["data_ref"] != bundle["data_ref"]

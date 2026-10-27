@@ -4,11 +4,18 @@ import math
 from pathlib import Path
 from typing import Literal, Self
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_serializer, model_validator
 
 from quant_rsi.artifacts import canonical, digest
 from quant_rsi.forecast_contracts import ForecastDevelopmentPlan
 from quant_rsi.schemas import DevelopmentPlan, FactorSpec, StrictModel
+from quant_rsi.task_definition import (
+    ForecastRecursiveProfile,
+    RegisteredNeighborDomain,
+    domain_ref,
+    forecast_profile_ref,
+    training_row_capacity,
+)
 
 C2_FINGERPRINT = "16b85204c89093fef074a58f2f445216d17ef81875b4042352babd42dd64230f"
 
@@ -32,11 +39,44 @@ class PackageLineage(StrictModel):
 
 
 class ResearchPlan(StrictModel):
-    schema_version: Literal[1]
+    schema_version: Literal[1, 3]
     plan_type: Literal["development_research"]
     development: DevelopmentPlan | ForecastDevelopmentPlan
     policy: SearchPolicy
     package_lineage: PackageLineage | None = None
+    neighbor_domain: RegisteredNeighborDomain | None = None
+    forecast_profile: ForecastRecursiveProfile | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize_version(self, handler):
+        value = handler(self)
+        if self.schema_version == 1:
+            value.pop("neighbor_domain", None)
+            value.pop("forecast_profile", None)
+        return value
+
+    @model_validator(mode="after")
+    def valid_profile(self) -> Self:
+        if self.schema_version == 1:
+            if {"neighbor_domain", "forecast_profile"} & self.model_fields_set:
+                raise ValueError("legacy research cannot acquire a domain or forecast profile")
+            return self
+        if not isinstance(self.development, ForecastDevelopmentPlan):
+            raise ValueError("research version 3 requires forecast development")
+        if self.neighbor_domain is None or self.forecast_profile is None:
+            raise ValueError("research version 3 requires an explicit domain and forecast profile")
+        self.forecast_profile.validate_development(self.development)
+        domain = self.neighbor_domain
+        if (
+            self.policy.neighbor_order != "window_first"
+            or self.policy.window_min != domain.window_min
+            or self.policy.window_max not in domain.caps
+            or (
+                self.package_lineage is None and self.policy.window_max != domain.initial_window_max
+            )
+        ):
+            raise ValueError("recursive forecast policy differs from the registered cap/domain")
+        return self
 
     @model_validator(mode="after")
     def valid_start(self) -> Self:
@@ -45,18 +85,23 @@ class ResearchPlan(StrictModel):
         factor = FactorSpec.model_validate_json(canonical(self.development.proposals[0].factor))
         if not self.policy.window_min <= factor.window <= self.policy.window_max:
             raise ValueError("baseline must belong to the declared search range")
-        label_tail = 1
-        if isinstance(self.development, ForecastDevelopmentPlan):
-            label_tail = self.development.objective.horizon_sessions - 1
-        if (
-            self.development.data.train_cutoff - label_tail - factor.window
-        ) * self.development.data.instruments < 12:
+        if self.schema_version == 3:
+            capacity = training_row_capacity(self.development, factor.window)
+        else:
+            # Preserve the existing v1 baseline rule, including its forecast horizon.
+            label_tail = 1
+            if isinstance(self.development, ForecastDevelopmentPlan):
+                label_tail = self.development.objective.horizon_sessions - 1
+            capacity = (
+                self.development.data.train_cutoff - label_tail - factor.window
+            ) * self.development.data.instruments
+        if capacity < 12:
             raise ValueError("baseline lacks mature training observations")
         return self
 
 
 def package_definition(plan: ResearchPlan) -> dict:
-    return {
+    value = {
         "kind": "ResearcherPackage",
         "interface_version": 1,
         "state_schema_version": 1,
@@ -82,6 +127,17 @@ def package_definition(plan: ResearchPlan) -> dict:
         "policy": plan.policy.model_dump(mode="json"),
         "rng": None,
     }
+    if plan.schema_version == 3:
+        value.update(
+            package_version=3,
+            engine_generation="five_session_recursive_forecast_v3",
+            registered_neighbor_domain_ref=domain_ref(plan),
+            forecast_recursive_profile_ref=forecast_profile_ref(plan),
+        )
+        value["implementation_files"]["task_definition.py"] = digest(
+            Path(__file__).with_name("task_definition.py").read_bytes()
+        )
+    return value
 
 
 def factor_identity(factor: dict) -> str:
@@ -124,9 +180,13 @@ def next_factor(plan: ResearchPlan, checkpoint: dict) -> dict | None:
     for next_op, next_window in neighbors:
         if not plan.policy.window_min <= next_window <= plan.policy.window_max:
             continue
-        if (
-            plan.development.data.train_cutoff - 1 - next_window
-        ) * plan.development.data.instruments < 12:
+        capacity = (
+            training_row_capacity(plan.development, next_window)
+            if plan.schema_version == 3
+            else (plan.development.data.train_cutoff - 1 - next_window)
+            * plan.development.data.instruments
+        )
+        if capacity < 12:
             continue
         factor = {"op": next_op, "window": next_window}
         if factor_identity(factor) in checkpoint["visited"]:
@@ -142,11 +202,16 @@ def expected_proposal(plan: ResearchPlan, checkpoint: dict) -> dict:
         raise ValueError("no eligible neighbor")
     position = checkpoint["next_position"]
     previous = checkpoint["incumbent"]
+    metric = (
+        "negative five-session simple-return MAE in percentage points"
+        if plan.schema_version == 3
+        else "net development return"
+    )
     rationale = (
         plan.development.proposals[0].hypothesis
         if previous is None
         else (
-            f"Test changing {previous['factor']} to {factor} for net development return; "
+            f"Test changing {previous['factor']} to {factor} for {metric}; "
             "unsupported if improvement or feasibility fails."
         )
     )

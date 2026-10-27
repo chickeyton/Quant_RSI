@@ -12,14 +12,16 @@ from quant_rsi.researcher import ResearchPlan
 from quant_rsi.trajectory_delegation import authorize_package, verify_delegation
 
 
-def evidence_capsule(root, *, replay=True):
+def evidence_capsule(root, *, replay=True, authorization=None):
     """Read the committed source chain; never accept a user-written observation list."""
     with controller.controller_lock(root):
         journal, store, manifest, plan, data = research.open_research(root)
         try:
-            if plan.development.plan_type == "forecast_development":
+            if plan.development.plan_type == "forecast_development" and plan.schema_version != 3:
                 raise ValueError("C4/C5 package evidence does not support forecast development")
-            if plan.package_lineage is not None or plan.policy.neighbor_order != "window_first":
+            if plan.neighbor_domain is None and (
+                plan.package_lineage is not None or plan.policy.neighbor_order != "window_first"
+            ):
                 raise ValueError("C4 evidence requires this engine's window_first base package")
             trace = research.verify_trace(journal, store, manifest, plan, data, replay=replay)
             requests = journal.requests()
@@ -46,6 +48,23 @@ def evidence_capsule(root, *, replay=True):
                 "historical_worker_slots": sum(a["worker_seconds"] for a in journal.attempts()),
                 "reuse": "historical_development_not_independent_validation",
             }
+            if plan.neighbor_domain is not None:
+                from quant_rsi.forecast_recursive_changes import extend_capsule
+                from quant_rsi.trajectory_evidence import require_settled_research
+
+                require_settled_research(
+                    journal, research.summarize(journal, store, manifest, plan, trace)
+                )
+                capsule = extend_capsule(
+                    capsule,
+                    plan,
+                    trace[0],
+                    trace[1],
+                    {r["parent_ref"]: store.json(r["parent_ref"]) for r in requests},
+                    authorization,
+                    requests,
+                    journal.attempts(),
+                )
             files = {
                 str(p.relative_to(root)): digest(p.read_bytes())
                 for p in [
@@ -82,6 +101,14 @@ def create_package(
         source=evidence,
         steps=steps,
     )
+    if binding is None:
+        source_manifest = decode((evidence / "manifest.json").read_bytes())
+        source_store = ArtifactStore(evidence / "artifacts")
+        source_plan = ResearchPlan.model_validate_json(
+            source_store.get(source_manifest["research_plan_ref"])
+        )
+        if source_plan.schema_version == 3:
+            raise ValueError("registered-domain C4 requires its actual trajectory owner")
     root.mkdir(parents=True, exist_ok=True)
     with controller.controller_lock(root):
         marker = root / "package_initialization.json"
@@ -95,7 +122,9 @@ def create_package(
                 for p in root.iterdir()
             ):
                 raise FileExistsError("package campaign exists; use package resume")
-            plan, capsule, files = evidence_capsule(evidence)
+            plan, capsule, files = evidence_capsule(
+                evidence, authorization=binding["authorization"] if binding else None
+            )
             saved = {
                 "kind": "package_initialization_v1",
                 "campaign_id": uuid.uuid4().hex
@@ -126,6 +155,9 @@ def finish_initialization(root, *, trajectory_owner_fd=None):
         or saved["runtime"] != controller.runtime_identity()
     ):
         raise ValueError("package initialization source/runtime mismatch")
+    saved_plan = ResearchPlan.model_validate_json(canonical(saved["plan"]))
+    if saved_plan.schema_version == 3 and binding is None:
+        raise ValueError("registered C4 initialization requires its actual trajectory owner")
     source = Path(saved["source_directory"])
     missing = [
         name
@@ -140,13 +172,18 @@ def finish_initialization(root, *, trajectory_owner_fd=None):
                     raise ValueError("evidence changed before snapshot was fully committed")
                 atomic_write(root / "evidence" / name, data)
     verify_snapshot(root / "evidence", saved["source_files"])
-    plan, evidence, _ = evidence_capsule(root / "evidence")
+    plan, evidence, _ = evidence_capsule(
+        root / "evidence", authorization=binding["authorization"] if binding else None
+    )
     if plan.model_dump(mode="json") != saved["plan"] or evidence != saved["evidence"]:
         raise ValueError("evidence snapshot differs from authorized source")
     store = ArtifactStore(root / "artifacts")
+    source_store = ArtifactStore(root / "evidence" / "artifacts")
+    for ref in changes.lineage_artifact_refs(plan, source_store):
+        store.put_json(source_store.json(ref))
     base_ref = store.put_json(researcher.package_definition(plan))
     evidence_ref = store.put_json(evidence)
-    proposer_ref = store.put_json(changes.proposer_definition())
+    proposer_ref = store.put_json(changes.proposer_definition(plan))
     request = changes.request_definition(
         saved["campaign_id"] + ":change:0", base_ref, proposer_ref, evidence_ref, evidence
     )
@@ -209,13 +246,20 @@ def verify_package_header(journal, store, manifest):
         raise ValueError("not a package experiment")
     if store.json(manifest["runtime_ref"]) != controller.runtime_identity():
         raise ValueError("package experiment requires its recorded source/runtime")
-    verify_delegation(manifest, store)
+    binding = verify_delegation(manifest, store)
     plan = ResearchPlan.model_validate_json(store.get(manifest["plan_ref"]))
-    if plan.package_lineage is not None or plan.policy.neighbor_order != "window_first":
+    if plan.neighbor_domain is not None:
+        if (
+            binding is None
+            or binding["authorization"].get("profile") != "registered_forecast_cap_v3"
+        ):
+            raise ValueError("registered C4 base requires authenticated stage source")
+        changes.validate_lineage(plan, store)
+    elif plan.package_lineage is not None or plan.policy.neighbor_order != "window_first":
         raise ValueError("package experiment requires a window_first base")
     if store.json(manifest["base_package_ref"]) != researcher.package_definition(plan):
         raise ValueError("package exact base mismatch")
-    if store.json(manifest["proposer_ref"]) != changes.proposer_definition():
+    if store.json(manifest["proposer_ref"]) != changes.proposer_definition(plan):
         raise ValueError("frozen change proposer mismatch")
     if store.json(manifest["accepted_pointer_ref"]) != {
         "kind": "ReadOnlyLaunchBaseline",
@@ -258,7 +302,12 @@ def open_package(root, *, replay=False):
         store = ArtifactStore(root / "artifacts")
         plan = verify_package_header(journal, store, manifest)
         verify_snapshot(root / "evidence", store.json(manifest["source_files_ref"]))
-        source_plan, evidence, _ = evidence_capsule(root / "evidence", replay=replay)
+        binding = verify_delegation(manifest, store)
+        source_plan, evidence, _ = evidence_capsule(
+            root / "evidence",
+            replay=replay,
+            authorization=binding["authorization"] if binding else None,
+        )
         if source_plan != plan or evidence != store.json(manifest["evidence_ref"]):
             raise ValueError("source evidence is not the committed allowed snapshot")
         return journal, store, manifest, plan
@@ -452,6 +501,9 @@ def authorized_local_input(
         from quant_rsi.data import MarketData
 
         data = MarketData.from_json(value)
+        from quant_rsi.task_definition import task_definition, verify_domain
+
+        verify_domain(plan, source)
         if (
             (
                 plan.development.data.source == "local_event_snapshot"
@@ -460,12 +512,11 @@ def authorized_local_input(
             or digest(canonical(source_manifest)) != evidence["source_manifest_digest"]
             or source_manifest["task_ref"] != evidence["task_ref"]
             or source.json(evidence["task_ref"])
-            != {
-                "data_ref": source_manifest["data_ref"],
-                "development_template_ref": digest(
-                    canonical(plan.development.model_dump(mode="json"))
-                ),
-            }
+            != task_definition(
+                plan,
+                source_manifest["data_ref"],
+                digest(canonical(plan.development.model_dump(mode="json"))),
+            )
         ):
             raise ValueError("local C4 input differs from the frozen source task")
         return value
@@ -798,6 +849,7 @@ def resume_package(root: Path, *, steps=1, trajectory_owner_fd=None):
                             ]
                             if decision["patch_ref"]:
                                 artifact_refs.append(decision["patch_ref"])
+                            artifact_refs.extend(changes.lineage_artifact_refs(selected, store))
                             if "trajectory_authorization_ref" in manifest:
                                 artifact_refs.extend(
                                     [

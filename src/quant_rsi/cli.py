@@ -59,6 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     campaign_commands = campaigns.add_subparsers(dest="campaign_command", required=True)
     campaign_commands.add_parser("init").add_argument("plan", type=Path)
+    campaign_commands.add_parser("recursive-init").add_argument("plan", type=Path)
     for name in ("status", "replay"):
         campaign_commands.add_parser(name).add_argument("campaign_id")
     enhanced = commands.add_parser(
@@ -198,6 +199,10 @@ def main(argv: list[str] | None = None) -> int:
 
             if args.campaign_command == "init":
                 report = init_campaign(json.loads(args.plan.read_text()))
+            elif args.campaign_command == "recursive-init":
+                from quant_rsi.forecast_recursive_campaign import init_recursive_campaign
+
+                report = init_recursive_campaign(json.loads(args.plan.read_text()))
             else:
                 report = inspect_campaign(
                     args.campaign_id, replay=args.campaign_command == "replay"

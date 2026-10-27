@@ -173,6 +173,16 @@ def test_actual_finite_chain_seals_saturation_at_fully_occupied_capacity(
     )
     assert files(tmp_path / "source-offline") == original
     root = trajectory_root()
+    frozen_store = ArtifactStore(tmp_path / "frozen-trajectory")
+    with TrajectoryLedger(root, readonly=True) as authority:
+        for artifact in (root / "artifacts").iterdir():
+            frozen_store.put(authority.store.get(artifact.name))
+        closure = dict(
+            authority_root=str(root),
+            anchor=authority.anchor,
+            control_ref=frozen_store.put(authority.connection.serialize()),
+            state_ref=authority.state_ref,
+        )
     before = files(root)
 
     def forbidden(*args, **kwargs):
@@ -191,6 +201,8 @@ def test_actual_finite_chain_seals_saturation_at_fully_occupied_capacity(
             patch.setattr(obj, name, forbidden)
         assert trajectory.inspect_trajectory() == report
         assert trajectory.resume_trajectory(steps=30) == report
+        with TrajectoryLedger.frozen(frozen_store, closure) as frozen:
+            assert trajectory.summarize(frozen) == report
     assert files(root) == before
     with locked_trajectory() as (root, _), TrajectoryLedger(root) as authority:
         request_id, receipt_ref = next(iter(authority.state["decisions"].items()))

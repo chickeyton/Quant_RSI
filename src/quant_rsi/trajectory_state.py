@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_serializer, model_validator
 
 from quant_rsi import controller
 from quant_rsi.artifacts import ArtifactStore, canonical, decode, digest
@@ -21,12 +21,33 @@ class TrajectoryBudget(StrictModel):
 
 
 class TrajectoryPlan(StrictModel):
+    schema_version: Literal[1, 3] = 1
+    max_generations: int = Field(strict=True, ge=1, le=2, default=1)
     name: str = Field(min_length=1, max_length=160)
     source_directory: Path
     source_checkpoint_ref: str = Field(pattern=r"^[0-9a-f]{64}$")
     state_policy: Literal["reset"]
     max_proposal_stages: int = Field(strict=True, ge=1, le=2)
     budget: TrajectoryBudget
+
+    @model_serializer(mode="wrap")
+    def serialize_version(self, handler):
+        value = handler(self)
+        if self.schema_version == 1:
+            value.pop("schema_version", None)
+            value.pop("max_generations", None)
+        return value
+
+    @model_validator(mode="after")
+    def versioned_limits(self):
+        if (
+            self.schema_version == 1
+            and {"schema_version", "max_generations"} & self.model_fields_set
+        ):
+            raise ValueError("legacy trajectory cannot acquire recursive profile fields")
+        if self.schema_version == 3 and "max_generations" not in self.model_fields_set:
+            raise ValueError("recursive forecast trajectory requires explicit generations")
+        return self
 
     @field_validator("source_directory")
     @classmethod
@@ -89,7 +110,7 @@ def require_owner(root, owner_fd):
 
 def occupied_capacity(program, state):
     return {
-        unit: program["initial_costs"][unit]
+        unit: program.get("initial_capacity", program["initial_costs"])[unit]
         + sum(stage["capacity"][unit] for stage in state["stages"])
         for unit in ("worker_attempts", "registered_worker_seconds")
     }
@@ -116,6 +137,7 @@ def validate_state(program, state, anchor):
         if (
             type(historical) is not int
             or historical < 0
+            or historical > program.get("initial_capacity", program["initial_costs"])[unit]
             or not 0 <= occupied <= getattr(plan.budget, unit)
         ):
             raise ValueError("trajectory cumulative budget exceeded")
@@ -123,7 +145,7 @@ def validate_state(program, state, anchor):
     if (
         type(state["generation"]) is not int
         or type(state["revision"]) is not int
-        or state["generation"] not in {0, 1}
+        or not 0 <= state["generation"] <= (plan.max_generations if plan.schema_version == 3 else 1)
         or state["generation"] != state["revision"]
         or len(history) != state["generation"] + 1
         or len(set(history)) != len(history)
@@ -182,6 +204,30 @@ class TrajectoryLedger:
         self.connection = sqlite3.connect(
             f"{(root / 'control.sqlite').as_uri()}?mode={mode}", uri=True
         )
+        self._verify_open()
+
+    @classmethod
+    def frozen(cls, store, closure):
+        """Replay the original sealed ledger from CAS in memory; no mutable source paths."""
+        self = cls.__new__(cls)
+        self.root = Path(closure["authority_root"])
+        self.owner_fd = None
+        self.store = store
+        self.anchor = closure["anchor"]
+        self.connection = sqlite3.connect(":memory:")
+        try:
+            self.connection.deserialize(store.get(closure["control_ref"]))
+            self.connection.execute("PRAGMA query_only=ON")
+            self._verify_open()
+        except Exception:
+            self.connection.close()
+            raise
+        if self.state_ref != closure["state_ref"]:
+            self.connection.close()
+            raise ValueError("frozen trajectory ledger differs from its sealed state")
+        return self
+
+    def _verify_open(self):
         try:
             if self.connection.execute("SELECT anchor_ref FROM metadata").fetchall() != [
                 (digest(canonical(self.anchor)),)
