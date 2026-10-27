@@ -41,6 +41,19 @@ def main(argv: list[str] | None = None) -> int:
     forecast_run.add_argument("--prepare-only", action="store_true")
     for name in ("status", "replay"):
         forecast_commands.add_parser(name).add_argument("request_id")
+    forecast_compare = commands.add_parser(
+        "forecast-compare", help="fixed paired forecast evaluation and separate publication fit"
+    )
+    context_commands = forecast_compare.add_subparsers(dest="context_command", required=True)
+    context_prepare = context_commands.add_parser("prepare")
+    context_prepare.add_argument("inputs", type=Path)
+    context_prepare.add_argument("--experiment-id", required=True)
+    for name in ("run", "status", "replay"):
+        command = context_commands.add_parser(name)
+        command.add_argument("experiment_id")
+        if name == "run":
+            command.add_argument("--protocol-ref", required=True)
+            command.add_argument("--max-fits", type=int, default=1)
     trajectory = commands.add_parser(
         "trajectory", help="finite development trajectory; no promotion"
     )
@@ -158,6 +171,25 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 report = inspect_forecast(args.request_id, replay=args.forecast_command == "replay")
             print(json.dumps(display_forecast(report), indent=2, allow_nan=False))
+            return 0
+        if args.command == "forecast-compare":
+            from quant_rsi.forecast_experiment import (
+                inspect_experiment,
+                prepare_experiment,
+                resume_experiment,
+            )
+
+            if args.context_command == "prepare":
+                report = prepare_experiment(json.loads(args.inputs.read_text()), args.experiment_id)
+            elif args.context_command == "run":
+                report = resume_experiment(
+                    args.experiment_id, protocol_ref=args.protocol_ref, max_fits=args.max_fits
+                )
+            else:
+                report = inspect_experiment(
+                    args.experiment_id, replay=args.context_command == "replay"
+                )
+            print(json.dumps(report, indent=2, allow_nan=False))
             return 0
         if args.command == "trajectory":
             if args.trajectory_command == "init":

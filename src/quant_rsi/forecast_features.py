@@ -163,7 +163,17 @@ def build_feature_view(inputs, recipe, origin, as_of, *, basis=None):
     )
 
 
-def build_common_mask(inputs, recipes, origin_indices, label_asof, *, purpose, basis=None):
+def build_common_mask(
+    inputs,
+    recipes,
+    origin_indices,
+    label_asof,
+    *,
+    purpose,
+    basis=None,
+    label_basis=None,
+    _feature_cache=None,
+):
     """Freeze one shared mask before fitting, with explicit exclusions and no score selection."""
     if purpose not in {"training", "evaluation"}:
         raise ValueError("mask purpose must be training or evaluation")
@@ -180,10 +190,17 @@ def build_common_mask(inputs, recipes, origin_indices, label_asof, *, purpose, b
     rows = []
     for index in origins:
         session = data.dates[index]
-        views = [
-            build_feature_view(inputs, recipe, session, data.decision_at(index), basis=basis)
-            for recipe in recipes
-        ]
+        views = []
+        for recipe in recipes:
+            key = (inputs.ref, recipe.ref, session, basis)
+            view = _feature_cache.get(key) if _feature_cache is not None else None
+            if view is None:
+                view = build_feature_view(
+                    inputs, recipe, session, data.decision_at(index), basis=basis
+                )
+                if _feature_cache is not None:
+                    _feature_cache[key] = view
+            views.append(view)
         label = mature_forecast_label(
             data.snapshot,
             data.contract,
@@ -191,7 +208,7 @@ def build_common_mask(inputs, recipes, origin_indices, label_asof, *, purpose, b
             data.instruments[0],
             label_asof,
             objective,
-            basis=basis,
+            basis=label_basis or basis,
         )
         reasons = sorted(
             {reason for view in views for reason in view["reasons"]}
@@ -218,6 +235,7 @@ def build_common_mask(inputs, recipes, origin_indices, label_asof, *, purpose, b
         purpose=purpose,
         recipe_refs=[recipe.ref for recipe in recipes],
         label_asof=utc_text(label_asof),
+        label_knowledge_basis=label_basis or basis or data.contract.knowledge_basis,
         origin_indices=origins,
         eligible_indices=[row["origin_index"] for row in rows if row["eligible"]],
         rows=rows,

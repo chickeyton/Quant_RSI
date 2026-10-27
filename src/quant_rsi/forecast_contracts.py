@@ -105,6 +105,10 @@ def parse_development_plan(raw):
     from quant_rsi.schemas import DevelopmentPlan
 
     value = json.loads(raw)
+    if value.get("plan_type") == "forecast_comparison":
+        from quant_rsi.forecast_protocol import ForecastComparisonPlan
+
+        return ForecastComparisonPlan.model_validate_json(raw)
     if value.get("plan_type") == "forecast_development":
         return ForecastDevelopmentPlan.model_validate_json(raw)
     return DevelopmentPlan.model_validate_json(raw)

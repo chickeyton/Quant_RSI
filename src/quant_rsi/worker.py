@@ -54,9 +54,16 @@ def main() -> None:
         or seconds != plan.budget.worker_timeout_seconds
     ):
         raise ValueError("worker computation differs from the sealed plan")
-    factor = FactorSpec.model_validate_json(canonical(binding["proposal"]["factor"]))
-    data = MarketData.from_json(store.json(manifest["data_ref"]))
-    result = fit_predict(data, plan, factor)
+    if plan.plan_type == "forecast_comparison":
+        from quant_rsi.forecast_comparison import fit_comparison
+        from quant_rsi.forecast_inputs import ForecastInputs
+
+        data = ForecastInputs(store.json(manifest["data_ref"]))
+        result = fit_comparison(data, plan, plan.proposals[ordinal], store, manifest)
+    else:
+        factor = FactorSpec.model_validate_json(canonical(binding["proposal"]["factor"]))
+        data = MarketData.from_json(store.json(manifest["data_ref"]))
+        result = fit_predict(data, plan, factor)
     result["job_digest"] = computation_digest
     atomic_write(args.job.parent / "result.json", canonical(result))
 

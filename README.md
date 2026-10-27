@@ -35,6 +35,8 @@ quant-rsi forecast replay soxl-first
 
 One command collects daily bars, preserves source evidence, runs fixed-model research, seals the model, and persists a forecast. Reusing a request ID and output directory reuses the original inputs and result; use a new ID and directory for a new forecast. This is an engineering baseline; practical forecasting quality has not been established. See the [forecast baseline guide](docs/forecast_baseline.md) for supported markets, data assumptions, output interpretation, and recovery.
 
+A [paired forecast comparison](docs/forecast_comparison.md) adds longer price history and industry/market context, three frozen evaluation folds, and a separate publication fit. Its B0/B1/B2 models use price features; collected news and financial statements remain sidecar evidence. Each experiment has a cumulative limit of nine evaluation fits plus one publication fit.
+
 ## Synthetic Kernel Conventions
 
 - Data is a complete price panel generated with a fixed random seed. It uses weekdays and synthetic UTC timestamps, not an exchange calendar, corporate actions, or actual tradable instruments.

@@ -155,7 +155,14 @@ def accept_worker_result(work: Path, job: dict, store: ArtifactStore, plan, data
         raise ValueError("worker output belongs to another bound computation")
     if digest(result["model_text"].encode()) != result["model_digest"]:
         raise ValueError("model artifact digest mismatch")
-    if plan.data.source == "local_event_snapshot":
+    if plan.plan_type == "forecast_comparison":
+        from quant_rsi.forecast_comparison import verify_comparison_result
+
+        proposal = plan.proposals[job["binding"]["proposal_index"]]
+        report = verify_comparison_result(
+            data, plan, proposal, store, job["binding"]["manifest"], result, result["model_text"]
+        )
+    elif plan.data.source == "local_event_snapshot":
         from quant_rsi.local_research import evaluate_local, verify_local_result
 
         factor = FactorSpec.model_validate_json(canonical(job["binding"]["proposal"]["factor"]))
@@ -191,7 +198,13 @@ def accept_worker_result(work: Path, job: dict, store: ArtifactStore, plan, data
 
 def execute_attempt(root: Path, ordinal, proposal, manifest, plan, data, store, journal, lock_fd):
     try:
-        FactorSpec.model_validate_json(canonical(proposal["factor"]))
+        if plan.plan_type == "forecast_comparison":
+            if not 0 <= ordinal < len(plan.proposals) or proposal != plan.proposals[
+                ordinal
+            ].model_dump(mode="json"):
+                raise ValueError("comparison proposal differs from frozen job")
+        else:
+            FactorSpec.model_validate_json(canonical(proposal["factor"]))
     except (ValidationError, ValueError) as exc:
         journal.finish(ordinal, "rejected", error="invalid_factor: " + str(exc).splitlines()[0])
         return

@@ -33,6 +33,7 @@ def prepare_inputs(tmp_path, monkeypatch):
         missing_market=None,
         later_market_availability=False,
         shifted_market_close=False,
+        future_calendar=0,
     ):
         nonlocal serial
         serial += 1
@@ -40,7 +41,7 @@ def prepare_inputs(tmp_path, monkeypatch):
         roles = {}
         for role, instrument in (("target", "A"), ("industry", "I"), ("market", "M")):
             contract, events, availability = contract_and_events(
-                instruments=(instrument,), count=100
+                instruments=(instrument,), count=100 + future_calendar
             )
             value = contract.model_dump(mode="json")
             value["source_id"] = f"{role}_{serial}"

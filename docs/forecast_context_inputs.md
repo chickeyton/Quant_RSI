@@ -26,7 +26,7 @@ build_common_mask(inputs, recipes, origin_indices, label_asof, purpose=...) reco
 
 Training label maturity remains governed by the existing five-session kernel: a label from origin u is usable at training boundary b only when u+5 is no later than b and all source information is available. Origins beyond the label knowledge boundary are rejected. Mask exclusions remain visible, and publication or evaluation code must not recompute a favorable mask after seeing scores.
 
-The next rolling protocol uses the separately frozen origin grids 378..498, 504..624, and 630..750, in steps of five. This module does not launch those experiments or reserve their proposed fit budget.
+The [paired comparison workflow](forecast_comparison.md) uses the separately frozen origin grids 378..498, 504..624, and 630..750, in steps of five. This module does not launch those experiments or reserve their proposed fit budget.
 
 ## News, fundamentals, and coverage
 
