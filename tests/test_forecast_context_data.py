@@ -400,7 +400,7 @@ def test_ingestion_retains_both_ancestor_locks_after_controller_death(tmp_path):
     script = """
 import fcntl, os, subprocess, sys
 from pathlib import Path
-from quant_rsi import forecast_context_data as context
+from quant_rsi.forecast import forecast_context_data as context
 audit, out, workflow_lock, campaign_lock, ready = sys.argv[1:]
 fds = [os.open(path, os.O_RDWR | os.O_CREAT, 0o600) for path in (workflow_lock, campaign_lock)]
 for fd in fds:
