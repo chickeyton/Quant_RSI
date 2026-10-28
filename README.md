@@ -118,7 +118,7 @@ See [instrument and output organization](instruments/README.md) for per-instrume
 
 Runtime identity hashes every Python source beneath `src/quant_rsi/` using package-relative paths, including nested modules and entrypoints. This package reorganization changes that identity. Historical bound runs require their original source snapshot and dependencies for resume/replay; do not rewrite their manifests or migrate their stored paths.
 
-Use four-space indentation in Python, `snake_case` for functions and modules, and `PascalCase` for classes. Ruff handles formatting and static checks with a line length of 100. Dependencies are pinned in `requirements-dev.lock`; update and validate the lock file when changing dependencies. Use concise imperative commit subjects. Pull requests should explain the purpose, behavior changes, and validation results. This README is the reference for current commands; the existing `AGENTS.md` is preserved as requested.
+Use four-space indentation in Python, `snake_case` for functions and modules, and `PascalCase` for classes. Ruff handles formatting and static checks with a line length of 100. Dependencies are pinned in `requirements-dev.lock`; update and validate the lock file when changing dependencies. Use concise imperative commit subjects. Pull requests should explain the purpose, behavior changes, and validation results. This README is the reference for current commands.
 
 ### Contributor Delivery
 
