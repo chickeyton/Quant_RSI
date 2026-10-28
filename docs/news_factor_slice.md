@@ -98,6 +98,10 @@ for an existing document revision. A changed payload needs a new revision. The r
 version-1 `ForecastInputs` envelope uses its existing signal/evidence extension points;
 new task/schema/configuration records are hash-bound, not silently ignored envelope keys.
 
+Returned coverage is intersected with the requested search interval. Original coverage and
+receipts remain retained unchanged; clipping never upgrades partial/truncated coverage, and
+an empty or shorter-than-seven-day intersection cannot supply a complete feature window.
+
 ## Authority, recovery, and replay
 
 The news ledger lives only at the existing trusted authority's
@@ -112,12 +116,22 @@ Exactly **one** paired experiment identity/input/fold binding is permitted per c
 Renaming the experiment, changing the input/query version, or retrying an unsuccessful
 initialization cannot mint another fit allowance. Changes need a deliberately new research
 campaign, not an automatic retry. Resume/replay verifies the original registered search
-outputs, frozen campaign receipt, and original experiment ledger. Existing managed enhanced
+outputs, frozen campaign receipt, and original experiment ledger. First authorization freezes
+all completed query/result references from the trusted campaign ledger and checks the full
+registered aggregate; dropping an entire completed query cannot hide partial coverage or
+missing evidence. Subsequent searches do not change that frozen set during replay. Only the
+participating news source/entity/type is authorized here; unrelated SEC/fundamental sidecars
+remain intact in the input envelope. Existing managed enhanced
 forecast campaigns are not silently broadened to admit these signals.
 
 Search/extraction usage and comparison fit accounting are both retained; they have different
 units. Later searches retain campaign cumulative usage but cannot replace a frozen comparison's
 inputs, earlier extracted revisions, or historical feature views.
+
+Claimed ledgers created before the frozen query/result map was introduced fail closed
+under this version; they are not silently upgraded from today's search ledger. Preserve
+the original workspace and runtime for historical replay. New research requires an
+explicitly new campaign, never deletion or resetting of an existing allowance ledger.
 
 ## Engineering acceptance and limitations
 

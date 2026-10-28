@@ -465,3 +465,65 @@ def test_completed_closed_window_is_available_only_after_processing_and_not_stal
     assert scalar(result, at="2025-07-08T00:00:00Z")["value"] is None
     assert scalar(result, at="2025-07-08T00:01:00Z")["value"] == 1.0
     assert scalar(result, at="2025-07-09T01:00:00Z")["value"] is None
+
+
+@pytest.mark.parametrize("status", ["complete", "partial"])
+def test_returned_coverage_intersects_query_without_rewriting_original(tmp_path, status):
+    value, evidence = corpus(coverage=status)
+    value["coverage"][0].update(
+        start_at="2025-06-30T00:00:00Z",
+        end_at="2025-07-08T01:00:00Z",
+        first_seen_at="2025-07-08T01:00:00Z",
+    )
+    original = deepcopy(value)
+    result = run(
+        tmp_path,
+        value,
+        evidence,
+        req=request(as_of="2025-07-08T01:00:00Z"),
+        completed_at="2025-07-08T01:00:00Z",
+    )
+    returned = result["snapshot"]["coverage"][0]
+    assert market_contracts.timestamp(returned["start_at"]) == market_contracts.timestamp(START)
+    assert market_contracts.timestamp(returned["end_at"]) == market_contracts.timestamp(END)
+    assert returned["status"] == status
+    assert value == original
+    ledger = decode(
+        (tmp_path / ".quant_rsi/news_campaigns/news_campaign/news_campaign.json").read_bytes()
+    )
+    assert (
+        ledger["runs"]["news_test"]["coverage"]
+        == snapshot(original).model_dump(mode="json")["coverage"]
+    )
+    assert all(result["evidence_hex"][ref] == raw.hex() for ref, raw in evidence.items())
+    answer = scalar(result, at="2025-07-08T01:00:00Z")
+    assert answer["value"] == (1.0 if status == "complete" else None)
+    assert answer["reasons"] == ([] if status == "complete" else ["news_coverage_partial"])
+
+
+@pytest.mark.parametrize(
+    "start,end", [("2025-07-08T00:00:00Z", "2025-07-09T00:00:00Z"), ("2025-07-02T00:00:00Z", END)]
+)
+def test_coverage_clipping_never_creates_missing_seven_day_evidence(tmp_path, start, end):
+    value, evidence = corpus()
+    value["coverage"][0].update(start_at=start, end_at=end, first_seen_at=end)
+    result = run(
+        tmp_path,
+        value,
+        evidence,
+        req=request(as_of="2025-07-09T00:00:00Z"),
+        completed_at="2025-07-09T00:00:00Z",
+    )
+    assert scalar(result, at="2025-07-09T00:00:00Z")["value"] is None
+    if start == END:
+        assert result["snapshot"]["coverage"] == []
+
+
+def test_clipped_coverage_keeps_campaign_truncation_partial(tmp_path):
+    value, evidence = corpus()
+    value["events"].append(value["events"][0] | dict(event_id="second_document"))
+    value["coverage"][0].update(start_at="2025-06-30T00:00:00Z")
+    result = run(tmp_path, value, evidence, req=request(max_documents=1))
+    assert result["snapshot"]["coverage"][0]["status"] == "partial"
+    assert result["snapshot"]["coverage"][0]["reason"] == "campaign_allowance_truncated_corpus"
+    assert scalar(result)["value"] is None

@@ -277,6 +277,15 @@ def test_retained_search_extraction_features_and_original_worker_end_to_end(
     )
     assert prepared["news_accounting"]["fit_allowance_policy"] == "single_paired_comparison"
     assert prepared["news_accounting"]["cumulative_usage"]["extractions"] == 40
+    # A later search is charged to the campaign but cannot invalidate the frozen
+    # evidence set during prepare, resume, or terminal verification/replay.
+    later_request = req.model_copy(update={"request_id": "after_comparison_freeze"})
+    later = news.run_news(later_request, snapshot, evidence, store)
+    assert later["query_ref"] not in prepared["news_accounting"]["searches"]
+    assert later["cumulative_usage"]["extractions"] == 41
+    assert prepared == prepare_experiment(
+        envelope, "real-news-pair", fold_origins=((80, 85, 90),), news_factor=True
+    )
     result = resume_experiment("real-news-pair", protocol_ref=prepared["protocol_ref"], max_fits=3)
     if not real_model:
         assert worker_state["fits"] == 3
@@ -401,3 +410,136 @@ def test_newly_observed_corpus_seals_insufficient_evidence_without_retrying(
     with pytest.raises(ValueError, match="single comparison allowance"):
         prepare_experiment(envelope, "retry-news", fold_origins=((80, 85, 90),), news_factor=True)
     assert not (experiment_root("insufficient-news") / "journal.sqlite").exists()
+
+
+def test_whole_query_omission_rejected_and_authoritative_results_frozen(
+    request, tmp_path, monkeypatch
+):
+    from test_news_factor import END, corpus, snapshot
+    from test_news_factor import request as news_request
+
+    from quant_rsi.core.artifacts import ArtifactStore
+    from quant_rsi.factors import news
+    from quant_rsi.forecast.forecast_inputs import ForecastInputs
+    from quant_rsi.market import market_contracts
+
+    _, envelope = request.getfixturevalue("prepare_inputs")(
+        future_calendar=5, target_instrument="KO"
+    )
+    clock = [END]
+    monkeypatch.setattr(market_contracts, "trusted_now", lambda: clock[0])
+    store = ArtifactStore(tmp_path / "omission_artifacts")
+    value, evidence = corpus()
+    first = news.run_news(news_request(), snapshot(value), evidence, store)
+    first_only = news.attach_news_result(envelope, first)
+    clock[0] = "2025-07-08T00:01:00Z"
+    partial, partial_evidence = corpus(coverage="partial")
+    second = news.run_news(
+        news_request(request_id="partial"), snapshot(partial), partial_evidence, store
+    )
+    complete = news.attach_news_result(first_only, second)
+    assert news.news_scalar(ForecastInputs(first_only), None, clock[0])["value"] == 1.0
+    assert news.news_scalar(ForecastInputs(complete), None, clock[0])["reasons"] == [
+        "news_coverage_partial"
+    ]
+    with pytest.raises(ValueError, match="coverage differs"):
+        news.authorize_news_comparison(ForecastInputs(first_only), "omitted", ((80, 85, 90),))
+    receipt = news.authorize_news_comparison(ForecastInputs(complete), "frozen", ((80, 85, 90),))
+    assert set(receipt["searches"]) == {first["query_ref"], second["query_ref"]}
+    assert all(store.json(ref)["query_ref"] == query for query, ref in receipt["searches"].items())
+    later = news.run_news(news_request(request_id="later"), snapshot(value), evidence, store)
+    assert later["query_ref"] not in receipt["searches"]
+    assert receipt == news.authorize_news_comparison(
+        ForecastInputs(complete), "frozen", ((80, 85, 90),), verify_only=True
+    )
+    assert receipt == news.authorize_news_comparison(
+        ForecastInputs(complete), "frozen", ((80, 85, 90),)
+    )
+
+    # Even an empty later result must not silently expand the frozen state while
+    # the receipt retained by the experiment still names the original searches.
+    from quant_rsi.core.artifacts import atomic_write, decode
+    from quant_rsi.evaluation.evidence import authority_root
+
+    empty = deepcopy(value)
+    empty.update(events=[], coverage=[])
+    extra = news.run_news(news_request(request_id="later_empty"), snapshot(empty), evidence, store)
+    path = authority_root() / "news_campaigns/news_campaign/news_campaign.json"
+    saved = path.read_bytes()
+    state = decode(saved)
+    state["comparison_searches"][extra["query_ref"]] = state["runs"]["later_empty"]["result_ref"]
+    atomic_write(path, canonical(state))
+    with pytest.raises(ValueError, match="receipt differs"):
+        news.authorize_news_comparison(
+            ForecastInputs(complete), "frozen", ((80, 85, 90),), verify_only=True
+        )
+    state = decode(saved)
+    state["comparison_receipt"]["comparison"]["experiment_id"] = "changed"
+    atomic_write(path, canonical(state))
+    with pytest.raises(ValueError, match="receipt differs"):
+        news.authorize_news_comparison(
+            ForecastInputs(complete), "frozen", ((80, 85, 90),), verify_only=True
+        )
+    state = decode(saved)
+    state.pop("comparison_searches")
+    atomic_write(path, canonical(state))
+    with pytest.raises(ValueError, match="frozen searches are missing"):
+        news.authorize_news_comparison(
+            ForecastInputs(complete), "frozen", ((80, 85, 90),), verify_only=True
+        )
+    atomic_write(path, saved)
+
+
+def test_sec_sidecar_preserved_while_missing_and_forged_news_rejected(
+    request, tmp_path, monkeypatch
+):
+    from test_news_factor import END, corpus, snapshot
+    from test_news_factor import request as news_request
+
+    from quant_rsi.core.artifacts import ArtifactStore, digest
+    from quant_rsi.factors import news
+    from quant_rsi.forecast.forecast_inputs import ForecastInputs
+    from quant_rsi.market import market_contracts
+
+    _, envelope = request.getfixturevalue("prepare_inputs")(
+        future_calendar=5, target_instrument="KO"
+    )
+    sec, sec_evidence = corpus()
+    sec["events"][0].update(
+        kind="fundamental",
+        source_id="sec_companyfacts",
+        report_period_end="2025-06-30",
+        fields={"revenue": "100"},
+        units={"revenue": "USD"},
+    )
+    sec["coverage"][0]["source_id"] = "sec_companyfacts"
+    envelope["signals"] = sec
+    envelope["evidence_hex"].update({ref: raw.hex() for ref, raw in sec_evidence.items()})
+    prior = ForecastInputs(envelope).signals.model_dump(mode="json")
+    value, evidence = corpus()
+    monkeypatch.setattr(market_contracts, "trusted_now", lambda: END)
+    result = news.run_news(
+        news_request(), snapshot(value), evidence, ArtifactStore(tmp_path / "sidecar_artifacts")
+    )
+    attached = news.attach_news_result(envelope, result)
+    assert attached["signals"]["events"][0] == prior["events"][0]
+    assert attached["signals"]["coverage"][0] == prior["coverage"][0]
+    for mutation in ("missing", "forged"):
+        changed = deepcopy(attached)
+        if mutation == "missing":
+            changed["signals"]["events"] = [changed["signals"]["events"][0]]
+        else:
+            changed["signals"]["events"][1]["fields"]["title"] = "Forged title"
+        with pytest.raises(ValueError, match="evidence differs"):
+            news.authorize_news_comparison(ForecastInputs(changed), "bad", ((80, 85, 90),))
+    forged = deepcopy(attached)
+    raw = canonical({"campaign_id": "news_campaign"})
+    forged["evidence_hex"][digest(raw)] = raw.hex()
+    forged["signals"]["events"][1]["query_ref"] = digest(raw)
+    with pytest.raises(ValueError, match="not a completed registered search"):
+        news.authorize_news_comparison(ForecastInputs(forged), "bad", ((80, 85, 90),))
+    prepared = prepare_experiment(
+        attached, "with-sec-sidecar", fold_origins=((80, 85, 90),), news_factor=True
+    )
+    assert prepared["news_accounting"]["fit_allowance_policy"] == "single_paired_comparison"
+    assert prepared == inspect_experiment("with-sec-sidecar", replay=True)

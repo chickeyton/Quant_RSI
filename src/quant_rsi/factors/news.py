@@ -310,6 +310,13 @@ def run_news(request, snapshot, evidence, store, root: Path | None = None, *, co
         coverage = []
         for original in old["coverage"]:
             value = dict(original)
+            # Return only the interval actually searched. The original coverage
+            # and receipts remain unchanged in the campaign ledger/evidence.
+            start = max(timestamp(value["start_at"]), request.start_at)
+            end = min(timestamp(value["end_at"]), request.end_at)
+            if start >= end:
+                continue
+            value.update(start_at=utc_text(start), end_at=utc_text(end))
             value["first_seen_at"] = utc_text(
                 max(timestamp(value["first_seen_at"]), timestamp(market_contracts.trusted_now()))
             )
@@ -485,7 +492,19 @@ def authorize_news_comparison(inputs, experiment_id, fold_origins, *, verify_onl
     snapshot = inputs.signals
     if snapshot is None or not snapshot.coverage:
         raise ValueError("news comparison requires registered campaign evidence")
-    query_refs = {c.query_ref for c in snapshot.coverage} | {e.query_ref for e in snapshot.events}
+    coverage = [
+        c
+        for c in snapshot.coverage
+        if c.source_id == SOURCE and c.entity == NEWS_BINDING["instrument"]
+    ]
+    events = [
+        e
+        for e in snapshot.events
+        if e.source_id == SOURCE and e.entity == NEWS_BINDING["instrument"] and e.kind == "news"
+    ]
+    query_refs = {c.query_ref for c in coverage} | {e.query_ref for e in events}
+    if not query_refs:
+        raise ValueError("news comparison requires registered campaign evidence")
     plans = [decode(inputs.evidence[ref]) for ref in query_refs]
     campaigns = {p.get("campaign_id") for p in plans}
     if len(campaigns) != 1 or None in campaigns:
@@ -508,17 +527,36 @@ def authorize_news_comparison(inputs, experiment_id, fold_origins, *, verify_onl
             or anchor["campaign_id"] != campaign
         ):
             raise ValueError("news campaign authority differs")
+        if verify_only and "comparison" not in state:
+            raise ValueError("news comparison allowance has not been registered")
         store = ArtifactStore(Path(anchor["store_root"]))
-        finished = [r for r in state["runs"].values() if r.get("result_ref")]
-        if not query_refs <= {r["query_ref"] for r in finished}:
+        finished = {
+            r["query_ref"]: r["result_ref"] for r in state["runs"].values() if r.get("result_ref")
+        }
+        # First authorization must include all completed searches, not a subset
+        # chosen by the input envelope. Later searches must not change replay of
+        # the already-frozen comparison or grant another fit allowance.
+        if "comparison" in state:
+            searches = state.get("comparison_searches")
+            if not isinstance(searches, dict) or not searches:
+                raise ValueError("news comparison frozen searches are missing")
+            if any(finished.get(query) != result for query, result in searches.items()):
+                raise ValueError("news comparison frozen searches differ from registered output")
+            receipt = state.get("comparison_receipt", {})
+            if (
+                receipt.get("searches") != searches
+                or receipt.get("comparison") != state["comparison"]
+                or receipt.get("campaign_id") != campaign
+                or receipt.get("limits") != state["limits"]
+            ):
+                raise ValueError("news comparison receipt differs from frozen campaign state")
+        else:
+            searches = finished
+        if not query_refs <= searches.keys():
             raise ValueError("query is not a completed registered search")
-        snapshots = [
-            store.json(r["result_ref"])["snapshot"]
-            for r in finished
-            if r["query_ref"] in query_refs
-        ]
+        snapshots = [store.json(ref)["snapshot"] for ref in searches.values()]
         expected_coverage = {digest(canonical(c)) for s in snapshots for c in s["coverage"]}
-        actual_coverage = {digest(canonical(c.model_dump(mode="json"))) for c in snapshot.coverage}
+        actual_coverage = {digest(canonical(c.model_dump(mode="json"))) for c in coverage}
         if actual_coverage != expected_coverage:
             raise ValueError("comparison coverage differs from registered search output")
         expected_events = {}
@@ -530,7 +568,7 @@ def authorize_news_comparison(inputs, experiment_id, fold_origins, *, verify_onl
             (e.source_id, e.entity, e.event_id, e.revision): digest(
                 canonical(e.model_dump(mode="json"))
             )
-            for e in snapshot.events
+            for e in events
         }
         if set(actual_events) != set(expected_events) or any(
             ref not in expected_events[key] for key, ref in actual_events.items()
@@ -547,9 +585,11 @@ def authorize_news_comparison(inputs, experiment_id, fold_origins, *, verify_onl
             if verify_only:
                 raise ValueError("news comparison allowance has not been registered")
             state["comparison"] = binding
+            state["comparison_searches"] = searches
             state["comparison_receipt"] = dict(
                 campaign_id=campaign,
                 comparison=binding,
+                searches=searches,
                 limits=state["limits"],
                 cumulative_usage=state["used"].copy(),
                 fit_allowance_policy="single_paired_comparison",
