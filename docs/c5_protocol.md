@@ -26,7 +26,7 @@ This directory is ignored by Git and contains private scoring data plus durable 
 
 ## Register, run and inspect
 
-Follow the complete command sequence in [README](../README.md#c5工程保护评估).
+Follow the complete command sequence in [README](experiment_workflows.md#c5-protected-engineering-evaluation).
 `compare register PLAN --output ROOT` compiles the frozen input plan, task grids,
 training/eligibility rules and expected coverage before granting development work.
 The only accepted runnable mode is `engineering_only`. A `confirmatory` request fails
