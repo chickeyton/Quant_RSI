@@ -94,6 +94,20 @@ def test_typed_dag_rejects_cycles_unused_nodes_and_unbounded_expressions():
         combine(combine(graph, graph, "add"), graph, "add")
 
 
+@pytest.mark.parametrize("values", [(1e200, 1e200), (float("inf"), 1.0)])
+def test_numeric_overflow_excludes_the_same_rows_for_all_candidates(monkeypatch, values):
+    from quant_rsi.factors import discovery_graph
+
+    monkeypatch.setattr(
+        discovery_graph,
+        "source_leaves",
+        lambda *args: (dict(zip(("momentum", "mean_return"), values, strict=True)), [], set()),
+    )
+    results = [evaluate(graph, plan().leaves, None, None, None) for graph in grammar(plan().leaves)]
+    assert all(result["value"] is None for result in results)
+    assert all(result["reasons"] == ["registered_grammar_nonfinite"] for result in results)
+
+
 def test_feedback_changes_operator_and_failed_step_keeps_frontier():
     frontier = grammar(plan().leaves)
     first = propose(frontier, [])

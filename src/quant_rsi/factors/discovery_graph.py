@@ -186,6 +186,20 @@ def source_leaves(inputs, leaves, origin, as_of, basis):
 
 def evaluate(expression, leaves, inputs, origin, as_of, basis=None):
     sources, reasons, refs = source_leaves(inputs, leaves, origin, as_of, basis)
+    # Freeze numerical eligibility over the whole registered two-leaf grammar,
+    # including unselected candidates: overflow must not change the sample pool.
+    numeric = [value for value in sources.values() if value is not None]
+    if any(not math.isfinite(value) for value in numeric) or any(
+        not math.isfinite(value)
+        for index, left in enumerate(numeric)
+        for right in numeric[index + 1 :]
+        for value in (left + right, left - right, left * right)
+    ):
+        return dict(
+            value=None,
+            reasons=sorted(set(reasons) | {"registered_grammar_nonfinite"}),
+            source_refs=sorted(refs),
+        )
     values = {}
     for node in expression.nodes:
         if node.op == "leaf":
