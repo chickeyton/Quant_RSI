@@ -8,6 +8,10 @@ The first worked example of multi-branch factor discovery is the [CALM egg-price
 
 ## Installation and Usage
 
+Shared stock factors and instrument-specific bindings are described in the
+[factor-layer guide](docs/factor_layers.md). `quant-rsi factors validate US CALM`
+resolves their numeric/text specifications without collecting data or training.
+
 Validated on Linux with Python 3.12. Process control relies on POSIX `flock`, signals, and resource limits; Windows is not supported. Installing dependencies requires network access. Synthetic experiments need no external services. Automatic data collection for five-session forecasts requires access to public market data and exchange calendars, without an API key.
 
 ```bash

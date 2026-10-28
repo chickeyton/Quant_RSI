@@ -2,6 +2,18 @@
 
 All instruments share the engine in `src/quant_rsi/`. Keep instrument-specific configuration here; do not copy source modules into instrument directories.
 
+## Layered Factor Specifications
+
+Shared stock definitions live in [`shared/equities.json`](shared/equities.json).
+Each stock selects them and declares its own sources in `<MARKET>/<SYMBOL>/factors.json`:
+see [CALM](US/CALM/factors.json) and [KO](US/KO/factors.json). CALM's egg-price and
+disease-event definitions stay inside CALM; they are not stock-wide defaults.
+
+Run `quant-rsi factors validate US CALM` to resolve and inspect the configuration.
+This is read-only specification validation, not data collection or forecasting.
+The [factor-layer guide](../docs/factor_layers.md) explains numeric/text types,
+ownership, examples and the remaining execution boundary.
+
 ## Tracked Profiles
 
 Profiles follow `instruments/<MARKET>/<SYMBOL>/forecast.json`. The current US examples explicitly bind SOXL/XSD/SPY and KO/XLP/SPY as target/industry/market roles. They also declare the supported source, calendar, history, horizon, price units, and availability assumption.

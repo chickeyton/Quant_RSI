@@ -37,6 +37,12 @@ def main(argv: list[str] | None = None) -> int:
         description="Bounded quant research and development observations"
     )
     commands = parser.add_subparsers(dest="command", required=True)
+    factors = commands.add_parser("factors", help="validate layered factor specifications; no fits")
+    factor_commands = factors.add_subparsers(dest="factor_command", required=True)
+    factor_validate = factor_commands.add_parser("validate")
+    factor_validate.add_argument("market")
+    factor_validate.add_argument("instrument")
+    factor_validate.add_argument("--root", type=Path, default=Path("instruments"))
     forecast = commands.add_parser("forecast", help="fixed five-session daily price forecast")
     forecast_commands = forecast.add_subparsers(dest="forecast_command", required=True)
     forecast_run = forecast_commands.add_parser("run")
@@ -208,6 +214,12 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--steps", type=int, default=1)
     args = parser.parse_args(argv)
     try:
+        if args.command == "factors":
+            from quant_rsi.factors.catalog import resolve_instrument_factors
+
+            report = resolve_instrument_factors(args.root, args.market, args.instrument)
+            print(json.dumps(report, indent=2, allow_nan=False))
+            return 0
         if args.command == "forecast":
             from quant_rsi.forecast.forecast_requests import inspect_forecast
             from quant_rsi.forecast.forecast_workflow import display_forecast, run_forecast
