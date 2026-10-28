@@ -8,18 +8,12 @@ import pytest
 from test_local_packages import local_c4_fixture as _local_c4_fixture
 from test_local_packages import local_workspace
 
-from quant_rsi import (
-    changes,
-    controller,
-    evidence,
-    local_research,
-    package_experiment,
-    research,
-    trajectory,
-)
-from quant_rsi.artifacts import ArtifactStore, canonical, digest
-from quant_rsi.trajectory_evidence import verify_package_receipt
-from quant_rsi.trajectory_state import (
+from quant_rsi.core import controller
+from quant_rsi.core.artifacts import ArtifactStore, canonical, digest
+from quant_rsi.evaluation import evidence, local_research
+from quant_rsi.research import changes, package_experiment, research, trajectory
+from quant_rsi.research.trajectory_evidence import verify_package_receipt
+from quant_rsi.research.trajectory_state import (
     TrajectoryLedger,
     TrajectoryPlan,
     locked_trajectory,
@@ -173,6 +167,16 @@ def test_actual_finite_chain_seals_saturation_at_fully_occupied_capacity(
     )
     assert files(tmp_path / "source-offline") == original
     root = trajectory_root()
+    frozen_store = ArtifactStore(tmp_path / "frozen-trajectory")
+    with TrajectoryLedger(root, readonly=True) as authority:
+        for artifact in (root / "artifacts").iterdir():
+            frozen_store.put(authority.store.get(artifact.name))
+        closure = dict(
+            authority_root=str(root),
+            anchor=authority.anchor,
+            control_ref=frozen_store.put(authority.connection.serialize()),
+            state_ref=authority.state_ref,
+        )
     before = files(root)
 
     def forbidden(*args, **kwargs):
@@ -191,6 +195,8 @@ def test_actual_finite_chain_seals_saturation_at_fully_occupied_capacity(
             patch.setattr(obj, name, forbidden)
         assert trajectory.inspect_trajectory() == report
         assert trajectory.resume_trajectory(steps=30) == report
+        with TrajectoryLedger.frozen(frozen_store, closure) as frozen:
+            assert trajectory.summarize(frozen) == report
     assert files(root) == before
     with locked_trajectory() as (root, _), TrajectoryLedger(root) as authority:
         request_id, receipt_ref = next(iter(authority.state["decisions"].items()))

@@ -5,17 +5,17 @@ from copy import deepcopy
 import pytest
 from market_helpers import contract_and_events, write_events
 
-from quant_rsi import market_contracts, market_data
-from quant_rsi.artifacts import canonical, digest
-from quant_rsi.asof import make_feature_view
-from quant_rsi.forecast_contracts import ForecastObjective
-from quant_rsi.forecast_kernel import (
+from quant_rsi.core.artifacts import canonical, digest
+from quant_rsi.core.schemas import FactorSpec
+from quant_rsi.forecast.forecast_contracts import ForecastObjective
+from quant_rsi.forecast.forecast_kernel import (
     forecast_errors,
     forecast_feature_view,
     mature_forecast_label,
     target_session,
 )
-from quant_rsi.schemas import FactorSpec
+from quant_rsi.market import market_contracts, market_data
+from quant_rsi.market.asof import make_feature_view
 
 
 def objective(notices=()):

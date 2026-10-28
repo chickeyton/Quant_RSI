@@ -8,12 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from quant_rsi import changes, controller, research
-from quant_rsi import package_experiment as packages
-from quant_rsi.artifacts import ArtifactStore, atomic_write, canonical, decode, digest
-from quant_rsi.package_journal import PackageJournal
-from quant_rsi.research_journal import ResearchJournal
-from quant_rsi.researcher import ResearchPlan
+from quant_rsi.core import controller
+from quant_rsi.core.artifacts import ArtifactStore, atomic_write, canonical, decode, digest
+from quant_rsi.research import changes, research
+from quant_rsi.research import package_experiment as packages
+from quant_rsi.research.package_journal import PackageJournal
+from quant_rsi.research.research_journal import ResearchJournal
+from quant_rsi.research.researcher import ResearchPlan
 
 
 @pytest.fixture(scope="module")

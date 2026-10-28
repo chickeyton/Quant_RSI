@@ -3,8 +3,8 @@
 import csv
 from datetime import datetime, timedelta, timezone
 
-from quant_rsi.artifacts import canonical, digest
-from quant_rsi.market_contracts import CSV_FIELDS, AccountRules, DataContract
+from quant_rsi.core.artifacts import canonical, digest
+from quant_rsi.market.market_contracts import CSV_FIELDS, AccountRules, DataContract
 
 
 def contract_and_events(*, basis="documented_historical_availability", instruments=("A",), count=7):

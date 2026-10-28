@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from quant_rsi.schemas import DevelopmentPlan
+from quant_rsi.core.schemas import DevelopmentPlan
 
 
 @pytest.fixture

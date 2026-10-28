@@ -4,11 +4,13 @@ import lightgbm as lgb
 import pytest
 from market_helpers import account_rules, contract_and_events, write_events
 
-from quant_rsi import controller, market_data, research, researcher
-from quant_rsi.artifacts import ArtifactStore, canonical, digest
-from quant_rsi.local_research import LocalResearchData, export_local_data, training_view
-from quant_rsi.researcher import ResearchPlan
-from quant_rsi.schemas import FactorSpec
+from quant_rsi.core import controller
+from quant_rsi.core.artifacts import ArtifactStore, canonical, digest
+from quant_rsi.core.schemas import FactorSpec
+from quant_rsi.evaluation.local_research import LocalResearchData, export_local_data, training_view
+from quant_rsi.market import market_data
+from quant_rsi.research import research, researcher
+from quant_rsi.research.researcher import ResearchPlan
 
 
 @pytest.fixture
@@ -93,7 +95,7 @@ def test_local_training_information_age_is_not_refreshed_by_import(local_plan):
 
 
 def test_synthetic_generator_refuses_local_input(local_plan):
-    from quant_rsi.data import synthetic_data
+    from quant_rsi.core.data import synthetic_data
 
     with pytest.raises(ValueError, match="cannot be replaced"):
         synthetic_data(local_plan.development.data)
@@ -102,7 +104,7 @@ def test_synthetic_generator_refuses_local_input(local_plan):
 def test_actual_incumbent_seals_and_infers_last_session_without_fit(
     local_plan, tmp_path, monkeypatch
 ):
-    from quant_rsi.baseline import infer_at, inspect_baseline, seal_baseline
+    from quant_rsi.execution.baseline import infer_at, inspect_baseline, seal_baseline
 
     root = tmp_path / "research"
     outcome = research.create_research(local_plan, root, steps=1)

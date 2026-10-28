@@ -3,7 +3,7 @@ from decimal import Decimal
 import pytest
 from market_helpers import account_rules
 
-from quant_rsi import execution_account as account
+from quant_rsi.execution import execution_account as account
 
 
 def quote(price):

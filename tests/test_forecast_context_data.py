@@ -2,16 +2,17 @@
 
 import json
 import os
+import subprocess
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from quant_rsi import forecast_context_data as context
-from quant_rsi.artifacts import canonical, digest
-from quant_rsi.forecast_inputs import ForecastInputs
-from quant_rsi.forecast_kernel import action_assessment
+from quant_rsi.core.artifacts import canonical, digest
+from quant_rsi.forecast import forecast_context_data as context
+from quant_rsi.forecast.forecast_inputs import ForecastInputs
+from quant_rsi.forecast.forecast_kernel import action_assessment
 
 ET = ZoneInfo("America/New_York")
 HOLIDAYS = {
@@ -183,7 +184,28 @@ def test_isolated_inputs_roles_future_dst_and_clock(tmp_path, monkeypatch):
     audit = audit_package(tmp_path)
     prior = tmp_path / "must-not-touch"
     monkeypatch.setenv("QUANT_RSI_WORKSPACE", str(prior))
+    original_run = subprocess.run
+    child_imports = []
+
+    def check_source_import(command, **kwargs):
+        # Disable site initialization so an editable install cannot hide a wrong PYTHONPATH.
+        probe = original_run(
+            [
+                command[0],
+                "-S",
+                "-c",
+                "from importlib.util import find_spec; "
+                "assert find_spec('quant_rsi.forecast.forecast_context_data') is not None",
+            ],
+            **kwargs,
+        )
+        assert probe.returncode == 0
+        child_imports.append(kwargs["cwd"])
+        return original_run(command, **kwargs)
+
+    monkeypatch.setattr(context.subprocess, "run", check_source_import)
     result = context.prepare_context_data(audit, tmp_path / "prepared", history_sessions=24)
+    assert child_imports == [tmp_path / "prepared"]
     inputs = ForecastInputs(result["inputs"])
     assert os.environ["QUANT_RSI_WORKSPACE"] == str(prior) and not prior.exists()
     assert inputs.target[0].instruments == ("SOXL",)
@@ -378,7 +400,7 @@ def test_ingestion_retains_both_ancestor_locks_after_controller_death(tmp_path):
     script = """
 import fcntl, os, subprocess, sys
 from pathlib import Path
-from quant_rsi import forecast_context_data as context
+from quant_rsi.forecast import forecast_context_data as context
 audit, out, workflow_lock, campaign_lock, ready = sys.argv[1:]
 fds = [os.open(path, os.O_RDWR | os.O_CREAT, 0o600) for path in (workflow_lock, campaign_lock)]
 for fd in fds:

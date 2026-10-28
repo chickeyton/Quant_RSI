@@ -3,9 +3,12 @@ from pathlib import Path
 import pytest
 from market_helpers import contract_and_events, write_events
 
-from quant_rsi import baseline, forecast_requests, market_data, package_experiment, research
-from quant_rsi.artifacts import canonical, digest
-from quant_rsi.researcher import ResearchPlan
+from quant_rsi.core.artifacts import canonical, digest
+from quant_rsi.execution import baseline
+from quant_rsi.forecast import forecast_requests
+from quant_rsi.market import market_data
+from quant_rsi.research import package_experiment, research
+from quant_rsi.research.researcher import ResearchPlan
 
 
 @pytest.fixture
@@ -165,7 +168,7 @@ def test_forecast_c2_seal_replay_and_legacy_boundary(forecast_plan, tmp_path, mo
     assert confirmed["generated_at"] == unconfirmed["generated_at"]
     assert confirmed["status"] == "late"
 
-    from quant_rsi.artifacts import ArtifactStore
+    from quant_rsi.core.artifacts import ArtifactStore
 
     def forbidden(*args, **kwargs):
         pytest.fail("read-only forecast replay attempted artifact publication")
@@ -177,9 +180,9 @@ def test_forecast_c2_seal_replay_and_legacy_boundary(forecast_plan, tmp_path, mo
 def test_mean_benchmark_uses_the_model_training_mask(forecast_plan):
     import math
 
-    from quant_rsi.forecast_research import training_mean_baseline, training_view
-    from quant_rsi.local_research import LocalResearchData, export_local_data
-    from quant_rsi.schemas import FactorSpec
+    from quant_rsi.core.schemas import FactorSpec
+    from quant_rsi.evaluation.local_research import LocalResearchData, export_local_data
+    from quant_rsi.forecast.forecast_research import training_mean_baseline, training_view
 
     data = LocalResearchData.from_json(export_local_data(forecast_plan.development.data))
     factor = FactorSpec(op="momentum", window=5)

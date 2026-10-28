@@ -1,6 +1,6 @@
 import pytest
 
-from quant_rsi.journal import BudgetExhausted, Journal
+from quant_rsi.core.journal import BudgetExhausted, Journal
 
 
 def test_reservation_and_completion_conserve_budget(tmp_path):

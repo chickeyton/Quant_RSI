@@ -8,12 +8,13 @@ import pytest
 from test_forecast_comparison import dummy_worker  # noqa: F401
 from test_forecast_context_data import audit_package
 
-from quant_rsi import controller, market_contracts
-from quant_rsi import enhanced_forecast_workflow as workflow
-from quant_rsi import forecast_context_data as context
-from quant_rsi import forecast_experiment as experiment
-from quant_rsi.artifacts import canonical, decode, digest
-from quant_rsi.forecast_campaign import init_campaign
+from quant_rsi.core import controller
+from quant_rsi.core.artifacts import canonical, decode, digest
+from quant_rsi.forecast import enhanced_forecast_workflow as workflow
+from quant_rsi.forecast import forecast_context_data as context
+from quant_rsi.forecast import forecast_experiment as experiment
+from quant_rsi.forecast.forecast_campaign import init_campaign
+from quant_rsi.market import market_contracts
 
 NOW = "2026-10-26T21:00:00+00:00"
 
@@ -48,7 +49,7 @@ def setup_workflow(tmp_path, monkeypatch):
         run=True,
         campaign_plan=None,
     ):
-        from quant_rsi import forecast_context_collection as collection
+        from quant_rsi.forecast import forecast_context_collection as collection
 
         config = dict(
             schema_version=1,
@@ -86,7 +87,7 @@ def test_two_profiles_share_one_grant_and_terminal_repeats_are_read_only(
     setup_workflow, monkeypatch, request, capsys
 ):
     from quant_rsi.cli import main
-    from quant_rsi.forecast_campaign import inspect_campaign
+    from quant_rsi.forecast.forecast_campaign import inspect_campaign
 
     prepare, calls = setup_workflow
     cases = [("KO", "XLP", "ko-run"), ("SOXL", "XSD", "soxl-run")]
@@ -198,7 +199,7 @@ def test_two_profiles_share_one_grant_and_terminal_repeats_are_read_only(
     def forbidden(*args, **kwargs):
         pytest.fail("completed workflows must not collect, ingest, or dispatch")
 
-    from quant_rsi import forecast_context_collection as collection
+    from quant_rsi.forecast import forecast_context_collection as collection
 
     monkeypatch.setattr(collection, "collect_context", forbidden)
     monkeypatch.setattr(context, "prepare_context_data", forbidden)
@@ -372,7 +373,7 @@ def test_unsupported_configuration_rejected_before_collection(change, tmp_path, 
 def test_shared_entry_guards_reject_unknown_runs_and_copied_or_lost_authority(
     setup_workflow, monkeypatch, tmp_path
 ):
-    from quant_rsi.forecast_campaign import init_campaign
+    from quant_rsi.forecast.forecast_campaign import init_campaign
 
     prepare, _ = setup_workflow
     config, prepared = prepare()
@@ -461,7 +462,7 @@ def test_direct_batch_rechecks_freshness_before_each_new_dispatch(
 def test_matching_pre_ack_empty_schema_can_resume_but_damage_rejects(
     setup_workflow, monkeypatch, child, empty
 ):
-    from quant_rsi.journal import Journal
+    from quant_rsi.core.journal import Journal
 
     prepare, calls = setup_workflow
     config, _ = prepare(run=False)

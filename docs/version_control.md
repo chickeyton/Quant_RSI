@@ -1,31 +1,31 @@
-# 代码版本与 Git 管理范围
+# Version Control and Preserved Research History
 
-本仓库保存源代码、测试、小型测试夹具、配置模板、依赖锁文件、架构文档和参考论文。运行数据、环境与会话协调文件保留在本地，不随 Git clone 分发。
+The repository tracks source, tests, small fixtures, example profiles, dependency pins, documentation, and the reference paper. Local datasets, environments, runs, and session coordination files are not distributed by a clone.
 
-## 分支与验收状态
+## Branch and Pull Request Policy
 
-- main：当前工作目录的 trajectory2b 离线研究基线。发布前已独立比对原 85 项登记清单，字节与历史指纹 2b71f395a89cd133811930b18190ff23fed48450c1fdab4684056774a12eec06 对应。Git 整理排除生成的 egg-info，并更新忽略规则、增加本说明；没有修改可执行代码。
-- research/multigen-7892a903：后续隔离研究候选的源码快照，原始指纹为 7892a90385b252825511cf47b27d33e6bce296f69b652c6aaee7a49309ddc5a9。该候选已有一次 286 项回归通过的历史记录，固定实验17止于g1、29止于g0；连续两次真实语义推进及第二代同链故障恢复仍未证明。它没有合并或晋升为 main。
-- 候选的单次 g1 封存隔离回放于2026-10-25完成独立验收：原输出/遥测相同，进程退出、原工作区完整恢复后释放锁。该结果不证明收益、真实市场可用性或 SOTA。
+Maintain one persistent branch, `main`. Implement changes on a temporary branch, submit a pull request, and merge after review and required checks pass. Delete the temporary local and remote branch names after merging, including the branch used for the current consolidation. Do not push code changes directly to `main`.
 
-当前能力及命令见原 README 和 docs 内的使用文档。两条分支均保持各自原 README 内容；请按所检出的分支阅读其说明。
+Before removing an older branch, verify that its tip is reachable from accepted `main` or an exact archival tag pushed to the remote. A renamed or selectively ported change is not proof that the original commit is retained. Archive tags preserve unadopted history without keeping extra active branches.
 
-## 历史候选与 Git 快照
+## Historical Candidates
 
-原候选 source_manifest.json 共99项，其中6项为 src/quant_rsi.egg-info 构建产物。研究分支排除这6项，保留其余93个路径；其中92个文件与冻结候选逐字节相同，只有 .gitignore 使用本仓库的忽略规则。
+The old multigeneration candidate at `689ecdf341ca` is preserved independently from the current engine. It contains older task/authority semantics and must not be merged wholesale into current forecast workflows. Its source fingerprint `7892a90385b252825511cf47b27d33e6bce296f69b652c6aaee7a49309ddc5a9` identifies a historical candidate, not the reorganized source tree.
 
-研究分支的 docs/provenance/ 保存原始99项清单及 Git 投影说明，明确记录排除项和 .gitignore 的前后哈希。原99项指纹是历史候选标识，不是当前 Git 整树的指纹。原本位于冻结目录的代码、运行时和验收证据没有被改写。
+The candidate's provenance records contain a 99-entry original manifest. Its Git snapshot excludes six generated egg-info files; of the remaining 93 paths, 92 match the frozen candidate byte for byte and `.gitignore` uses the repository rules. Access those records from the archived commit's `docs/provenance/` directory.
 
-main 及研究分支均保留 AGENTS.md、原参考 PDF 与三份架构参考文档。这些参考文件及本说明不属于原候选99项清单。
+Historical offline regression and isolated generation-one replay records do not establish two consecutive semantic improvements, predictive quality, or production readiness. Those incomplete experiments remain paused. The small committed-pair recovery optimization from `56abd22116c5` is ported separately with its regression tests; that port does not accept the older experiments.
 
-## 跟踪与忽略
+## Worktrees and Bound Runs
 
-跟踪 src/、tests/、examples/、必要 tools/、docs/、pyproject.toml、requirements-dev.lock、README.md、AGENTS.md 和参考 PDF。测试夹具包括模型文本和 JSON，不使用全局 *.json、*.txt 或模型文件忽略规则。
+Preserve existing worktree directories, frozen commit IDs, private environments, datasets, and run artifacts. If deleting a branch checked out in a preserved worktree, detach that worktree at its unchanged commit first. Do not remove, clean, reset, or migrate its contents.
 
-忽略本地虚拟环境、缓存、build/dist/egg-info、runs/、本地数据目录、日志、discussion_boards/、lock.yaml、凭据和机器配置。忽略不会删除现有文件。
+Source organization changes runtime identity. Resume or replay a historical run using its recorded source and dependency environment; never rewrite a run's identity to match new code. Local paths such as `runs/accepted_source/` may be absent from fresh clones and are not installation dependencies.
 
-README 或历史架构中的 runs/accepted_source、discussion_boards 等路径指向本地工作记录，并不保证这些历史产物随 clone 存在。它们不是安装依赖；新运行会生成自己的 runs/ 输出。Git 版本化代码不能替代运行数据和大体积验收证据的备份。
+## Tracked and Ignored Files
 
-## 后续提交
+Track `src/`, `tests/`, useful `examples/` and tools, `instruments/` profiles, `docs/`, dependency manifests, repository guides, and the reference PDF. Keep small JSON and model-text test fixtures tracked.
 
-先查看 git status 和 git diff，按实际改动选择源代码、测试或文档，再提交并推送对应分支。不要把研究分支的快照清单误当成修改后代码的验证结果；后续代码变更应有新的提交和相应验证记录。
+Ignore local environments, caches, build output, `data/`, `runs/`, logs, `.quant_rsi/` authority, coordination files, credentials, and machine configuration. Ignoring a path does not delete it. Git history does not replace backups of large datasets and execution evidence.
+
+Before committing, inspect the diff and select only intended source, test, and documentation changes. Record validation for the actual candidate commit; historical fingerprints and earlier CI runs are not validation of a changed tree.

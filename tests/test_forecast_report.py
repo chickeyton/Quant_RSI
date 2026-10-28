@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from quant_rsi.forecast_report import render_forecast_report
+from quant_rsi.forecast.forecast_report import render_forecast_report
 
 
 class Page(HTMLParser):

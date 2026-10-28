@@ -2,10 +2,10 @@ import subprocess
 
 import pytest
 
-from quant_rsi import controller
-from quant_rsi.artifacts import ArtifactStore, canonical, decode
-from quant_rsi.journal import Journal
-from quant_rsi.schemas import DevelopmentPlan
+from quant_rsi.core import controller
+from quant_rsi.core.artifacts import ArtifactStore, canonical, decode, digest
+from quant_rsi.core.journal import Journal
+from quant_rsi.core.schemas import DevelopmentPlan
 
 
 def modified(plan, *, one=False, **budget):
@@ -26,6 +26,36 @@ def journal_state(root):
 
 def forbid_worker(*args, **kwargs):
     pytest.fail("replay/recovery/resume must not dispatch another worker")
+
+
+def test_runtime_identity_covers_nested_sources_without_name_collisions(tmp_path, monkeypatch):
+    package = tmp_path / "quant_rsi"
+    sources = {
+        "__init__.py": "",
+        "worker.py": "worker = 1\n",
+        "core/controller.py": "controller = 1\n",
+        "core/shared.py": "core = 1\n",
+        "forecast/recursive/shared.py": "forecast = 1\n",
+    }
+    for name, body in sources.items():
+        path = package / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body)
+    (package / "ignored.json").write_text("{}")
+    monkeypatch.setattr(controller, "__file__", str(package / "core/controller.py"))
+
+    before = controller.runtime_identity()
+    assert before["sources"] == {name: digest(body.encode()) for name, body in sources.items()}
+    assert list(before["sources"]) == sorted(sources)
+    assert controller.runtime_identity() == before
+
+    changed = "forecast/recursive/shared.py"
+    (package / changed).write_text("forecast = 2\n")
+    after = controller.runtime_identity()
+    assert after["sources"][changed] != before["sources"][changed]
+    assert {key: value for key, value in after["sources"].items() if key != changed} == {
+        key: value for key, value in before["sources"].items() if key != changed
+    }
 
 
 def test_real_worker_demo_replay_and_idempotent_resume(tmp_path, plan, monkeypatch):

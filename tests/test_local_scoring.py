@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from quant_rsi.artifacts import digest
-from quant_rsi.local_scoring import evaluate_consumed
+from quant_rsi.core.artifacts import digest
+from quant_rsi.evaluation.local_scoring import evaluate_consumed
 
 
 @pytest.fixture

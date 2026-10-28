@@ -8,20 +8,15 @@ from pathlib import Path
 import pytest
 from market_helpers import account_rules, contract_and_events, write_events
 
-from quant_rsi import (
-    comparison,
-    evidence,
-    local_research,
-    market_data,
-    package_experiment,
-    research,
-)
-from quant_rsi.artifacts import ArtifactStore, canonical, digest
-from quant_rsi.data import synthetic_data
-from quant_rsi.evidence import ComparisonInput
-from quant_rsi.local_evidence import LocalProgramInput
-from quant_rsi.researcher import ResearchPlan
-from quant_rsi.schemas import DataSpec
+from quant_rsi.core.artifacts import ArtifactStore, canonical, digest
+from quant_rsi.core.data import synthetic_data
+from quant_rsi.core.schemas import DataSpec
+from quant_rsi.evaluation import comparison, evidence, local_research
+from quant_rsi.evaluation.evidence import ComparisonInput
+from quant_rsi.evaluation.local_evidence import LocalProgramInput
+from quant_rsi.market import market_data
+from quant_rsi.research import package_experiment, research
+from quant_rsi.research.researcher import ResearchPlan
 
 
 @pytest.fixture(scope="module")
@@ -278,7 +273,7 @@ def test_local_grant_is_distinct_and_requires_actual_pending_owner(local_c5, tmp
     with pytest.raises(RuntimeError, match="unit interruption"):
         comparison.resume_comparison(local_c5["output"], steps=1)
     monkeypatch.setattr(research, "create_research", original)
-    from quant_rsi.local_evidence import authorized_view
+    from quant_rsi.evaluation.local_evidence import authorized_view
 
     with evidence.locked_authority() as (root, fd), evidence.Authority(root) as authority:
         key = authority.state["batch"]["pending"]["key"]
@@ -363,8 +358,8 @@ def test_local_source_validation_receipt_substitution_fails_readonly(
 def test_direct_local_replay_entrypoints_cannot_reopen_protected_originals(
     local_c5, tmp_path, monkeypatch
 ):
-    from quant_rsi.local_scoring import local_score
-    from quant_rsi.protected_scoring import compute_score, read_episode
+    from quant_rsi.evaluation.local_scoring import local_score
+    from quant_rsi.evaluation.protected_scoring import compute_score, read_episode
 
     workspace = restored(local_c5, tmp_path, monkeypatch)
     before = {

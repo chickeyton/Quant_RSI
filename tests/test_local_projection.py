@@ -9,20 +9,24 @@ import numpy as np
 import pytest
 from market_helpers import account_rules, contract_and_events, write_events
 
-from quant_rsi.artifacts import ArtifactStore, canonical, digest
-from quant_rsi.asof import make_feature_view
-from quant_rsi.local_evidence import LocalProgramInput, economic_session_keys, register_tasks
-from quant_rsi.local_projection import development_projection
-from quant_rsi.local_research import (
+from quant_rsi.core.artifacts import ArtifactStore, canonical, digest
+from quant_rsi.core.schemas import FactorSpec, LocalDataSpec
+from quant_rsi.evaluation.local_evidence import (
+    LocalProgramInput,
+    economic_session_keys,
+    register_tasks,
+)
+from quant_rsi.evaluation.local_projection import development_projection
+from quant_rsi.evaluation.local_research import (
     LocalResearchData,
     export_local_data,
     fit_predict_local,
     training_view,
 )
-from quant_rsi.market_contracts import DataContract, trusted_now
-from quant_rsi.market_data import ingest
-from quant_rsi.researcher import ResearchPlan, package_definition
-from quant_rsi.schemas import FactorSpec, LocalDataSpec
+from quant_rsi.market.asof import make_feature_view
+from quant_rsi.market.market_contracts import DataContract, trusted_now
+from quant_rsi.market.market_data import ingest
+from quant_rsi.research.researcher import ResearchPlan, package_definition
 
 
 def local_input(

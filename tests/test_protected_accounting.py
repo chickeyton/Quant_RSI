@@ -3,10 +3,10 @@
 import numpy as np
 import pytest
 
-from quant_rsi.accounting import evaluate, returns_from_equities
-from quant_rsi.data import MarketData, synthetic_data
-from quant_rsi.promotion import TestRegistry
-from quant_rsi.schemas import DataSpec, PortfolioSpec
+from quant_rsi.core.accounting import evaluate, returns_from_equities
+from quant_rsi.core.data import MarketData, synthetic_data
+from quant_rsi.core.schemas import DataSpec, PortfolioSpec
+from quant_rsi.evaluation.promotion import TestRegistry
 
 
 def fixture_inputs():
