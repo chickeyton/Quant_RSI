@@ -402,8 +402,20 @@ def execute_package_round(authority, owner_fd):
     ref, receipt = snapshot
     decision = receipt["decision"]
     if decision["outcome"] == "patch" and receipt["completion_ref"] is None:
-        finish_committed_pair(authority, child, owner_fd)
-        ref, receipt = package_snapshot(authority, child)
+        if all(
+            receipt["reports"][arm] is not None
+            and receipt["reports"][arm]["execution_state"] == "completed"
+            for arm in ("parent", "candidate")
+        ):
+            finish_committed_pair(authority, child, owner_fd)
+            ref, receipt = package_snapshot(authority, child)
+        else:
+            # Preserve both recovery/recapture lock gates without replaying
+            # an unchanged pair that cannot produce a completion receipt.
+            require_owner(authority.root, owner_fd)
+            for _ in range(2):
+                with controller.controller_lock(child):
+                    pass
     arms, costs = {}, dict.fromkeys(UNITS, 0)
     if decision["outcome"] == "patch":
         for arm in ("parent", "candidate"):
