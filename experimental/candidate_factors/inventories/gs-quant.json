@@ -1,0 +1,519 @@
+{
+  "source_id": "gs-quant",
+  "scope": "Public top-level functions/classes in three selected modules; includes helpers, not only factors.",
+  "entries": [
+    {
+      "symbol": "Seasonality",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        38,
+        40
+      ]
+    },
+    {
+      "symbol": "SeasonalModel",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        43,
+        45
+      ]
+    },
+    {
+      "symbol": "Frequency",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        48,
+        52
+      ]
+    },
+    {
+      "symbol": "moving_average",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        56,
+        94
+      ]
+    },
+    {
+      "symbol": "bollinger_bands",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        98,
+        142
+      ]
+    },
+    {
+      "symbol": "smoothed_moving_average",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        146,
+        202
+      ]
+    },
+    {
+      "symbol": "relative_strength_index",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        206,
+        256
+      ]
+    },
+    {
+      "symbol": "exponential_moving_average",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        260,
+        295
+      ]
+    },
+    {
+      "symbol": "macd",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        299,
+        343
+      ]
+    },
+    {
+      "symbol": "exponential_volatility",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        347,
+        377
+      ]
+    },
+    {
+      "symbol": "exponential_spread_volatility",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        381,
+        410
+      ]
+    },
+    {
+      "symbol": "seasonally_adjusted",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        492,
+        535
+      ]
+    },
+    {
+      "symbol": "trend",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/technicals.py",
+      "lines": [
+        539,
+        577
+      ]
+    },
+    {
+      "symbol": "min_",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        87,
+        155
+      ]
+    },
+    {
+      "symbol": "max_",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        159,
+        225
+      ]
+    },
+    {
+      "symbol": "range_",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        229,
+        266
+      ]
+    },
+    {
+      "symbol": "MeanType",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        269,
+        271
+      ]
+    },
+    {
+      "symbol": "mean",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        275,
+        343
+      ]
+    },
+    {
+      "symbol": "median",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        347,
+        391
+      ]
+    },
+    {
+      "symbol": "mode",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        395,
+        434
+      ]
+    },
+    {
+      "symbol": "sum_",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        438,
+        488
+      ]
+    },
+    {
+      "symbol": "product",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        492,
+        532
+      ]
+    },
+    {
+      "symbol": "std",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        536,
+        580
+      ]
+    },
+    {
+      "symbol": "exponential_std",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        584,
+        625
+      ]
+    },
+    {
+      "symbol": "var",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        629,
+        675
+      ]
+    },
+    {
+      "symbol": "cov",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        679,
+        723
+      ]
+    },
+    {
+      "symbol": "zscores",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        734,
+        790
+      ]
+    },
+    {
+      "symbol": "winsorize",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        794,
+        851
+      ]
+    },
+    {
+      "symbol": "Direction",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        854,
+        856
+      ]
+    },
+    {
+      "symbol": "generate_series",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        860,
+        904
+      ]
+    },
+    {
+      "symbol": "IntradayDirection",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        907,
+        909
+      ]
+    },
+    {
+      "symbol": "generate_series_intraday",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        913,
+        965
+      ]
+    },
+    {
+      "symbol": "percentiles",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        969,
+        1032
+      ]
+    },
+    {
+      "symbol": "percentile",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        1036,
+        1080
+      ]
+    },
+    {
+      "symbol": "LinearRegression",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        1083,
+        1170
+      ]
+    },
+    {
+      "symbol": "RollingLinearRegression",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        1173,
+        1256
+      ]
+    },
+    {
+      "symbol": "SIRModel",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        1259,
+        1453
+      ]
+    },
+    {
+      "symbol": "SEIRModel",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/statistics.py",
+      "lines": [
+        1456,
+        1643
+      ]
+    },
+    {
+      "symbol": "AnnualizationFactor",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        52,
+        58
+      ]
+    },
+    {
+      "symbol": "SharpeAssets",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        61,
+        68
+      ]
+    },
+    {
+      "symbol": "excess_returns_pure",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        71,
+        78
+      ]
+    },
+    {
+      "symbol": "excess_returns",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        81,
+        109
+      ]
+    },
+    {
+      "symbol": "get_ratio_pure",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        145,
+        153
+      ]
+    },
+    {
+      "symbol": "RiskFreeRateCurrency",
+      "kind": "ClassDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        174,
+        188
+      ]
+    },
+    {
+      "symbol": "excess_returns_",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        192,
+        214
+      ]
+    },
+    {
+      "symbol": "sharpe_ratio",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        218,
+        269
+      ]
+    },
+    {
+      "symbol": "returns",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        273,
+        348
+      ]
+    },
+    {
+      "symbol": "prices",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        352,
+        419
+      ]
+    },
+    {
+      "symbol": "index",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        423,
+        456
+      ]
+    },
+    {
+      "symbol": "change",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        460,
+        487
+      ]
+    },
+    {
+      "symbol": "annualize",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        520,
+        560
+      ]
+    },
+    {
+      "symbol": "volatility",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        564,
+        690
+      ]
+    },
+    {
+      "symbol": "vol_swap_volatility",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        694,
+        763
+      ]
+    },
+    {
+      "symbol": "correlation",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        767,
+        886
+      ]
+    },
+    {
+      "symbol": "corr_swap_correlation",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        890,
+        962
+      ]
+    },
+    {
+      "symbol": "beta",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        966,
+        1055
+      ]
+    },
+    {
+      "symbol": "max_drawdown",
+      "kind": "FunctionDef",
+      "path": "gs_quant/timeseries/econometrics.py",
+      "lines": [
+        1059,
+        1098
+      ]
+    }
+  ]
+}
