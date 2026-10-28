@@ -146,6 +146,15 @@ Reports include data, package, and checkpoint references; input evidence; hypoth
 
 The added modules are `researcher.py` for the frozen policy, `research.py` for campaign orchestration and reporting, and `research_journal.py` for reservations and observation transactions in the same database. Regression tests are in `tests/test_research.py`. Keep source and dependency snapshots of accepted versions (M0 is under `runs/accepted_source/m0_f54aa55ddba7`) to replay runs bound to those versions. Never overwrite old run artifacts with a newer implementation.
 
+## Recursive Forecast Development
+
+The version 3 profile connects the five-session forecast worker to a separately registered,
+bounded two-generation development trajectory. See the [registration, execution and output
+guide](docs/forecast_recursive_research.md). Its engineering allowance is separate from
+enhanced forecast comparisons; generation advancement is not predictive validation. The
+[market exploration guide](docs/recursive_market_exploration.md) describes explicit
+profile preparation, the schema-4 frontier proposer and preserved market evidence.
+
 ## C4: Bounded Research-Package Experiments
 
 First generate replayable base-package evidence with the current source, then explicitly start one patch experiment:

@@ -24,7 +24,7 @@ def emitter(store, publish):
         if publish:
             if store.put(raw) != ref:
                 raise ValueError("trajectory evidence identity changed")
-        elif store.get(ref) != raw:
+        elif publish is False and store.get(ref) != raw:
             raise ValueError("sealed trajectory evidence differs from its committed bytes")
         return ref
 
@@ -79,6 +79,7 @@ def require_settled_research(journal, report):
 
 
 def capture_research(root, output_store, *, publish, initial=False, expected_checkpoint=None):
+    """publish=None performs complete live verification and hashing without CAS publication."""
     root = Path(root).resolve()
     raw_manifest = decode((root / "manifest.json").read_bytes())
     if initial and any(key in raw_manifest for key in ("launch_context_ref", "bound_view_ref")):
@@ -174,6 +175,8 @@ def capture_research(root, output_store, *, publish, initial=False, expected_che
                 "costs": charged_costs(journal),
                 "historical_exposure": "already_exposed_development_history_not_new_validation",
             }
+            if plan.schema_version == 3:
+                receipt["attempts_ref"] = save(journal.attempts())
             return save(receipt), receipt
         finally:
             journal.close()
@@ -218,11 +221,11 @@ def verify_snapshot_receipt(store, receipt):
         raise ValueError("trajectory manifest differs from its snapshot receipt")
 
 
-def source_evidence_capsule(store, receipt):
+def source_evidence_capsule(store, receipt, authorization=None):
     """Reconstruct the C4 proposer input from its frozen initial research journal."""
     manifest = store.json(receipt["manifest_ref"])
     requests = store.json(receipt["requests_ref"])
-    return {
+    capsule = {
         "kind": "DevelopmentEvidence",
         "source_campaign_id": manifest["campaign_id"],
         "source_manifest_digest": receipt["manifest_ref"],
@@ -243,6 +246,23 @@ def source_evidence_capsule(store, receipt):
         "historical_worker_slots": receipt["costs"]["registered_worker_seconds"],
         "reuse": "historical_development_not_independent_validation",
     }
+    from quant_rsi.researcher import ResearchPlan
+
+    plan = ResearchPlan.model_validate_json(store.get(receipt["research_plan_ref"]))
+    if plan.neighbor_domain is not None:
+        from quant_rsi.changes import registered_proposer
+
+        capsule = registered_proposer(authorization).extend_capsule(
+            capsule,
+            plan,
+            receipt["checkpoint_ref"],
+            store.json(receipt["checkpoint_ref"]),
+            {row["parent_ref"]: store.json(row["parent_ref"]) for row in requests},
+            authorization,
+            requests,
+            store.json(receipt["attempts_ref"]),
+        )
+    return capsule
 
 
 def frozen_journal(store, receipt, journal_type):
@@ -267,13 +287,17 @@ def frozen_journal(store, receipt, journal_type):
 def verify_research_receipt(store, receipt):
     from quant_rsi import changes, researcher
     from quant_rsi.data import MarketData
+    from quant_rsi.forecast_recursive_registration import verify_root_manifest
     from quant_rsi.research_journal import ResearchJournal
     from quant_rsi.researcher import ResearchPlan
+    from quant_rsi.task_definition import task_definition, verify_domain
 
     journal = frozen_journal(store, receipt, ResearchJournal)
     try:
         manifest = store.json(receipt["manifest_ref"])
         plan = ResearchPlan.model_validate_json(store.get(manifest["research_plan_ref"]))
+        verify_domain(plan, store)
+        verify_root_manifest(plan, store, manifest)
         if (
             manifest["kind"] != "ResearchRun"
             or plan.development.data.source != "local_event_snapshot"
@@ -282,9 +306,10 @@ def verify_research_receipt(store, receipt):
             or store.json(manifest["development_template_ref"])
             != plan.development.model_dump(mode="json")
             or store.json(manifest["task_ref"])
-            != dict(
-                data_ref=manifest["data_ref"],
-                development_template_ref=manifest["development_template_ref"],
+            != task_definition(
+                plan,
+                manifest["data_ref"],
+                manifest["development_template_ref"],
             )
         ):
             raise ValueError("frozen research manifest/package/task mismatch")
@@ -296,6 +321,8 @@ def verify_research_receipt(store, receipt):
         trace = research.verify_trace(journal, store, manifest, plan, data, replay=True)
         report = research.summarize(journal, store, manifest, plan, trace)
         require_settled_research(journal, report)
+        if plan.schema_version == 3 and store.json(receipt["attempts_ref"]) != journal.attempts():
+            raise ValueError("registered research attempt map differs from actual journal")
         if (
             receipt["checkpoint_ref"] != trace[0]
             or receipt["feedback_watermark"] != trace[3]

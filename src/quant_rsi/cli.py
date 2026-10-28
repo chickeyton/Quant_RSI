@@ -59,6 +59,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     campaign_commands = campaigns.add_subparsers(dest="campaign_command", required=True)
     campaign_commands.add_parser("init").add_argument("plan", type=Path)
+    recursive_init = campaign_commands.add_parser("recursive-init")
+    recursive_init.add_argument("plan", type=Path)
+    recursive_init.add_argument("--market-preparation", type=Path)
+    recursive_prepare = campaign_commands.add_parser("recursive-prepare")
+    recursive_prepare.add_argument("profile", type=Path)
+    recursive_prepare.add_argument("--output", type=Path, required=True)
+    recursive_prepare.add_argument("--campaign-id", required=True)
+    recursive_prepare.add_argument("--source-campaign-id", required=True)
     for name in ("status", "replay"):
         campaign_commands.add_parser(name).add_argument("campaign_id")
     enhanced = commands.add_parser(
@@ -215,6 +223,21 @@ def main(argv: list[str] | None = None) -> int:
 
             if args.campaign_command == "init":
                 report = init_campaign(json.loads(args.plan.read_text()))
+            elif args.campaign_command == "recursive-init":
+                from quant_rsi.forecast_recursive_campaign import init_recursive_campaign
+
+                report = init_recursive_campaign(
+                    json.loads(args.plan.read_text()), market_preparation=args.market_preparation
+                )
+            elif args.campaign_command == "recursive-prepare":
+                from quant_rsi.forecast_recursive_preparation import prepare_market_campaign
+
+                report = prepare_market_campaign(
+                    json.loads(args.profile.read_text()),
+                    args.output,
+                    campaign_id=args.campaign_id,
+                    source_campaign_id=args.source_campaign_id,
+                )
             else:
                 report = inspect_campaign(
                     args.campaign_id, replay=args.campaign_command == "replay"

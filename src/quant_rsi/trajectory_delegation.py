@@ -56,6 +56,36 @@ def verify_delegation(manifest, store):
         or authorization["round_steps"] != 1
     ):
         raise ValueError("delegated C4 immutable binding mismatch")
+    if authorization.get("profile") == "registered_forecast_cap_v3":
+        evidence = store.json(manifest["evidence_ref"])
+        from quant_rsi.changes import registered_proposer
+
+        descriptor = registered_proposer(authorization).proposer_definition()
+        if (
+            registered_proposer(evidence).proposer_definition() != descriptor
+            or store.json(manifest["proposer_ref"]) != descriptor
+            or any(
+                evidence.get(key) != authorization.get(key)
+                for key in ("proposer_policy", "proposer_definition")
+            )
+        ):
+            raise ValueError("registered C4 proposer differs from its exact stage authorization")
+        if (
+            evidence.get("profile") != "registered_forecast_cap_v3"
+            or evidence["source_receipt_ref"] != authorization["source_receipt_ref"]
+            or evidence["source_selection_ref"] != authorization["source_head"]["selection_ref"]
+            or evidence["source_head_revision"] != authorization["expected_revision"]
+            or evidence["source_cas_ref"] != authorization["source_cas_ref"]
+            or evidence["final_checkpoint_ref"] != authorization["source_head"]["checkpoint_ref"]
+            or evidence["registered_neighbor_domain_ref"]
+            != authorization["registered_neighbor_domain_ref"]
+            or evidence["forecast_recursive_profile_ref"]
+            != authorization["forecast_recursive_profile_ref"]
+            or evidence["task_ref"] != authorization["task_ref"]
+            or evidence["source_events_digest"] != authorization["source_events_ref"]
+            or evidence["feedback_watermark"] != authorization["feedback_watermark"]
+        ):
+            raise ValueError("registered C4 feedback/source/revision binding mismatch")
     return {"context": context, "authorization": authorization}
 
 
@@ -100,6 +130,24 @@ def authorize_package(root, owner_fd, *, context=None, source=None, steps=1):
         if not 0 <= stage_index < len(state["stages"]):
             raise ValueError("delegated C4 has no parent stage reservation")
         stage = state["stages"][stage_index]
+        registered = program.get("schema_version") == 3
+        if registered:
+            from quant_rsi.forecast_recursive_campaign import require_recursive_owner
+            from quant_rsi.forecast_recursive_trajectory import authorization_definition
+            from quant_rsi.trajectory import summarize
+
+            if require_recursive_owner().binding != program["recursive_campaign_binding"]:
+                raise ValueError("trajectory differs from its original shared campaign grant")
+            summarize(authority)
+            previous = state["stages"][stage_index - 1] if stage_index else None
+            cas_ref = state["decisions"][previous["request_id"] + ":head"] if previous else None
+            if (
+                str(parent) != program["authority_root"]
+                or state["revision"] != stage_index
+                or authorization
+                != authorization_definition(authority, stage_index, state["head"], cas_ref)
+            ):
+                raise ValueError("registered C4 requires its current actual source/head revision")
         if (
             authorization["kind"] != "TrajectoryC4Authorization"
             or authorization["authority_id"] != authority.anchor["authority_id"]
@@ -110,15 +158,23 @@ def authorize_package(root, owner_fd, *, context=None, source=None, steps=1):
             or stage["request_id"] != authorization["request_id"]
             or pending["child_campaign_id"] != authorization["child_campaign_id"]
             or root != (parent / authorization["child_directory"]).resolve()
-            or authorization["base_package_ref"] != program["initial_head"]["package_ref"]
-            or authorization["research_plan_ref"] != program["source_plan_ref"]
-            or authorization["source_files_ref"] != program["source_files_ref"]
-            or authorization["development_data_ref"] != program["source_data_ref"]
-            or authorization["source_directory"] != str(parent / "source")
+            or (
+                not registered
+                and (
+                    authorization["base_package_ref"] != program["initial_head"]["package_ref"]
+                    or authorization["research_plan_ref"] != program["source_plan_ref"]
+                    or authorization["source_files_ref"] != program["source_files_ref"]
+                    or authorization["development_data_ref"] != program["source_data_ref"]
+                    or authorization["source_directory"] != str(parent / "source")
+                )
+            )
             or authorization["round_steps"] != 1
         ):
             raise ValueError("delegated C4 differs from its irrevocable parent authorization")
-        if source is not None and Path(source).resolve() != (parent / "source").resolve():
+        if (
+            source is not None
+            and Path(source).resolve() != Path(authorization["source_directory"]).resolve()
+        ):
             raise ValueError("delegated C4 source differs from its frozen parent input")
         if persisted is not None and authorization != persisted["authorization"]:
             raise ValueError("child-side and parent-side authorizations differ")

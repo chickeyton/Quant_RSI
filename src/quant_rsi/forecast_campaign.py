@@ -364,6 +364,7 @@ def _registry(authority):
     _require_owner(authority)
     events = _journal_identity(authority.journal, authority.authority_ref)
     campaigns, registrations, acknowledgements = {}, {}, {}
+    recursive_sources, recursive_directories = set(), set()
     for event in events[1:]:
         if event["ordinal"] is not None:
             raise ValueError("campaign authority event has a child fit ordinal")
@@ -394,9 +395,28 @@ def _registry(authority):
                 expected = _registration(
                     authority, payload["campaign_ref"], run, grant["exposure_ref"]
                 )
-                if record != expected or run["run_id"] in registrations:
+                if (
+                    record != expected
+                    or run["run_id"] in registrations
+                    or run["run_id"] in recursive_sources
+                ):
                     raise ValueError("duplicate or changed workspace-global run registration")
                 registrations[run["run_id"]] = (ref, record)
+
+        elif event["kind"] == "recursive_campaign_registered":
+            from quant_rsi.forecast_recursive_campaign import validate_registration
+
+            plan, grant = validate_registration(authority, payload)
+            if (
+                plan["campaign_id"] in campaigns
+                or plan["source_campaign_id"] in registrations
+                or plan["source_campaign_id"] in recursive_sources
+                or plan["source_directory"] in recursive_directories
+            ):
+                raise ValueError("duplicate recursive campaign or source reservation")
+            campaigns[plan["campaign_id"]] = (payload["grant_ref"], plan)
+            recursive_sources.add(grant["source_campaign_id"])
+            recursive_directories.add(grant["source_directory"])
         elif event["kind"] in {"workflow_bound", "experiment_bound"}:
             run_id = payload["run_id"]
             key = (run_id, event["kind"])
@@ -790,6 +810,8 @@ def _report(authority, campaign_id, *, replay):
         raise ValueError("unknown forecast campaign")
     children = _children(authority, registrations, acks)
     campaign_ref, plan = campaigns[campaign_id]
+    if plan["kind"] != "ForecastCampaign":
+        raise ValueError("recursive grant is not a forecast-comparison campaign")
     runs = []
     for row in plan["runs"]:
         child = children[row["run_id"]]
@@ -845,7 +867,15 @@ def init_campaign(plan):
             if campaigns[campaign_id][1] != normalized:
                 raise ValueError("campaign ID already binds another immutable plan")
             return _report(authority, campaign_id, replay=False)
-        if any(row["run_id"] in registrations for row in normalized["runs"]):
+        recursive_sources = {
+            value["source_campaign_id"]
+            for _, value in campaigns.values()
+            if value["kind"] == "ForecastRecursiveCampaign"
+        }
+        if any(
+            row["run_id"] in registrations or row["run_id"] in recursive_sources
+            for row in normalized["runs"]
+        ):
             raise ValueError("run ID is already allocated in this workspace")
         if any(
             (authority.root.parent / directory / row["run_id"]).exists()

@@ -233,32 +233,44 @@ def mature_label(snapshot, contract, session_id, instrument, training_cutoff, *,
 
 def predict_view(model_text, view):
     """Inference-only primitive. Every controller-bound key remains in the output."""
-    import lightgbm as lgb
+    return _view_predictor(model_text)(view)
 
-    if [row["instrument"] for row in view["rows"]] != view["expected_instruments"]:
-        raise ValueError("inference view does not cover the controller-bound instrument grid")
-    model = lgb.Booster(model_str=model_text)
-    if model.num_feature() != 3:
-        raise ValueError("model preprocessing interface mismatch")
-    rows = [row | {"score": None} for row in view["rows"]]
-    eligible = [index for index, row in enumerate(rows) if row["status"] == "eligible"]
-    if eligible:
-        values = np.asarray([rows[index]["features"] for index in eligible], dtype=float)
-        if values.shape != (len(eligible), 3) or not np.isfinite(values).all():
-            raise ValueError("invalid eligible inference features")
-        scores = model.predict(values, num_threads=1)
-        if not np.isfinite(scores).all():
-            raise ValueError("nonfinite inference output")
-        for index, score in zip(eligible, scores, strict=True):
-            rows[index]["score"] = float(score)
-    return {
-        "kind": "AsOfPrediction",
-        "feature_view_ref": digest(canonical(view)),
-        "model_ref": digest(model_text.encode()),
-        "session_id": view["session_id"],
-        "as_of": view["as_of"],
-        "knowledge_basis": view["knowledge_basis"],
-        "receipt_watermark": view["receipt_watermark"],
-        "rows": rows,
-        "qualifications": view["qualifications"],
-    }
+
+def _view_predictor(model_text):
+    """Keep one lazily decoded model local to one synchronous prediction call."""
+    model = None
+
+    def predict(view):
+        nonlocal model
+        import lightgbm as lgb
+
+        if [row["instrument"] for row in view["rows"]] != view["expected_instruments"]:
+            raise ValueError("inference view does not cover the controller-bound instrument grid")
+        if model is None:
+            model = lgb.Booster(model_str=model_text)
+        if model.num_feature() != 3:
+            raise ValueError("model preprocessing interface mismatch")
+        rows = [row | {"score": None} for row in view["rows"]]
+        eligible = [index for index, row in enumerate(rows) if row["status"] == "eligible"]
+        if eligible:
+            values = np.asarray([rows[index]["features"] for index in eligible], dtype=float)
+            if values.shape != (len(eligible), 3) or not np.isfinite(values).all():
+                raise ValueError("invalid eligible inference features")
+            scores = model.predict(values, num_threads=1)
+            if not np.isfinite(scores).all():
+                raise ValueError("nonfinite inference output")
+            for index, score in zip(eligible, scores, strict=True):
+                rows[index]["score"] = float(score)
+        return {
+            "kind": "AsOfPrediction",
+            "feature_view_ref": digest(canonical(view)),
+            "model_ref": digest(model_text.encode()),
+            "session_id": view["session_id"],
+            "as_of": view["as_of"],
+            "knowledge_basis": view["knowledge_basis"],
+            "receipt_watermark": view["receipt_watermark"],
+            "rows": rows,
+            "qualifications": view["qualifications"],
+        }
+
+    return predict

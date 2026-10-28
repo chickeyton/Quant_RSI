@@ -9,6 +9,11 @@ from quant_rsi import controller, researcher
 from quant_rsi.artifacts import ArtifactStore, atomic_write, canonical, decode, digest
 from quant_rsi.data import MarketData, synthetic_data
 from quant_rsi.forecast_contracts import parse_development_plan
+from quant_rsi.forecast_recursive_registration import (
+    effective_budget,
+    registered_creation,
+    registered_resume,
+)
 from quant_rsi.journal import TERMINAL
 from quant_rsi.research_journal import ResearchJournal
 from quant_rsi.researcher import ResearchPlan, advance, factor_identity, initial_state
@@ -31,13 +36,27 @@ def authorize_managed(
     if plan.development.plan_type == "forecast_development" and (
         context is not None or view is not None or plan.package_lineage is not None
     ):
-        raise ValueError("forecast development does not support C4/C5 managed research")
+        if (
+            plan.schema_version != 3
+            or view is not None
+            or context is None
+            or "trajectory_authorization_ref" not in context
+        ):
+            raise ValueError("forecast development does not support C4/C5 managed research")
     if context is None:
         if view is not None:
             raise ValueError("bound development data requires a controller grant")
+        if plan.schema_version == 3:
+            from quant_rsi.forecast_recursive_registration import require_root_identity
+
+            require_root_identity(plan, root, campaign_id, trajectory_owner_fd)
         return
     if owner_fd is None and plan.development.data.source != "local_event_snapshot":
         raise ValueError("managed research arm requires package resume")
+    if plan.schema_version == 3:
+        from quant_rsi.forecast_recursive_campaign import require_recursive_owner
+
+        require_recursive_owner()
     arguments = dict(steps=steps, committed=committed)
     if view is not None:
         from quant_rsi.local_evidence import authorized_view
@@ -77,6 +96,12 @@ def preflight_managed(root, owner_fd, trajectory_owner_fd, *, steps=None):
     elif manifest_path.exists():
         manifest = decode(manifest_path.read_bytes())
         if "launch_context_ref" not in manifest:
+            store = ArtifactStore(root / "artifacts")
+            plan = ResearchPlan.model_validate_json(store.get(manifest["research_plan_ref"]))
+            if plan.schema_version == 3:
+                authorize_managed(
+                    root, plan, manifest["campaign_id"], None, None, owner_fd, trajectory_owner_fd
+                )
             return
         if owner_fd is None:
             raise ValueError("managed research arm requires package resume")
@@ -99,6 +124,7 @@ def preflight_managed(root, owner_fd, trajectory_owner_fd, *, steps=None):
         )
 
 
+@registered_creation
 def create_research(
     plan: ResearchPlan,
     root: Path,
@@ -201,6 +227,9 @@ def finish_initialization(root: Path, *, owner_fd=None, trajectory_owner_fd=None
         trajectory_owner_fd,
     )
     store = ArtifactStore(root / "artifacts")
+    if plan.schema_version == 3:
+        store.put_json(plan.neighbor_domain.model_dump(mode="json"))
+        store.put_json(plan.forecast_profile.model_dump(mode="json"))
     for ref, value in (saved.get("package_artifacts") or {}).items():
         if digest(canonical(value)) != ref:
             raise ValueError("package artifact reference mismatch")
@@ -244,7 +273,9 @@ def finish_initialization(root: Path, *, owner_fd=None, trajectory_owner_fd=None
             raise ValueError("bound development data requires a controller grant")
         data_ref = store.put_json(bound_view["data"])
     template_ref = store.put_json(plan.development.model_dump(mode="json"))
-    task_ref = store.put_json({"data_ref": data_ref, "development_template_ref": template_ref})
+    from quant_rsi.task_definition import task_definition
+
+    task_ref = store.put_json(task_definition(plan, data_ref, template_ref))
     package_ref = store.put_json(researcher.package_definition(plan))
     memory_ref = store.put_json(
         {
@@ -272,6 +303,17 @@ def finish_initialization(root: Path, *, owner_fd=None, trajectory_owner_fd=None
     }
     if saved.get("launch_context") is not None:
         manifest["launch_context_ref"] = store.put_json(saved["launch_context"])
+    if plan.schema_version == 3 and saved.get("launch_context") is None:
+        from quant_rsi.forecast_recursive_registration import (
+            bind_root_market_evidence,
+            require_root_identity,
+        )
+
+        registration_identity = require_root_identity(
+            plan, root, saved["campaign_id"], trajectory_owner_fd
+        )
+        bind_root_market_evidence(registration_identity, store, data_ref)
+        manifest["root_registration_identity_ref"] = store.put_json(registration_identity)
     if bound_view is not None:
         manifest["bound_view_ref"] = store.put_json(bound_view)
     path = root / "manifest.json"
@@ -319,10 +361,14 @@ def open_research(root: Path, *, verify_runtime=True):
             from quant_rsi.changes import validate_lineage
 
             validate_lineage(plan, store)
-        if store.json(manifest["task_ref"]) != {
-            "data_ref": manifest["data_ref"],
-            "development_template_ref": manifest["development_template_ref"],
-        }:
+        from quant_rsi.forecast_recursive_registration import verify_root_manifest
+        from quant_rsi.task_definition import task_definition, verify_domain
+
+        verify_domain(plan, store)
+        verify_root_manifest(plan, store, manifest)
+        if store.json(manifest["task_ref"]) != task_definition(
+            plan, manifest["data_ref"], manifest["development_template_ref"]
+        ):
             raise ValueError("research task binding mismatch")
         data = MarketData.from_json(store.json(manifest["data_ref"]))
         from quant_rsi.local_research import LocalResearchData
@@ -647,10 +693,10 @@ def verify_trace(journal, store, manifest, plan, data, *, replay=False, semantic
         raise ValueError("research checkpoint head mismatch")
     if not set(attempts).issubset({r["ordinal"] for r in requests}):
         raise ValueError("kernel attempt bypassed campaign reservation")
-    budget = plan.development.budget
+    budget = effective_budget(plan, store, manifest)
     if (
-        len(requests) > budget.max_attempts
-        or sum(a["worker_seconds"] for a in attempts.values()) > budget.max_worker_seconds
+        len(requests) > budget["max_attempts"]
+        or sum(a["worker_seconds"] for a in attempts.values()) > budget["max_worker_seconds"]
     ):
         raise ValueError("campaign budget conservation failure")
     return head_ref, checkpoint, memory, watermark, verified
@@ -669,14 +715,14 @@ def require_event(journal, sequence, kind, ordinal, payload):
         raise ValueError("research provenance event mismatch")
 
 
-def stop_reason(plan, checkpoint, journal):
+def stop_reason(plan, checkpoint, journal, *, budget=None):
     if checkpoint["next_position"] and checkpoint["baseline"] is None:
         return "baseline_unavailable"
-    budget = plan.development.budget
-    if len(journal.requests()) >= budget.max_attempts:
+    budget = budget or plan.development.budget.model_dump(mode="json")
+    if len(journal.requests()) >= budget["max_attempts"]:
         return "attempt_budget_exhausted"
     used = sum(a["worker_seconds"] for a in journal.attempts())
-    if used + budget.worker_timeout_seconds > budget.max_worker_seconds:
+    if used + budget["worker_timeout_seconds"] > budget["max_worker_seconds"]:
         return "worker_budget_exhausted"
     if checkpoint["no_progress"] >= plan.policy.max_no_progress:
         return "no_progress_limit"
@@ -690,6 +736,7 @@ def validate_steps(steps):
         raise ValueError("steps must be an integer between 1 and 100")
 
 
+@registered_resume
 def resume_research(
     root: Path,
     *,
@@ -746,6 +793,15 @@ def resume_research(
                     *(lock_fd if isinstance(lock_fd, tuple) else (lock_fd,)),
                     trajectory_owner_fd,
                 )
+            if plan.schema_version == 3:
+                from quant_rsi.forecast_recursive_campaign import require_recursive_owner
+
+                shared_fd = require_recursive_owner().owner_fd
+                lock_fd = tuple(
+                    dict.fromkeys(
+                        (*(lock_fd if isinstance(lock_fd, tuple) else (lock_fd,)), shared_fd)
+                    )
+                )
             trace = verify_trace(journal, store, manifest, plan, data)
             if journal.state()["execution_state"] == "completed":
                 return summarize(journal, store, manifest, plan, trace)
@@ -757,7 +813,9 @@ def resume_research(
                     requests[-1] if requests and requests[-1]["observation_ref"] is None else None
                 )
                 if pending is None:
-                    reason = stop_reason(plan, checkpoint, journal)
+                    reason = stop_reason(
+                        plan, checkpoint, journal, budget=effective_budget(plan, store, manifest)
+                    )
                     if reason is not None:
                         journal.stop("completed", reason)
                         break
@@ -769,7 +827,7 @@ def resume_research(
                         store.put_json(request),
                         head_ref,
                         manifest["initial_checkpoint_ref"],
-                        plan.development.budget.max_attempts,
+                        effective_budget(plan, store, manifest)["max_attempts"],
                     )
                     pending = journal.requests()[ordinal]
                 ordinal = pending["ordinal"]
@@ -848,6 +906,7 @@ def summarize(journal, store, manifest, plan, trace):
     head_ref, checkpoint, _, _, verified = trace
     requests, attempts = journal.requests(), journal.attempts()
     used_workers = sum(a["worker_seconds"] for a in attempts)
+    budget = effective_budget(plan, store, manifest)
     baseline = checkpoint["baseline"]
     results = []
     for row in requests:
@@ -914,14 +973,14 @@ def summarize(journal, store, manifest, plan, trace):
         "baseline": baseline,
         "no_progress": checkpoint["no_progress"],
         "attempts_reserved": len(requests),
-        "attempt_limit": plan.development.budget.max_attempts,
-        "attempts_remaining": plan.development.budget.max_attempts - len(requests),
+        "attempt_limit": budget["max_attempts"],
+        "attempts_remaining": budget["max_attempts"] - len(requests),
         "pending_requests": sum(r["observation_ref"] is None for r in requests),
         "kernel_attempts": len(attempts),
         "unmapped_proposal_reservations": len(requests) - len(attempts),
         "worker_seconds_charged": used_workers,
-        "worker_seconds_remaining": plan.development.budget.max_worker_seconds - used_workers,
-        "worker_seconds_limit": plan.development.budget.max_worker_seconds,
+        "worker_seconds_remaining": budget["max_worker_seconds"] - used_workers,
+        "worker_seconds_limit": budget["max_worker_seconds"],
         "worker_charging_rule": "full_timeout_slot_per_started_attempt_no_refund",
         "results": results,
         "verified_experiments": verified,

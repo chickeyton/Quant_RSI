@@ -28,7 +28,27 @@ class PolicyPatch(StrictModel):
     expected_effect: str
 
 
-def proposer_definition():
+def registered_proposer(binding=None):
+    """Dispatch only an exact explicit selector; an absent selector retains the legacy policy."""
+    if binding is not None and any(
+        key in binding for key in ("proposer_policy", "proposer_definition")
+    ):
+        from quant_rsi import forecast_frontier_policy
+
+        forecast_frontier_policy._require_descriptor(binding)
+        return forecast_frontier_policy
+    from quant_rsi import forecast_recursive_changes
+
+    return forecast_recursive_changes
+
+
+def proposer_definition(plan=None, *, authorization=None):
+    if plan is not None and plan.neighbor_domain is not None:
+        return registered_proposer(authorization).proposer_definition()
+    if authorization is not None and any(
+        key in authorization for key in ("proposer_policy", "proposer_definition")
+    ):
+        raise ValueError("frontier policy requires the registered forecast profile")
     return {
         "kind": "ProposerPackage",
         "version": 1,
@@ -59,7 +79,11 @@ def request_definition(request_id, base_ref, proposer_ref, evidence_ref, evidenc
         "interface_version": 1,
         "state_schema_version": 1,
         "state_policy": "reset",
-        "allowed_path": "policy.neighbor_order",
+        "allowed_path": (
+            "policy.window_max"
+            if evidence.get("profile") == "registered_forecast_cap_v3"
+            else "policy.neighbor_order"
+        ),
     }
 
 
@@ -93,7 +117,16 @@ def validate_evidence(request, evidence):
         previous = sequence
         if observation["status"] == "completed":
             score = observation["score"]
-            if type(score) not in (int, float) or not math.isfinite(score):
+            unresolved_local = (
+                evidence.get("profile") == "registered_forecast_cap_v3"
+                and evidence["research_plan"]["development"]["data"]["source"]
+                == "local_event_snapshot"
+                and score is None
+                and observation["eligible"] is False
+            )
+            if not unresolved_local and (
+                type(score) not in (int, float) or not math.isfinite(score)
+            ):
                 raise ValueError("invalid trusted observation score")
         elif observation["score"] is not None or observation["eligible"]:
             raise ValueError("failed observation has performance")
@@ -106,6 +139,13 @@ def expected_change(request_ref, request, evidence):
     if digest(canonical(request)) != request_ref:
         raise ValueError("change request reference mismatch")
     validate_evidence(request, evidence)
+    if evidence.get("profile") == "registered_forecast_cap_v3":
+        proposer = registered_proposer(evidence)
+        if request["proposer_ref"] != digest(canonical(proposer.proposer_definition())):
+            raise ValueError("registered request differs from its explicit proposer descriptor")
+        return proposer.expected_change(request_ref, request, evidence)
+    if any(key in evidence for key in ("proposer_policy", "proposer_definition")):
+        raise ValueError("frontier policy requires the registered forecast evidence profile")
     windows = {}
     pair = None
     for entry in evidence["entries"]:
@@ -166,7 +206,15 @@ def validate_response(response, request_ref, request, evidence):
     expected = expected_change(request_ref, request, evidence)
     if canonical(response) == canonical(expected):
         if response["patch"] is not None:
-            PolicyPatch.model_validate_json(canonical(response["patch"]))
+            from quant_rsi.forecast_frontier_policy import FrontierCapPatch
+            from quant_rsi.forecast_recursive_changes import RegisteredCapPatch
+
+            patch_type = PolicyPatch
+            if request["allowed_path"] == "policy.window_max":
+                patch_type = (
+                    FrontierCapPatch if "proposer_policy" in evidence else RegisteredCapPatch
+                )
+            patch_type.model_validate_json(canonical(response["patch"]))
         return response["outcome"], None
     if (
         isinstance(response, dict)
@@ -186,7 +234,10 @@ def validate_response(response, request_ref, request, evidence):
 
 def experimental_plan(base_plan, patch_ref, request_ref, request):
     document = base_plan.model_dump(mode="json")
-    document["policy"]["neighbor_order"] = "operator_first"
+    if base_plan.neighbor_domain is None:
+        document["policy"]["neighbor_order"] = "operator_first"
+    else:
+        document["policy"]["window_max"] += 1
     document["package_lineage"] = {
         "base_package_ref": request["base_package_ref"],
         "patch_ref": patch_ref,
@@ -199,6 +250,8 @@ def experimental_plan(base_plan, patch_ref, request_ref, request):
 
 
 def validate_lineage(plan, store):
+    if plan.neighbor_domain is not None:
+        return validate_registered_lineage(plan, store)
     lineage = plan.package_lineage
     if lineage is None:
         return
@@ -221,3 +274,78 @@ def validate_lineage(plan, store):
         raise ValueError("candidate patch differs from frozen proposer")
     if experimental_plan(base_plan, lineage.patch_ref, lineage.request_ref, request) != plan:
         raise ValueError("candidate package policy or lineage mismatch")
+
+
+def validate_registered_lineage(plan, store):
+    """Authenticate exact immediate parents; never replace their prior lineage with gen0."""
+    from quant_rsi.task_definition import verify_domain
+
+    verify_domain(plan, store)
+    seen = set()
+    current = plan
+    while current.package_lineage is not None:
+        lineage = current.package_lineage
+        if lineage.base_package_ref in seen or len(seen) >= 2:
+            raise ValueError("registered lineage is cyclic or exceeds its frozen bound")
+        seen.add(lineage.base_package_ref)
+        base = store.json(lineage.base_package_ref)
+        document = current.model_dump(mode="json")
+        document.update(policy=base["policy"], package_lineage=base["lineage"])
+        parent = ResearchPlan.model_validate_json(canonical(document))
+        if base != package_definition(parent):
+            raise ValueError("registered lineage exact immediate parent mismatch")
+        request, evidence = store.json(lineage.request_ref), store.json(lineage.evidence_ref)
+        if (
+            request["base_package_ref"] != lineage.base_package_ref
+            or request["proposer_ref"] != lineage.proposer_ref
+            or request["evidence_ref"] != lineage.evidence_ref
+            or evidence.get("research_plan") != parent.model_dump(mode="json")
+            or store.json(lineage.proposer_ref)
+            != proposer_definition(parent, authorization=evidence)
+        ):
+            raise ValueError("registered lineage parent/source/request mismatch")
+        expected = expected_change(lineage.request_ref, request, evidence)
+        if (
+            expected["outcome"] != "patch"
+            or store.json(lineage.patch_ref) != expected["patch"]
+            or experimental_plan(parent, lineage.patch_ref, lineage.request_ref, request) != current
+        ):
+            raise ValueError("registered lineage differs from the frozen boundary proposer")
+        current = parent
+    if (
+        current.policy.window_max != current.neighbor_domain.initial_window_max
+        or plan.policy.window_max != current.policy.window_max + len(seen)
+    ):
+        raise ValueError("registered lineage does not end at its preregistered root")
+
+
+def lineage_artifact_refs(plan, store):
+    """Return the validated bounded ancestor closure for reset arm initialization."""
+    validate_lineage(plan, store)
+    refs = set()
+    if plan.neighbor_domain is not None:
+        from quant_rsi.task_definition import domain_ref, forecast_profile_ref
+
+        refs.add(domain_ref(plan))
+        refs.add(forecast_profile_ref(plan))
+    lineage = plan.package_lineage
+    while lineage is not None:
+        refs.update(
+            getattr(lineage, key)
+            for key in (
+                "base_package_ref",
+                "patch_ref",
+                "proposer_ref",
+                "request_ref",
+                "evidence_ref",
+            )
+        )
+        parent = store.json(lineage.base_package_ref)
+        from quant_rsi.researcher import PackageLineage
+
+        lineage = (
+            PackageLineage.model_validate(parent["lineage"])
+            if parent["lineage"] is not None
+            else None
+        )
+    return refs
