@@ -37,6 +37,8 @@ quant-rsi forecast replay soxl-first
 
 One command collects daily bars, preserves source evidence, runs fixed-model research, seals the model, and persists a forecast. Reusing a request ID and output directory reuses the original inputs and result; use a new ID and directory for a new forecast. This is an engineering baseline; practical forecasting quality has not been established. See the [forecast baseline guide](docs/forecast_baseline.md) for supported markets, data assumptions, output interpretation, and recovery.
 
+The daily collector versions each source by the chart response and calendar evidence hashes. A new request can therefore import provider price, corporate-action, or calendar corrections for the same session window while preserving earlier snapshots and receipt times. Identical evidence retains the same source version. Yahoo supplies no event revision counter, so events remain revision zero within each immutable source version; this does not establish historical point-in-time availability. Previously prepared requests continue to use their saved inputs.
+
 A [paired forecast comparison](docs/forecast_comparison.md) adds longer price history and industry/market context, three frozen evaluation folds, and a separate publication fit. Its B0/B1/B2 models use price features; collected news and financial statements remain sidecar evidence. Each experiment has a cumulative limit of nine evaluation fits plus one publication fit. The [first completed batch](docs/forecast_context_results.md) passed engineering validation but did not outperform the naive price baselines.
 
 ## Configurable Enhanced Forecasts

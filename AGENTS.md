@@ -2,31 +2,39 @@
 
 ## Project Structure & Module Organization
 
-This workspace currently contains one reference document, `2505.15155v2.pdf`. There are no source modules, tests, assets directories, or dependency manifests yet. Preserve the reference PDF unless replacing it is an explicit part of the contribution.
+Quant RSI is a Python quantitative research and forecast system. Shared code lives in `src/quant_rsi/`, organized into `core/`, `market/`, `forecast/`, `research/`, `evaluation/`, and `execution/`. Instrument profiles live in `instruments/` and operating/design documentation in `docs/`. Preserve the reference document `2505.15155v2.pdf`.
 
-As implementation is introduced, place source code in `src/`, automated tests in `tests/`, and runnable examples in `examples/`. Add a `README.md` explaining the project purpose, prerequisites, and directory layout. Create directories only when they contain useful files.
+Place source code in `src/`, automated tests in `tests/`, and runnable examples in `examples/`. Keep [README.md](README.md) synchronized with the project purpose, prerequisites, and directory layout. Create directories only when they contain useful files.
 
 ## Build, Test, and Development Commands
 
-No build, test, or local execution commands are configured. Do not assume commands such as `npm test`, `pytest`, or `make build` are supported.
+Use Linux and Python 3.12, as validated by CI. Follow installation instructions in [README.md](README.md). Dependencies are pinned in `requirements-dev.lock`; package and tool configuration live in `pyproject.toml`. From the activated environment, run:
 
-The first implementation should document exact dependency installation, execution, and test commands in `README.md`, with required runtime versions. Keep this guide synchronized with those commands when tooling is added.
+```bash
+ruff check src tests
+ruff format --check src tests
+pytest -q
+```
+
+Start with tests relevant to the change, then run the required broader checks. CI runs these checks in [.github/workflows/ci.yml](.github/workflows/ci.yml).
+
+Keep README installation, execution, and test commands synchronized when tooling changes.
 
 ## Coding Style & Naming Conventions
 
-No programming language, formatter, or linter has been selected. Use the chosen language’s standard conventions and configure its formatter before establishing a large codebase. Keep indentation consistent within each file and avoid unrelated formatting changes.
+Use four-space Python indentation, `snake_case` functions/modules, and `PascalCase` classes. Ruff handles formatting and linting with a 100-character line length. Avoid unrelated formatting changes.
 
 Use descriptive module and function names. For Markdown, use clear headings, fenced command examples, and relative links to repository files.
 
 ## Testing Guidelines
 
-No testing framework or coverage threshold exists. Introduce automated tests alongside executable code and document how to run them. Mirror source organization under `tests/` and follow the selected framework’s discovery conventions. Keep test inputs small and deterministic; explain any external dependencies.
+Tests use pytest with `test_*.py` discovery and are named by functional module. Add regression tests for behavior changes. Keep fixtures small, deterministic, and offline; mock public data access and explain external dependencies. Engineering fixture results do not establish predictive quality. Preserve completed experiment workspaces and their recorded source/runtime identities during upgrades.
 
 ## Commit & Pull Request Guidelines
 
-This directory is not currently a Git repository, so no historical commit convention can be inferred. Once version control is initialized, use concise, imperative commit subjects, such as `Add reference implementation`.
+Use concise imperative commit subjects. Submit changes on a temporary branch via a pull request targeting `main`; do not push code directly to `main`. Merge after required checks and review, then remove the temporary branch. Follow the contributor delivery guidance in [README.md](README.md).
 
-Pull requests should describe the change, its purpose, and validation performed. Link related issues when available and explicitly identify checks that were not run.
+Pull requests should describe the change, its purpose, and validation performed. Link related issues when available and explicitly identify checks that were not run. Keep public documentation, issues, and pull requests in English.
 
 ## Configuration & Output Discipline
 
