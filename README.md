@@ -84,10 +84,10 @@ they do not yet form the complete outcome-driven research loop.
 | Bounded factor research | Available: momentum/mean-return neighbor search and limited, registered research-program changes |
 | Shared and instrument-specific factors | Numeric bindings can enter bounded discovery; general text definitions remain specifications |
 | Automatic factor discovery | Finite multi-leaf compositions, feedback-dependent exploration and common multi-fold comparisons; no general proposer-program evolution |
-| Dynamic event factors | Registered retained-title instances, observed lifecycle transitions, decay and archival; no live source search |
+| Dynamic event factors | Registered title instances, observed lifecycle transitions, decay and archival; KO RSS observations can enter this path |
 | Multi-branch factor discovery | CALM is a worked specification; its factor tree is not executable |
 | News and financial evidence | Retained KO title indicators can enter opt-in comparisons/discovery; other evidence remains sidecar-only |
-| Active news search and extraction | Proposed in [RFC #28](https://github.com/natureofnature/Quant_RSI/issues/28) |
+| News collection and extraction | [Bounded KO official RSS observations](docs/news_collection.md), retained-title extraction and revision tracking; provider-side search/full-text extraction remain open in [RFC #28](https://github.com/natureofnature/Quant_RSI/issues/28) |
 | Statistical confirmation and promotion | Incomplete; protected evaluation is engineering-only and retains the incumbent |
 | Live trading and general self-modification | Not implemented |
 
@@ -156,8 +156,8 @@ arbitrary generated code. Detailed contracts are in the
 
 1. Extend the [bounded factor discovery path](docs/factor_discovery.md) to richer
    typed graphs and feedback-dependent research-policy changes.
-2. Add a bounded news-search, evidence-extraction and text-factor workflow, starting
-   with one supported instrument, source and extraction task.
+2. Extend [bounded issuer RSS observations](docs/news_collection.md) toward registered
+   provider search, richer extraction and prospective evidence with honest coverage.
 3. Evaluate research changes under matched budgets, then connect independent
    validation and prospective outcome recording to subsequent research decisions.
 
