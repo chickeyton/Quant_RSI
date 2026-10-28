@@ -17,17 +17,38 @@ The target is the next move in Cal-Maine Foods (`CALM`). The primary chain is:
 
 ```text
 CALM price
-└─ wholesale egg price
-   ├─ corn price
-   ├─ soybean-meal price
-   ├─ petroleum / diesel price
-   ├─ milk price                  (registered hypothesis, relationship unresolved)
-   └─ egg supply
-      ├─ season
-      ├─ temperature
-      ├─ demand
-      └─ H5N1 / HPAI
-         └─ unresolved; the next generation proposes the predictor
+├─ wholesale egg price
+│  ├─ egg supply
+│  │  ├─ layer flock and lay rate          (NASS monthly, lagged)
+│  │  ├─ pullets and chicks hatched        (future supply, NASS monthly)
+│  │  ├─ weekly shell-egg inventory
+│  │  ├─ cold storage
+│  │  ├─ temperature
+│  │  └─ H5N1 / HPAI
+│  │     └─ unresolved; the next generation proposes the predictor
+│  ├─ egg demand
+│  │  ├─ season
+│  │  │  ├─ Easter                         (date known in advance)
+│  │  │  ├─ Thanksgiving
+│  │  │  └─ Christmas
+│  │  ├─ grocery-store feature activity    (advertised specials)
+│  │  ├─ shell-egg demand indicator
+│  │  ├─ breaking-stock demand
+│  │  └─ foodservice demand                (no bound public series)
+│  ├─ corn price
+│  ├─ soybean-meal price
+│  ├─ petroleum price                      (cost pass-through hypothesis)
+│  └─ milk price                           (relationship unresolved)
+├─ company freight                         (diesel; transport cost of the firm)
+├─ labor
+│  ├─ industry employment and wages        (BLS monthly, lagged)
+│  ├─ headcount in filings                 (quarterly, lagged)
+│  └─ job postings                         (no point-in-time archive)
+├─ sales volume
+│  ├─ dozens sold in filings               (quarterly, lagged)
+│  └─ retail scanner movement              (paid source, not bound)
+├─ product mix                             (conventional vs specialty, lagged filing)
+└─ market move                             (control, not an egg cause)
 ```
 
 Parentheses in the original brief are siblings. They are registered at the same
@@ -60,7 +81,8 @@ loss after confirmation, not before.
 that same history cannot confirm it. Every opened branch counts, including
 branches that are dropped. Oil, corn, milk, season, temperature, and demand
 can be attached together; at least one will match egg prices on the searched
-sample. Only a branch that still helps on data not used to choose it is kept.
+sample. The same applies to freight, hiring, retail features, and holidays.
+Only a branch that still helps on data not used to choose it is kept.
 
 Opening more branches finds more published numbers. It does not by itself
 prove the chain. Search stops when a qualified series is bound, when the
@@ -83,7 +105,8 @@ relabel the post-confirmation cull count as a pre-outbreak signal, and it may
 not fill the gap with an unregistered disease model.
 
 Incomplete prediction is still the intended advantage. A forecast conditioned
-on the bound series (egg price, lagged layer counts, confirmed culls, corn)
+on the bound series (egg price, lagged layer counts, confirmed culls, corn,
+holiday calendar, diesel, retail feature activity)
 uses information that a forecast conditioned on nothing does not. That
 advantage does not require every leaf to be solved, and it is not a claim of
 a complete or profitable prediction. Whether the bound series actually improve
@@ -98,16 +121,38 @@ and the still-open calibration work in issues
 | Node | Role | Evidence | Cadence and visibility | This generation |
 | --- | --- | --- | --- | --- |
 | `calm_price` | target | Exchange daily bars | Daily. `CALM` is NASDAQ (`NMS`). Current forecast collection accepts NYQ, PCX, and ASE only, so this example cannot use `forecast run` as written. | Root claim |
-| `egg_price` | primary driver of `calm_price` | [USDA AMS egg market reports](https://www.ams.usda.gov/market-news/egg-market-news-reports), including the daily national shell-egg index | Daily and weekly USDA reports. Urner Barry is the commercial index named in Cal-Maine's pricing description; it is not a free bound series here. | Bind the USDA series. Do not treat a commercial index as collected. |
-| `corn_price` | sibling input to `egg_price` | Chicago Board of Trade corn daily settlement | Daily, after the session settlement is published | Bound leaf. Optional next-generation children are listed below and are not expanded now. |
-| `soybean_meal_price` | sibling input to `egg_price` | Chicago Board of Trade soybean-meal settlement | Daily, after settlement | Bound leaf. Cal-Maine names soybean meal as the second feed ingredient. |
-| `petroleum_price` | sibling hypothesis for `egg_price` | [EIA Weekly Petroleum Status Report](https://www.eia.gov/petroleum/supply/weekly/) and weekly retail diesel prices | Weekly, on the published EIA clock | Bound as a candidate cost series. The egg-price relationship is not established. |
-| `milk_price` | sibling hypothesis for `egg_price` | USDA milk prices exist, but Cal-Maine's shell-egg discussion names egg quotes, flock size, demand, season, and HPAI, not milk | Usually not daily | `unresolved_relationship`. Do not expand it into a causal chain in this generation. |
-| `egg_supply` | primary driver of `egg_price` | [NASS Chickens and Eggs](https://esmis.nal.usda.gov/publication/chickens-and-eggs): layers, eggs per 100 layers, production | Monthly. A release covers the preceding month and is issued around the third week of the next month. | Bind with the publication lag. The current month's unpublished count is not visible. |
-| `season` | sibling of the supply question | Calendar | Known before the decision | Bound leaf |
-| `temperature` | sibling of the supply question | NOAA daily station observations | Daily, after the observation day is published | Bound leaf candidate. The station set is not chosen here. |
-| `demand` | sibling of the supply question | Holiday calendar is known in advance. Realized retail movement is usually late. | Mixed | Calendar is a leaf. Realized demand stays `unresolved_no_admissible_series`. |
-| `h5n1` | primary driver of `egg_supply` | [APHIS commercial and backyard HPAI confirmations](https://www.aphis.usda.gov/livestock-poultry-disease/avian/avian-influenza/hpai-detections/commercial-backyard-flocks): confirmation date and birds affected | Irregular events. Visible only after confirmation. | `unresolved_for_next_generation` |
+| `egg_price` | primary revenue driver | [USDA AMS egg market reports](https://www.ams.usda.gov/market-news/egg-market-news-reports) | Daily and weekly USDA reports. Urner Barry is the commercial index named by the issuer; it is not a free bound series. | Bind the USDA series |
+| `egg_supply` | primary driver of `egg_price` | Supply is the parent of the rows below. It has no single series of its own. | Mixed | Split; do not score the parent without its children |
+| `layer_flock` | current supply | [NASS Chickens and Eggs](https://esmis.nal.usda.gov/publication/chickens-and-eggs): layers, eggs per 100 layers, production | Monthly, for the preceding month, around the third week of the next month | Bind with the lag. The unpublished current month is not visible |
+| `pullet_pipeline` | future supply | Same NASS report: pullets added, chicks hatched, eggs in incubators | Monthly, same lag | Bind as a leading supply series, still lagged |
+| `weekly_shell_inventory` | near-term supply | USDA AMS Weekly Shell Egg Inventory | Weekly | Bind |
+| `cold_storage` | inventory overhang | USDA AMS Weekly Cold Storage, selected centers | Weekly | Bind as a candidate. Coverage is selected centers, not the national flock |
+| `temperature` | lay-rate input | NOAA daily station observations | Daily, after the observation day is published | Bound candidate. Station set is not chosen |
+| `h5n1` | supply shock | [APHIS flock confirmations](https://www.aphis.usda.gov/livestock-poultry-disease/avian/avian-influenza/hpai-detections/commercial-backyard-flocks) | Irregular. Visible only after confirmation | `unresolved_for_next_generation` |
+| `own_farm_hpai` | company-specific shock | Company 8-K or press release if it discloses a farm depopulation | After the company publishes it | Lagged event. Absence of a filing is not proof of no outbreak |
+| `egg_demand` | primary driver of `egg_price`, sibling of supply | Parent of the demand rows. Demand is not the same object as supply. | Mixed | Split |
+| `season` | demand calendar | Civil calendar | Known before the decision | Bound parent of the holidays |
+| `easter` | holiday demand | Western Easter Sunday, computable for any future year | Known in advance | Bound leaf. This is the main US shell-egg holiday |
+| `thanksgiving` | holiday demand | Fourth Thursday in November | Known in advance | Bound leaf |
+| `christmas` | holiday demand | 25 December | Known in advance | Bound leaf |
+| `retail_feature_activity` | advertised supermarket specials | USDA AMS Weekly Grocery Store Egg Feature Activity | Weekly | Bind. Also informs `sales_volume` |
+| `shell_demand_indicator` | wholesale demand tone | USDA AMS Weekly Shell Egg Demand Indicator | Weekly | Bind as a candidate tone series, not as realized retail volume |
+| `breaking_stock` | alternative outlet for eggs | USDA AMS Daily National Breaking Stock Report | Daily | Bind |
+| `foodservice_demand` | channel mix | No free decision-time series is bound | — | `unresolved_no_admissible_series` |
+| `corn_price` | feed cost | Chicago Board of Trade corn settlement | Daily, after settlement | Bound leaf |
+| `soybean_meal_price` | feed cost | Chicago Board of Trade soybean-meal settlement | Daily, after settlement | Bound leaf |
+| `petroleum_price` | hypothesis that fuel passes into the egg quote | [EIA weekly petroleum and retail diesel](https://www.eia.gov/petroleum/gasdiesel/) | Weekly | Bound candidate. Relationship not established |
+| `milk_price` | proposed sibling | Not named in the issuer's shell-egg discussion | — | `unresolved_relationship` |
+| `company_freight` | direct cost of moving feed and eggs | Same EIA weekly retail diesel series | Weekly | Separate from `petroleum_price`: this edge is the firm's transport cost |
+| `labor` | operating cost and capacity | Parent of the labor rows | Mixed | Split |
+| `industry_wages` | labor market | BLS Current Employment Statistics for poultry processing: employment and hourly earnings | Monthly, published with the employment-situation lag | Bind with the lag. This is the industry, not Cal-Maine alone |
+| `filing_headcount` | company labor | Employees disclosed in Form 10-K and 10-Q | Quarterly or annual, after filing | Bind with the lag |
+| `job_postings` | hiring visible on the careers page | A live careers page is not a historical archive | Current page only | `unresolved_no_point_in_time_archive` |
+| `sales_volume` | dozens moved, distinct from price | Parent of the sales rows | Mixed | Split |
+| `filing_dozens_sold` | company volume | Dozens sold in 10-Q and 10-K | Quarterly, after filing | Bind with the lag |
+| `retail_scanner` | supermarket movement and promoted price | Nielsen / IRI class scanner panels | Commercial | `unresolved_paid_source` |
+| `product_mix` | conventional vs specialty | Mix disclosed in filings. Specialty is described as more often cost-based | Quarterly or annual | Bind with the lag |
+| `market_move` | control | A broad US equity index such as the S&P 500 | Daily | Not an egg cause. A CALM move that only matches the index is not evidence for this tree |
 
 ## Why these edges are registered
 
@@ -122,11 +167,26 @@ measurement that those edges predict the next CALM return.
 - Filing: [calm2026053010K](https://www.sec.gov/Archives/edgar/data/16160/000156276226000080/calm2026053010K.htm)
 - CIK `0000016160`
 
-Corn and soybean meal are feed costs. Petroleum is a transport and energy
-hypothesis and stays marked as such. Milk is retained because the example
-asked for it, with the relationship unresolved. Dairy-cattle H5N1 reports are
-a possible child of the virus node, not evidence that the milk price moves
-the egg price.
+Corn and soybean meal are feed costs. Diesel is registered twice, on purpose.
+`petroleum_price` asks whether fuel changes the wholesale egg quote.
+`company_freight` asks whether the same diesel series raises what Cal-Maine
+pays to move feed and eggs. Those are different claims and both have to pass
+the held-out gate. Milk stays unresolved. Dairy-cattle H5N1 reports are a
+possible child of the virus node, not evidence that the milk price moves the
+egg price.
+
+Supply and demand are siblings under the egg price. Season is a child of
+demand, and Easter, Thanksgiving, and Christmas are children of season because
+their dates are known before the decision. A holiday can raise demand without
+any new supply information. Retail feature activity is the public record of
+advertised supermarket specials. It informs both demand and sales volume.
+Paid scanner panels and a historical archive of job postings are named and
+left unresolved. The BLS egg CPI is not a node: it restates the egg price
+after the month is over, so it is not a driver of that price.
+
+`market_move` is a control. CALM can rise because the equity market rises.
+That observation stays outside the egg chain and cannot be counted as
+evidence that an egg, freight, or labor node worked.
 
 ## What the next generation may do with `h5n1`
 

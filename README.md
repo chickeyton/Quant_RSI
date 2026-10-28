@@ -4,7 +4,7 @@ See [Development trajectory](docs/development_trajectory.md) for entry points, b
 
 A quantitative research system based on the [agreed architecture](docs/architecture.md). It currently provides an **M0 fixed-model kernel, C2 dynamic research loop, C4 bounded research-package experiments, and C5 protected engineering evaluation** on synthetic data, plus [local data, the same C2 research path, standalone inference, and persistent baseline observation](docs/local_observer.md). Programs remain fixed within each run. A [five-session price forecast baseline](docs/forecast_baseline.md) is also available; calibrated statistical promotion and full recursive self-improvement remain unfinished.
 
-The first worked example of multi-branch factor discovery is the [CALM egg-price tree](docs/calm_factor_discovery_example.md), with its node ledger in [`instruments/US/CALM/factor_tree.json`](instruments/US/CALM/factor_tree.json). It shows how a claim splits into a primary driver and sibling inputs, how a public series is bound, and how an unresolved node such as H5N1 stops for the next generation. It is a specification, not a runnable plan.
+The first worked example of multi-branch factor discovery is the [CALM egg-price tree](docs/calm_factor_discovery_example.md), with its node ledger in [`instruments/US/CALM/factor_tree.json`](instruments/US/CALM/factor_tree.json). It splits supply from demand, includes holiday dates, company freight, labor, and supermarket feature activity, and leaves H5N1, job-posting history, and paid scanner data unresolved for a later generation. It is a specification, not a runnable plan.
 
 ## Installation and Usage
 
