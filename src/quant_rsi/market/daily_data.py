@@ -18,7 +18,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
-from quant_rsi.core.artifacts import atomic_write
+from quant_rsi.core.artifacts import atomic_write, canonical
 from quant_rsi.market.market_contracts import CSV_FIELDS, DataContract
 
 CALENDAR_URL = "https://www.nyse.com/markets/hours-calendars"
@@ -428,9 +428,15 @@ def collect_daily(ticker, output_dir) -> dict:
             },
         )
         action_events, cash, unsupported = _action_events(data, ticker, _sha(raw))
+        # Yahoo supplies no event revision counter. Version the immutable source
+        # by its evidence instead of overwriting revision zero in an older import.
+        source_version = _sha(canonical({"response_ref": _sha(raw), "calendar_ref": calendar_ref}))
         contract = {
             "schema_version": 1,
-            "source_id": f"yahoo_{ticker}_{sessions[0]['session_id']}_{bars[-1][0]['session_id']}",
+            "source_id": (
+                f"yahoo_{ticker}_{sessions[0]['session_id']}_{bars[-1][0]['session_id']}_"
+                f"{source_version}"
+            ),
             "provider_statement": (
                 "Yahoo daily chart raw quote fields; selected NYSE-family USD listing. "
                 "Historical event-time availability and USD/share units are explicit exploration "
@@ -498,6 +504,7 @@ def collect_daily(ticker, output_dir) -> dict:
             "15_minute_close_buffer_does_not_prevent_later_provider_revisions",
             "quote_decimals_normalized_to_12_fractional_places_half_even_raw_preserved",
             "unversioned_provider_events_use_revision_zero_conflicts_must_not_be_overwritten",
+            "immutable_source_version_binds_chart_response_and_calendar_evidence",
         ]
         if unsupported:
             qualifications.append("unsupported_action_notices_retained_for_forecast_abstention")

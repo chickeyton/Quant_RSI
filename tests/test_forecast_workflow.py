@@ -10,6 +10,62 @@ from quant_rsi.market import daily_data, market_contracts
 from quant_rsi.research import research
 
 
+@pytest.mark.parametrize("correction", ["quote", "dividend", "calendar"])
+def test_new_request_accepts_source_correction_and_preserves_old_snapshot(
+    tmp_path, monkeypatch, correction
+):
+    from test_daily_data import CALENDAR, chart, install
+
+    from quant_rsi.market.market_data import load_snapshot
+
+    monkeypatch.setenv("QUANT_RSI_WORKSPACE", str(tmp_path))
+    data = chart()
+    install(monkeypatch, data)
+    first_root, second_root = tmp_path / "first", tmp_path / "second"
+    first = run_forecast("SOXL", first_root, request_id="first", prepare_only=True)
+
+    def snapshot_ref(root):
+        protocol = json.loads((root / "protocol.json").read_bytes())["protocol"]
+        return protocol["research_plan"]["development"]["data"]["snapshot_ref"]
+
+    original_ref = snapshot_ref(first_root)
+    original = canonical(load_snapshot(original_ref)[0])
+    original_files = {p: p.read_bytes() for p in first_root.rglob("*") if p.is_file()}
+    # Identical evidence under a new request reuses the same source version.
+    same_root = tmp_path / "same"
+    run_forecast("SOXL", same_root, request_id="same", prepare_only=True)
+    assert load_snapshot(snapshot_ref(same_root))[1] == load_snapshot(original_ref)[1]
+
+    calendar = CALENDAR
+    result = data["chart"]["result"][0]
+    if correction == "quote":
+        result["indicators"]["quote"][0]["close"][-1] += 0.01
+    elif correction == "dividend":
+        result["events"]["dividends"]["old-cash"]["amount"] += 0.01
+    else:
+        calendar = calendar.replace(
+            b"Friday, November 27, 2026", b"Friday, October 30, 2026; Friday, November 27, 2026"
+        )
+    install(monkeypatch, data, calendar=calendar)
+    second = run_forecast("SOXL", second_root, request_id="second", prepare_only=True)
+    assert second["status"] == "prepared"
+    assert snapshot_ref(second_root) != original_ref
+    assert (
+        load_snapshot(snapshot_ref(second_root))[1].source_id
+        != load_snapshot(original_ref)[1].source_id
+    )
+    assert canonical(load_snapshot(original_ref)[0]) == original
+    assert all(path.read_bytes() == body for path, body in original_files.items())
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("prepared request recollected or trained")
+
+    monkeypatch.setattr(daily_data, "collect_daily", forbidden)
+    monkeypatch.setattr(research, "create_research", forbidden)
+    assert run_forecast("SOXL", first_root, request_id="first", prepare_only=True) == first
+    assert run_forecast("SOXL", second_root, request_id="second", prepare_only=True) == second
+
+
 def test_one_command_baseline_collects_once_and_replays_without_fit(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("QUANT_RSI_WORKSPACE", str(tmp_path))
     collections = []
