@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "kind": "factor_discovery_example",
-  "example_id": "calm_egg_tree_v1",
+  "example_id": "calm_egg_tree_v2",
   "status": "specification_only",
   "runnable": false,
   "target": {
@@ -13,22 +13,31 @@
   "rules": {
     "primary_chain_expands_before_siblings": true,
     "sibling_registered_does_not_require_expansion": true,
+    "supply_and_demand_are_separate_children": true,
     "series_counts_only_if_published_before_decision": true,
     "selection_sample_cannot_confirm_the_branch": true,
     "every_opened_branch_counts_including_rejected": true,
     "unresolved_is_a_valid_terminal_state": true,
     "next_generation_proposes_the_predictor_for_unresolved_nodes": true,
     "bound_partial_evidence_is_retained_when_a_leaf_stays_open": true,
-    "partial_evidence_is_not_a_claim_of_complete_prediction": true
+    "partial_evidence_is_not_a_claim_of_complete_prediction": true,
+    "market_move_is_a_control_not_an_egg_cause": true
   },
   "nodes": [
     {
       "node_id": "calm_price",
-      "claim": "Next CALM move is driven most directly by the wholesale egg price.",
+      "claim": "The next CALM move has several operating drivers. The wholesale egg price is the primary one, not the only one.",
       "parent_id": null,
       "role": "target",
       "state": "root",
-      "children": ["egg_price"]
+      "children": [
+        "egg_price",
+        "company_freight",
+        "labor",
+        "sales_volume",
+        "product_mix",
+        "market_move"
+      ]
     },
     {
       "node_id": "egg_price",
@@ -44,12 +53,240 @@
       },
       "not_bound": ["Urner Barry commercial index; cited by the issuer, not a free collected series"],
       "children": [
+        "egg_supply",
+        "egg_demand",
         "corn_price",
         "soybean_meal_price",
         "petroleum_price",
-        "milk_price",
-        "egg_supply"
+        "milk_price"
       ]
+    },
+    {
+      "node_id": "egg_supply",
+      "claim": "Layer numbers, productivity, inventories, weather, and disease drive the quantity of eggs.",
+      "parent_id": "egg_price",
+      "role": "primary_driver",
+      "state": "split",
+      "evidence": null,
+      "children": [
+        "layer_flock",
+        "pullet_pipeline",
+        "weekly_shell_inventory",
+        "cold_storage",
+        "temperature",
+        "h5n1"
+      ]
+    },
+    {
+      "node_id": "layer_flock",
+      "claim": "Layers on hand, lay rate, and egg production describe current national supply.",
+      "parent_id": "egg_supply",
+      "role": "current_supply",
+      "state": "bound_series_with_lag",
+      "evidence": {
+        "source": "NASS Chickens and Eggs",
+        "url": "https://esmis.nal.usda.gov/publication/chickens-and-eggs",
+        "fields": ["layers_on_hand", "eggs_per_100_layers", "egg_production"],
+        "cadence": "monthly",
+        "visibility": "preceding month, published around the third week of the following month"
+      },
+      "children": []
+    },
+    {
+      "node_id": "pullet_pipeline",
+      "claim": "Pullets added, chicks hatched, and eggs in incubators describe future supply.",
+      "parent_id": "egg_supply",
+      "role": "future_supply",
+      "state": "bound_series_with_lag",
+      "evidence": {
+        "source": "NASS Chickens and Eggs",
+        "url": "https://esmis.nal.usda.gov/publication/chickens-and-eggs",
+        "fields": ["pullets_added", "chicks_hatched", "eggs_in_incubators"],
+        "cadence": "monthly",
+        "visibility": "same lag as the layer report"
+      },
+      "children": []
+    },
+    {
+      "node_id": "weekly_shell_inventory",
+      "claim": "Weekly shell-egg stocks describe near-term available supply.",
+      "parent_id": "egg_supply",
+      "role": "inventory",
+      "state": "bound_series",
+      "evidence": {
+        "source": "USDA AMS Weekly Shell Egg Inventory",
+        "url": "https://www.ams.usda.gov/market-news/egg-market-news-reports",
+        "cadence": "weekly"
+      },
+      "children": []
+    },
+    {
+      "node_id": "cold_storage",
+      "claim": "Cold-storage holdings can overhang the shell-egg market. Coverage is selected centers.",
+      "parent_id": "egg_supply",
+      "role": "inventory",
+      "state": "bound_candidate_series",
+      "evidence": {
+        "source": "USDA AMS Weekly Cold Storage, selected centers",
+        "url": "https://www.ams.usda.gov/market-news/egg-market-news-reports",
+        "cadence": "weekly"
+      },
+      "children": []
+    },
+    {
+      "node_id": "temperature",
+      "claim": "Temperature may affect lay rate. The station set is not selected.",
+      "parent_id": "egg_supply",
+      "role": "sibling_input",
+      "state": "bound_leaf_candidate",
+      "also_informs": ["egg_demand"],
+      "evidence": {
+        "source": "NOAA daily station observations",
+        "cadence": "daily",
+        "visibility": "after the observation day is published",
+        "station_set": "not_selected"
+      },
+      "children": []
+    },
+    {
+      "node_id": "h5n1",
+      "claim": "HPAI depopulation reduces layer supply after confirmation. This generation does not have a pre-outbreak signal.",
+      "parent_id": "egg_supply",
+      "role": "primary_driver",
+      "state": "unresolved_for_next_generation",
+      "evidence": {
+        "source": "USDA APHIS HPAI confirmations in commercial and backyard flocks",
+        "url": "https://www.aphis.usda.gov/livestock-poultry-disease/avian/avian-influenza/hpai-detections/commercial-backyard-flocks",
+        "cadence": "irregular_event",
+        "visibility": "after confirmation only",
+        "usable_as": "lagged explanation of a cull, not a pre-outbreak predictor"
+      },
+      "next_generation": {
+        "inherits": ["open question", "bound siblings", "rejected and unresolved branch ledger"],
+        "may_propose_one_preregistered_predictor": true,
+        "candidate_series_not_selected": [
+          "APHIS wild-bird detections, with confirmatory-test date distinct from collection date",
+          "nearby commercial-premises confirmations",
+          "migratory-season calendar",
+          "APHIS HPAI confirmations in livestock"
+        ],
+        "must_stop_again_if_no_series_is_public_before_the_decision": true,
+        "must_not_invent_an_unregistered_disease_model": true
+      },
+      "children": ["own_farm_hpai"]
+    },
+    {
+      "node_id": "own_farm_hpai",
+      "claim": "A depopulation on a Cal-Maine farm is a company shock. Silence in the filing record is not proof that no farm was affected.",
+      "parent_id": "h5n1",
+      "role": "company_event",
+      "state": "bound_series_with_lag",
+      "evidence": {
+        "source": "Company 8-K or press release disclosing a farm depopulation",
+        "cadence": "irregular_event",
+        "visibility": "after the company publishes it"
+      },
+      "children": []
+    },
+    {
+      "node_id": "egg_demand",
+      "claim": "Demand is a sibling of supply. A holiday or a supermarket special can move the egg price without a change in the flock.",
+      "parent_id": "egg_price",
+      "role": "primary_driver",
+      "state": "split",
+      "evidence": null,
+      "children": [
+        "season",
+        "retail_feature_activity",
+        "shell_demand_indicator",
+        "breaking_stock",
+        "foodservice_demand"
+      ]
+    },
+    {
+      "node_id": "season",
+      "claim": "Season is the calendar parent of the holidays that change egg demand.",
+      "parent_id": "egg_demand",
+      "role": "calendar",
+      "state": "bound_leaf",
+      "evidence": {"source": "civil calendar", "cadence": "known_in_advance"},
+      "children": ["easter", "thanksgiving", "christmas"]
+    },
+    {
+      "node_id": "easter",
+      "claim": "Western Easter is the main US shell-egg holiday. Its date is computable before the decision.",
+      "parent_id": "season",
+      "role": "holiday",
+      "state": "bound_leaf",
+      "evidence": {"source": "Western Easter Sunday", "cadence": "known_in_advance"},
+      "children": []
+    },
+    {
+      "node_id": "thanksgiving",
+      "claim": "Thanksgiving demand is known from the fourth Thursday in November.",
+      "parent_id": "season",
+      "role": "holiday",
+      "state": "bound_leaf",
+      "evidence": {"source": "fourth Thursday of November", "cadence": "known_in_advance"},
+      "children": []
+    },
+    {
+      "node_id": "christmas",
+      "claim": "Christmas baking demand is known from 25 December.",
+      "parent_id": "season",
+      "role": "holiday",
+      "state": "bound_leaf",
+      "evidence": {"source": "25 December", "cadence": "known_in_advance"},
+      "children": []
+    },
+    {
+      "node_id": "retail_feature_activity",
+      "claim": "Advertised supermarket egg specials are a public demand and volume signal.",
+      "parent_id": "egg_demand",
+      "role": "retail_promotion",
+      "state": "bound_series",
+      "also_informs": ["sales_volume"],
+      "evidence": {
+        "source": "USDA AMS Weekly Grocery Store Egg Feature Activity",
+        "url": "https://www.ams.usda.gov/market-news/egg-market-news-reports",
+        "cadence": "weekly"
+      },
+      "children": []
+    },
+    {
+      "node_id": "shell_demand_indicator",
+      "claim": "The weekly demand indicator describes wholesale tone. It is not realized supermarket volume.",
+      "parent_id": "egg_demand",
+      "role": "demand_tone",
+      "state": "bound_candidate_series",
+      "evidence": {
+        "source": "USDA AMS Weekly Shell Egg Demand Indicator",
+        "url": "https://www.ams.usda.gov/market-news/egg-market-news-reports",
+        "cadence": "weekly"
+      },
+      "children": []
+    },
+    {
+      "node_id": "breaking_stock",
+      "claim": "Breaking-stock prices describe an alternative outlet for eggs.",
+      "parent_id": "egg_demand",
+      "role": "alternative_outlet",
+      "state": "bound_series",
+      "evidence": {
+        "source": "USDA AMS Daily National Breaking Stock Report",
+        "url": "https://www.ams.usda.gov/market-news/egg-market-news-reports",
+        "cadence": "daily"
+      },
+      "children": []
+    },
+    {
+      "node_id": "foodservice_demand",
+      "claim": "No free decision-time series is bound for foodservice egg demand.",
+      "parent_id": "egg_demand",
+      "role": "channel",
+      "state": "unresolved_no_admissible_series",
+      "evidence": null,
+      "children": []
     },
     {
       "node_id": "corn_price",
@@ -80,13 +317,13 @@
     },
     {
       "node_id": "petroleum_price",
-      "claim": "Petroleum prices may affect feed and egg transport costs. The relationship is not established.",
+      "claim": "Fuel may pass into the wholesale egg quote. The relationship is not established.",
       "parent_id": "egg_price",
       "role": "sibling_hypothesis",
       "state": "bound_candidate_series",
       "evidence": {
-        "source": "EIA Weekly Petroleum Status Report and weekly retail diesel prices",
-        "url": "https://www.eia.gov/petroleum/supply/weekly/",
+        "source": "EIA weekly petroleum supply and retail diesel prices",
+        "url": "https://www.eia.gov/petroleum/gasdiesel/",
         "cadence": "weekly",
         "visibility": "after the published EIA release clock"
       },
@@ -102,93 +339,118 @@
       "children": []
     },
     {
-      "node_id": "egg_supply",
-      "claim": "Layer numbers and egg production drive the wholesale egg price.",
-      "parent_id": "egg_price",
-      "role": "primary_driver",
+      "node_id": "company_freight",
+      "claim": "Diesel raises what the company pays to move feed and eggs. This is a firm cost, not the egg-quote hypothesis.",
+      "parent_id": "calm_price",
+      "role": "direct_cost",
+      "state": "bound_candidate_series",
+      "evidence": {
+        "source": "EIA weekly retail on-highway diesel",
+        "url": "https://www.eia.gov/petroleum/gasdiesel/",
+        "cadence": "weekly",
+        "shared_series_with": "petroleum_price"
+      },
+      "children": []
+    },
+    {
+      "node_id": "labor",
+      "claim": "Hiring and wages affect operating cost and packing capacity.",
+      "parent_id": "calm_price",
+      "role": "direct_cost",
+      "state": "split",
+      "evidence": null,
+      "children": ["industry_wages", "filing_headcount", "job_postings"]
+    },
+    {
+      "node_id": "industry_wages",
+      "claim": "Poultry-processing employment and hourly earnings describe the labor market, not Cal-Maine alone.",
+      "parent_id": "labor",
+      "role": "industry_labor",
       "state": "bound_series_with_lag",
       "evidence": {
-        "source": "NASS Chickens and Eggs",
-        "url": "https://esmis.nal.usda.gov/publication/chickens-and-eggs",
-        "fields": ["layers_on_hand", "eggs_per_100_layers", "egg_production"],
+        "source": "BLS Current Employment Statistics for poultry processing",
+        "fields": ["employment", "average_hourly_earnings"],
         "cadence": "monthly",
-        "visibility": "preceding month, published around the third week of the following month"
+        "visibility": "published with the employment-situation lag"
       },
-      "children": ["season", "temperature", "demand", "h5n1"]
-    },
-    {
-      "node_id": "season",
-      "claim": "Seasonal demand and lay conditions are known from the calendar.",
-      "parent_id": "egg_supply",
-      "role": "sibling_input",
-      "state": "bound_leaf",
-      "evidence": {"source": "calendar", "cadence": "known_in_advance"},
       "children": []
     },
     {
-      "node_id": "temperature",
-      "claim": "Temperature may affect lay rate and demand.",
-      "parent_id": "egg_supply",
-      "role": "sibling_input",
-      "state": "bound_leaf_candidate",
+      "node_id": "filing_headcount",
+      "claim": "The company's own employee count is visible only after a filing.",
+      "parent_id": "labor",
+      "role": "company_labor",
+      "state": "bound_series_with_lag",
       "evidence": {
-        "source": "NOAA daily station observations",
-        "cadence": "daily",
-        "visibility": "after the observation day is published",
-        "station_set": "not_selected"
+        "source": "Employees disclosed in Form 10-K and 10-Q",
+        "cadence": "quarterly_or_annual",
+        "visibility": "after the filing is public"
       },
       "children": []
     },
     {
-      "node_id": "demand",
-      "claim": "Holiday demand is known in advance. Realized retail movement usually is not.",
-      "parent_id": "egg_supply",
-      "role": "sibling_input",
-      "state": "split",
-      "children": ["holiday_calendar", "realized_demand"]
-    },
-    {
-      "node_id": "holiday_calendar",
-      "claim": "Holiday dates are known before the decision.",
-      "parent_id": "demand",
-      "role": "leaf",
-      "state": "bound_leaf",
-      "evidence": {"source": "calendar", "cadence": "known_in_advance"},
-      "children": []
-    },
-    {
-      "node_id": "realized_demand",
-      "claim": "No decision-time daily public series is bound for realized egg movement.",
-      "parent_id": "demand",
-      "role": "leaf",
-      "state": "unresolved_no_admissible_series",
+      "node_id": "job_postings",
+      "claim": "A live careers page shows hiring now. It is not a historical point-in-time series.",
+      "parent_id": "labor",
+      "role": "hiring",
+      "state": "unresolved_no_point_in_time_archive",
       "evidence": null,
       "children": []
     },
     {
-      "node_id": "h5n1",
-      "claim": "HPAI depopulation reduces layer supply after confirmation. This generation does not have a pre-outbreak signal.",
-      "parent_id": "egg_supply",
-      "role": "primary_driver",
-      "state": "unresolved_for_next_generation",
+      "node_id": "sales_volume",
+      "claim": "Dozens sold are a different object from the egg price.",
+      "parent_id": "calm_price",
+      "role": "volume",
+      "state": "split",
+      "shared_observations": ["retail_feature_activity"],
+      "evidence": null,
+      "children": ["filing_dozens_sold", "retail_scanner"]
+    },
+    {
+      "node_id": "filing_dozens_sold",
+      "claim": "Company volume is disclosed after the quarter.",
+      "parent_id": "sales_volume",
+      "role": "company_volume",
+      "state": "bound_series_with_lag",
       "evidence": {
-        "source": "USDA APHIS HPAI confirmations in commercial and backyard flocks",
-        "url": "https://www.aphis.usda.gov/livestock-poultry-disease/avian/avian-influenza/hpai-detections/commercial-backyard-flocks",
-        "cadence": "irregular_event",
-        "visibility": "after confirmation only",
-        "usable_as": "lagged explanation of a cull, not a pre-outbreak predictor"
+        "source": "Dozens sold in Form 10-Q and 10-K",
+        "cadence": "quarterly",
+        "visibility": "after the filing is public"
       },
-      "next_generation": {
-        "inherits": ["open question", "bound siblings", "rejected and unresolved branch ledger"],
-        "may_propose_one_preregistered_predictor": true,
-        "candidate_series_not_selected": [
-          "APHIS wild-bird detections, with confirmatory-test date distinct from collection date",
-          "nearby commercial-premises confirmations",
-          "migratory-season calendar",
-          "APHIS HPAI confirmations in livestock"
-        ],
-        "must_stop_again_if_no_series_is_public_before_the_decision": true,
-        "must_not_invent_an_unregistered_disease_model": true
+      "children": []
+    },
+    {
+      "node_id": "retail_scanner",
+      "claim": "Supermarket scanner panels record movement and promoted prices, but the historical panels are paid.",
+      "parent_id": "sales_volume",
+      "role": "retail_volume",
+      "state": "unresolved_paid_source",
+      "evidence": {"source": "Nielsen or IRI scanner panel", "access": "commercial"},
+      "children": []
+    },
+    {
+      "node_id": "product_mix",
+      "claim": "Specialty eggs are described as more often priced from production cost, so mix changes how much the wholesale quote matters.",
+      "parent_id": "calm_price",
+      "role": "revenue_composition",
+      "state": "bound_series_with_lag",
+      "evidence": {
+        "source": "Conventional versus specialty mix in Form 10-K and 10-Q",
+        "cadence": "quarterly_or_annual",
+        "visibility": "after the filing is public"
+      },
+      "children": []
+    },
+    {
+      "node_id": "market_move",
+      "claim": "CALM can rise because the equity market rises. This control is not an egg, freight, or labor cause.",
+      "parent_id": "calm_price",
+      "role": "control",
+      "state": "bound_control",
+      "evidence": {
+        "source": "A broad US equity index such as the S&P 500",
+        "cadence": "daily"
       },
       "children": []
     }
@@ -196,6 +458,12 @@
   "issuer_edge_source": {
     "filing": "https://www.sec.gov/Archives/edgar/data/16160/000156276226000080/calm2026053010K.htm",
     "cik": "0000016160",
-    "use": "registers the stated edges; does not measure predictive value"
-  }
+    "use": "registers the stated edges for egg quotes, flock size, demand, season, HPAI, corn, and soybean meal; does not measure predictive value"
+  },
+  "explicitly_not_a_node": [
+    {
+      "name": "BLS CPI for eggs",
+      "reason": "It restates the egg price after the month ends, so it is not a driver of that price."
+    }
+  ]
 }
