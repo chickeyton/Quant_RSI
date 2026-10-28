@@ -140,6 +140,14 @@ def build_feature_view(inputs, recipe, origin, as_of, *, basis=None):
         refs.update(news["source_refs"])
         if values is not None and not news["reasons"]:
             values.append(news["value"])
+    if recipe.group == "D1":
+        from quant_rsi.factors.discovery_graph import evaluate
+
+        result = evaluate(recipe.graph, recipe.leaves, inputs, origin, as_of, basis)
+        reasons.extend(result["reasons"])
+        refs.update(result["source_refs"])
+        if values is not None and not result["reasons"]:
+            values.append(result["value"])
     if not reasons and (
         values is None or len(values) != len(recipe.names) or not all(map(math.isfinite, values))
     ):

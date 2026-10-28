@@ -9,7 +9,7 @@ and results so that research can be inspected, resumed and replayed.
 RSI means **recursive self-improvement** here. The long-term goal is to test whether
 feedback can improve factors and research strategies under a fixed budget. Today,
 the system runs fixed-model forecasts and bounded searches; general factor-tree
-execution, active news discovery and complete recursive self-improvement are still
+execution, live news discovery and complete recursive self-improvement are still
 under development. Predictive advantage has not been established.
 
 [Quick start](#installation-and-usage) · [Capabilities](#current-capabilities) ·
@@ -26,7 +26,7 @@ flowchart TD
     A --> C["Instrument-specific definitions and bindings"]
     B --> C
     C --> D["Configuration validation and resolution"]
-    D -.->|"planned feature materialization"| E["Shared experiment engine"]
+    D -->|"bounded numeric / event expression path"| E["Shared experiment engine"]
     P["Existing fixed recipes and research plans"] --> E
     M["Market data, calendars and availability rules"] --> E
     E --> F["Training and evaluation"]
@@ -34,8 +34,10 @@ flowchart TD
     E --- H["Budget ledger, evidence and checkpoints"]
 ```
 
-The dashed connection is not implemented: validating a layered factor definition
-does not make it a model input. Existing forecasts use their registered recipes.
+Validation alone does not make a definition a model input. The opt-in
+[factor discovery path](docs/factor_discovery.md) executes selected numeric bindings
+and registered event indicators; general text tasks and factor trees remain specifications.
+Existing forecasts retain their registered recipes.
 CALM's egg-price relationships belong to its own configuration; KO can reuse the
 same stock-price template without inheriting CALM's business assumptions.
 See [factor ownership and types](docs/factor_layers.md).
@@ -58,9 +60,9 @@ experiments and feedback. The implemented paths cover only part of this chain.
 flowchart TD
     A["Research task and budget"] --> B["Data and source evidence"]
     B --> C["Existing fixed price features"]
-    B -.-> D["Planned: news extraction and factor graphs"]
+    B --> D["Opt-in: retained-title indicators and bounded expressions"]
     C --> E["Training and development evaluation"]
-    D -.-> E
+    D --> E
     E -->|"bounded search feedback"| C
     E --> F["Seal model and issue forecast"]
     E -.-> G["Planned: calibrated independent confirmation"]
@@ -80,9 +82,11 @@ they do not yet form the complete outcome-driven research loop.
 | Five-session price forecasting | Available for explicitly supported sources/markets; includes collection, fixed-model research, model sealing and replay |
 | Enhanced forecast comparison | Available: three predefined price/context recipes, frozen folds, naive controls and a separate publication fit |
 | Bounded factor research | Available: momentum/mean-return neighbor search and limited, registered research-program changes |
-| Shared and instrument-specific factors | Definition/resolution available for numeric and text types; not connected to training |
+| Shared and instrument-specific factors | Numeric bindings can enter bounded discovery; general text definitions remain specifications |
+| Automatic factor discovery | Finite multi-leaf compositions, feedback-dependent exploration and common multi-fold comparisons; no general proposer-program evolution |
+| Dynamic event factors | Registered retained-title instances, observed lifecycle transitions, decay and archival; no live source search |
 | Multi-branch factor discovery | CALM is a worked specification; its factor tree is not executable |
-| News and financial evidence | Limited collection exists; news remains sidecar evidence, not a trained feature |
+| News and financial evidence | Retained KO title indicators can enter opt-in comparisons/discovery; other evidence remains sidecar-only |
 | Active news search and extraction | Proposed in [RFC #28](https://github.com/natureofnature/Quant_RSI/issues/28) |
 | Statistical confirmation and promotion | Incomplete; protected evaluation is engineering-only and retains the incumbent |
 | Live trading and general self-modification | Not implemented |
@@ -150,8 +154,8 @@ arbitrary generated code. Detailed contracts are in the
 
 ## Roadmap
 
-1. Connect layered factor definitions and source bindings to time-aligned features
-   and the shared experiment engine.
+1. Extend the [bounded factor discovery path](docs/factor_discovery.md) to richer
+   typed graphs and feedback-dependent research-policy changes.
 2. Add a bounded news-search, evidence-extraction and text-factor workflow, starting
    with one supported instrument, source and extraction task.
 3. Evaluate research changes under matched budgets, then connect independent
@@ -159,7 +163,8 @@ arbitrary generated code. Detailed contracts are in the
 
 Track the [architecture RFC #24](https://github.com/natureofnature/Quant_RSI/issues/24),
 [factor-tree issue #8](https://github.com/natureofnature/Quant_RSI/issues/8),
-[news RFC #28](https://github.com/natureofnature/Quant_RSI/issues/28) and
+[news RFC #28](https://github.com/natureofnature/Quant_RSI/issues/28),
+[factor discovery RFC #31](https://github.com/natureofnature/Quant_RSI/issues/31) and
 [broader roadmap #1](https://github.com/natureofnature/Quant_RSI/issues/1).
 The [architecture specification](docs/architecture.md) describes the target design;
 it is not a declaration that every capability is implemented.
@@ -169,6 +174,7 @@ it is not a declaration that every capability is implemented.
 | Start here when you want to… | Guide |
 | --- | --- |
 | Run detailed commands or recover an experiment | [Experiment workflows and recovery](docs/experiment_workflows.md) |
+| Run bounded discovery and manage event instances | [Factor discovery](docs/factor_discovery.md) |
 | Understand shared factors and single-stock bindings | [Factor layers](docs/factor_layers.md) |
 | Inspect a company-specific factor tree | [CALM worked example](docs/calm_factor_discovery_example.md) |
 | Run a five-session baseline or enhanced comparison | [Baseline](docs/forecast_baseline.md), [enhanced workflow](docs/enhanced_forecast_workflow.md) |

@@ -29,10 +29,20 @@ NEWS_GROUPS = ("B0", "N1")
 
 
 def comparison_groups(plan):
-    return NEWS_GROUPS if plan.schema_version == 2 else GROUPS
+    return (
+        ("B0", "D1")
+        if plan.schema_version == 3
+        else (NEWS_GROUPS if plan.schema_version == 2 else GROUPS)
+    )
 
 
-def comparison_recipe(group):
+def comparison_recipe(group, discovery=None):
+    if group == "D1":
+        from quant_rsi.factors.discovery_graph import recipe_from_binding
+
+        if discovery is None:
+            raise ValueError("discovered recipe requires its frozen definition")
+        return recipe_from_binding(discovery)
     return ForecastRecipe(
         schema_version=2 if group == "N1" else 1, kind="forecast_feature_recipe", group=group
     )
@@ -44,12 +54,12 @@ DEFAULT_FOLDS = tuple(tuple(range(start, start + 121, 5)) for start in (378, 504
 class ForecastFitProposal(StrictModel):
     name: Identifier
     purpose: Literal["evaluation", "publication"]
-    recipe: Literal["B0", "B1", "B2", "N1"] | None
+    recipe: Literal["B0", "B1", "B2", "N1", "D1"] | None
     fold: int | None = Field(ge=0, le=2)
 
 
 class ForecastComparisonPlan(StrictModel):
-    schema_version: Literal[1, 2]
+    schema_version: Literal[1, 2, 3]
     plan_type: Literal["forecast_comparison"]
     data: LocalDataSpec
     input_ref: Hash
@@ -93,11 +103,14 @@ def freeze_protocol(
     fold_origins=DEFAULT_FOLDS,
     news_factor=False,
     news_accounting=None,
+    discovery=None,
 ):
     """Freeze all masks and feature views before the first fit; perform no fitting."""
     data, _ = inputs.target
-    groups = NEWS_GROUPS if news_factor else GROUPS
-    recipes = [comparison_recipe(group) for group in groups]
+    if news_factor and discovery is not None:
+        raise ValueError("news-only and discovery protocols are distinct")
+    groups = ("B0", "D1") if discovery is not None else (NEWS_GROUPS if news_factor else GROUPS)
+    recipes = [comparison_recipe(group, discovery) for group in groups]
     if not 1 <= len(fold_origins) <= 3:
         raise ValueError("one to three folds are required")
     last_close = data.contract.calendar.sessions[data.spec.sessions - 1].close_at
@@ -108,7 +121,7 @@ def freeze_protocol(
     cache, folds, previous_end = {}, [], -1
 
     def insufficient(reason, **masks):
-        if not news_factor:
+        if not news_factor and discovery is None:
             raise ValueError(reason)
         for view in cache.values():
             store.put_json(view)
@@ -201,7 +214,7 @@ def freeze_protocol(
     }
     protocol = dict(
         kind="FrozenForecastComparison",
-        schema_version=2 if news_factor else 1,
+        schema_version=3 if discovery is not None else (2 if news_factor else 1),
         input_ref=inputs.ref,
         data_specification=data.spec.model_dump(mode="json"),
         target_instrument=data.instruments[0],
@@ -252,6 +265,19 @@ def freeze_protocol(
                 "news_features_require_observed_evidence_and_extraction_receipts",
             ],
         )
+    if discovery is not None:
+        protocol.update(
+            discovery=discovery,
+            model_inputs=["target_prices", "discovered_factor"],
+            sidecar_inputs_used_in_training=["news"]
+            if any(x["role"] == "news" for x in discovery["leaves"])
+            else [],
+            qualifications=[
+                "development_only_bounded_factor_discovery",
+                "common_registered_leaf_universe",
+                "no_independent_confirmation",
+            ],
+        )
     protocol_ref = store.put_json(protocol)
     proposals = [
         dict(name=f"fold_{fold}_{group.lower()}", purpose="evaluation", recipe=group, fold=fold)
@@ -261,7 +287,7 @@ def freeze_protocol(
     return ForecastComparisonPlan.model_validate_json(
         canonical(
             dict(
-                schema_version=2 if news_factor else 1,
+                schema_version=3 if discovery is not None else (2 if news_factor else 1),
                 plan_type="forecast_comparison",
                 data=data.spec.model_dump(mode="json"),
                 input_ref=inputs.ref,

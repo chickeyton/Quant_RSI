@@ -479,7 +479,9 @@ def attach_news_result(envelope, result):
     return ForecastInputs(value).value
 
 
-def authorize_news_comparison(inputs, experiment_id, fold_origins, *, verify_only=False):
+def authorize_news_comparison(
+    inputs, experiment_id, fold_origins, *, verify_only=False, comparison_owner=None
+):
     """Bind exactly one paired fit allowance to the existing news campaign ledger.
 
     Query changes consume the same search allowance but never mint another fit
@@ -579,6 +581,8 @@ def authorize_news_comparison(inputs, experiment_id, fold_origins, *, verify_onl
             input_ref=inputs.ref,
             fold_origins=[list(fold) for fold in fold_origins],
         )
+        if comparison_owner is not None:
+            binding["owner"] = comparison_owner
         if "comparison" in state and state["comparison"] != binding:
             raise ValueError("news campaign already bound its single comparison allowance")
         if "comparison" not in state:
@@ -592,7 +596,11 @@ def authorize_news_comparison(inputs, experiment_id, fold_origins, *, verify_onl
                 searches=searches,
                 limits=state["limits"],
                 cumulative_usage=state["used"].copy(),
-                fit_allowance_policy="single_paired_comparison",
+                fit_allowance_policy=(
+                    "bounded_factor_discovery"
+                    if comparison_owner is not None
+                    else "single_paired_comparison"
+                ),
             )
             atomic_write(path, canonical(state))
         return state["comparison_receipt"]
