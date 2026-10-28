@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "kind": "instrument_factor_config",
+  "market": "US",
+  "instrument": "CALM",
+  "catalogs": ["equities"],
+  "definitions": [
+    {
+      "factor_id": "calm.egg_price_momentum_5",
+      "description": "Proposed momentum of an explicitly selected wholesale egg-price series; the USDA report series and observation calendar still need an execution contract.",
+      "kind": "numeric",
+      "input_kind": "positive_price_series",
+      "recipe": {"op": "momentum", "window": 5}
+    },
+    {
+      "factor_id": "calm.confirmed_layer_culls",
+      "description": "Proposed extraction of confirmed layer culls relevant to egg supply; not a pre-outbreak disease predictor.",
+      "kind": "text",
+      "extraction_instruction": "Extract only confirmed HPAI-related layer culls, their region and reported count. Distinguish layers from other birds, unknown quantities from zero, and retain the supporting passage.",
+      "output_fields": ["region", "bird_type", "confirmed_count", "unit", "evidence_text"]
+    }
+  ],
+  "bindings": [
+    {
+      "binding_id": "price_momentum",
+      "definition_id": "equity.price_momentum_5",
+      "source": {"source_id": "target_daily_prices", "entity": "CALM", "field": "close"}
+    },
+    {
+      "binding_id": "announced_events",
+      "definition_id": "equity.announced_events",
+      "source": {"source_id": "issuer_announcements", "entity": "CALM", "field": "text"}
+    },
+    {
+      "binding_id": "egg_price",
+      "definition_id": "calm.egg_price_momentum_5",
+      "source": {"source_id": "usda_ams_egg_reports", "entity": "US shell eggs", "field": "wholesale_price"}
+    },
+    {
+      "binding_id": "confirmed_layer_culls",
+      "definition_id": "calm.confirmed_layer_culls",
+      "source": {"source_id": "confirmed_hpai_reports", "entity": "US layers", "field": "text"}
+    }
+  ]
+}

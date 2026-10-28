@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "kind": "shared_factor_catalog",
+  "catalog_id": "equities",
+  "definitions": [
+    {
+      "factor_id": "equity.price_momentum_5",
+      "description": "Five-session momentum of the explicitly bound stock closing-price series.",
+      "kind": "numeric",
+      "input_kind": "positive_price_series",
+      "recipe": {"op": "momentum", "window": 5}
+    },
+    {
+      "factor_id": "equity.price_mean_return_5",
+      "description": "Five-session mean return of the explicitly bound stock closing-price series.",
+      "kind": "numeric",
+      "input_kind": "positive_price_series",
+      "recipe": {"op": "mean_return", "window": 5}
+    },
+    {
+      "factor_id": "equity.announced_events",
+      "description": "Proposed extraction of company events from issuer announcements; no extractor is connected.",
+      "kind": "text",
+      "extraction_instruction": "Identify the issuer and announced event, distinguishing confirmed events from forecasts and preserving the supporting passage. Leave quantities unknown when absent.",
+      "output_fields": ["entity", "event_type", "event_status", "quantity", "unit", "evidence_text"]
+    }
+  ]
+}
