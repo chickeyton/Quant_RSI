@@ -4,6 +4,8 @@ See [Development trajectory](docs/development_trajectory.md) for entry points, b
 
 A quantitative research system based on the [agreed architecture](docs/architecture.md). It currently provides an **M0 fixed-model kernel, C2 dynamic research loop, C4 bounded research-package experiments, and C5 protected engineering evaluation** on synthetic data, plus [local data, the same C2 research path, standalone inference, and persistent baseline observation](docs/local_observer.md). Programs remain fixed within each run. A [five-session price forecast baseline](docs/forecast_baseline.md) is also available; calibrated statistical promotion and full recursive self-improvement remain unfinished.
 
+The first worked example of multi-branch factor discovery is the [CALM egg-price tree](docs/calm_factor_discovery_example.md), with its node ledger in [`instruments/US/CALM/factor_tree.json`](instruments/US/CALM/factor_tree.json). It shows how a claim splits into a primary driver and sibling inputs, how a public series is bound, and how an unresolved node such as H5N1 stops for the next generation. It is a specification, not a runnable plan.
+
 ## Installation and Usage
 
 Validated on Linux with Python 3.12. Process control relies on POSIX `flock`, signals, and resource limits; Windows is not supported. Installing dependencies requires network access. Synthetic experiments need no external services. Automatic data collection for five-session forecasts requires access to public market data and exchange calendars, without an API key.
@@ -109,6 +111,7 @@ Directory and module responsibilities:
 | `baseline.py`, `execution_account.py`, `observer*.py` (under `src/quant_rsi/`) | Model sealing, standalone inference, shared accounting, and finite-step observers |
 | `tests/` | pytest tests named `test_*.py` |
 | `examples/development.json` | Runnable development plan |
+| `instruments/US/CALM/factor_tree.json` | Specification-only CALM factor tree; not accepted by `quant-rsi run` |
 | `docs/`, `discussion_boards/` | Agreed designs, review discussions, and historical records |
 
 Use four-space indentation in Python, `snake_case` for functions and modules, and `PascalCase` for classes. Ruff handles formatting and static checks with a line length of 100. Dependencies are pinned in `requirements-dev.lock`; update and validate the lock file when changing dependencies. Use concise imperative commit subjects. Pull requests should explain the purpose, behavior changes, and validation results. This README is the reference for current commands; the existing `AGENTS.md` is preserved as requested.
