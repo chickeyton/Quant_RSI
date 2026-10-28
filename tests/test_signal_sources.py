@@ -9,9 +9,9 @@ from xml.sax.saxutils import escape
 
 import pytest
 
-from quant_rsi import signal_sources as sources
-from quant_rsi.artifacts import canonical, digest
-from quant_rsi.forecast_inputs import SignalSnapshot
+from quant_rsi.core.artifacts import canonical, digest
+from quant_rsi.forecast.forecast_inputs import SignalSnapshot
+from quant_rsi.market import signal_sources as sources
 
 NOW = "2026-10-27T02:00:00+00:00"
 OLD = "0001045810-25-000001"

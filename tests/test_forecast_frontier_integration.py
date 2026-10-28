@@ -8,14 +8,14 @@ from test_forecast_frontier_policy import bind, frontier_packet
 from test_forecast_recursive_campaign import plan as legacy_plan
 from test_forecast_recursive_changes import packet, plan_value
 
-from quant_rsi import changes, package_experiment
-from quant_rsi import forecast_frontier_policy as frontier
-from quant_rsi import forecast_recursive_campaign as campaign
-from quant_rsi import forecast_recursive_changes as legacy
-from quant_rsi.artifacts import ArtifactStore, canonical, digest
-from quant_rsi.forecast_recursive_registration import identity_definition
-from quant_rsi.forecast_recursive_trajectory import authorization_definition
-from quant_rsi.researcher import ResearchPlan, package_definition
+from quant_rsi.core.artifacts import ArtifactStore, canonical, digest
+from quant_rsi.forecast.recursive import forecast_frontier_policy as frontier
+from quant_rsi.forecast.recursive import forecast_recursive_campaign as campaign
+from quant_rsi.forecast.recursive import forecast_recursive_changes as legacy
+from quant_rsi.forecast.recursive.forecast_recursive_registration import identity_definition
+from quant_rsi.forecast.recursive.forecast_recursive_trajectory import authorization_definition
+from quant_rsi.research import changes, package_experiment
+from quant_rsi.research.researcher import ResearchPlan, package_definition
 
 
 def plan4(workspace):

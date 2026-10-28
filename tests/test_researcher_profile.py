@@ -7,10 +7,10 @@ import pytest
 from pydantic import ValidationError
 from test_task_definition import EXAMPLE, forecast_value, recursive_value
 
-from quant_rsi import researcher
-from quant_rsi.artifacts import canonical, digest
-from quant_rsi.researcher import ResearchPlan
-from quant_rsi.task_definition import domain_ref, forecast_profile_ref
+from quant_rsi.core.artifacts import canonical, digest
+from quant_rsi.research import researcher
+from quant_rsi.research.researcher import ResearchPlan
+from quant_rsi.research.task_definition import domain_ref, forecast_profile_ref
 
 
 def checkpoint(window=4):

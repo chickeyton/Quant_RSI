@@ -8,18 +8,12 @@ import pytest
 from test_local_packages import local_c4_fixture as _local_c4_fixture
 from test_local_packages import local_workspace
 
-from quant_rsi import (
-    changes,
-    controller,
-    evidence,
-    local_research,
-    package_experiment,
-    research,
-    trajectory,
-)
-from quant_rsi.artifacts import ArtifactStore, canonical, digest
-from quant_rsi.trajectory_evidence import verify_package_receipt
-from quant_rsi.trajectory_state import (
+from quant_rsi.core import controller
+from quant_rsi.core.artifacts import ArtifactStore, canonical, digest
+from quant_rsi.evaluation import evidence, local_research
+from quant_rsi.research import changes, package_experiment, research, trajectory
+from quant_rsi.research.trajectory_evidence import verify_package_receipt
+from quant_rsi.research.trajectory_state import (
     TrajectoryLedger,
     TrajectoryPlan,
     locked_trajectory,

@@ -5,9 +5,9 @@ import sys
 
 import pytest
 
-from quant_rsi.artifacts import ArtifactStore, canonical
-from quant_rsi.controller import controller_lock, job_for
-from quant_rsi.schemas import DevelopmentPlan
+from quant_rsi.core.artifacts import ArtifactStore, canonical
+from quant_rsi.core.controller import controller_lock, job_for
+from quant_rsi.core.schemas import DevelopmentPlan
 
 
 def test_child_retains_run_lock_after_parent_descriptor_closes(tmp_path):

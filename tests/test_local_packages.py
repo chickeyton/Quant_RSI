@@ -9,23 +9,18 @@ import lightgbm as lgb
 import pytest
 from market_helpers import account_rules, contract_and_events, write_events
 
-from quant_rsi import (
-    changes,
-    controller,
-    evidence,
-    local_research,
-    market_data,
-    research,
-    researcher,
-)
-from quant_rsi import package_experiment as packages
-from quant_rsi.artifacts import ArtifactStore, canonical, decode, digest
-from quant_rsi.baseline import infer_at, seal_baseline
-from quant_rsi.data import synthetic_data
-from quant_rsi.package_journal import PackageJournal
-from quant_rsi.research_journal import ResearchJournal
-from quant_rsi.researcher import ResearchPlan
-from quant_rsi.schemas import DataSpec
+from quant_rsi.core import controller
+from quant_rsi.core.artifacts import ArtifactStore, canonical, decode, digest
+from quant_rsi.core.data import synthetic_data
+from quant_rsi.core.schemas import DataSpec
+from quant_rsi.evaluation import evidence, local_research
+from quant_rsi.execution.baseline import infer_at, seal_baseline
+from quant_rsi.market import market_data
+from quant_rsi.research import changes, research, researcher
+from quant_rsi.research import package_experiment as packages
+from quant_rsi.research.package_journal import PackageJournal
+from quant_rsi.research.research_journal import ResearchJournal
+from quant_rsi.research.researcher import ResearchPlan
 
 
 def forbidden(*args, **kwargs):

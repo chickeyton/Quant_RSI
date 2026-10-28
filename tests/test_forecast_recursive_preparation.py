@@ -10,16 +10,18 @@ import pytest
 from test_enhanced_forecast_workflow import NOW, audit_package
 from test_forecast_recursive_market import prepared_inputs
 
-from quant_rsi import controller, market_contracts, research
-from quant_rsi import forecast_context_collection as collection
-from quant_rsi import forecast_context_data as context
-from quant_rsi import forecast_recursive_campaign as campaign
-from quant_rsi import forecast_recursive_preparation as preparation
-from quant_rsi.artifacts import ArtifactStore, canonical, decode, digest
-from quant_rsi.forecast_recursive_market import project_market_target
-from quant_rsi.forecast_recursive_registration import verify_root_manifest
-from quant_rsi.forecast_workflow_config import ForecastWorkflowConfig
-from quant_rsi.researcher import ResearchPlan
+from quant_rsi.core import controller
+from quant_rsi.core.artifacts import ArtifactStore, canonical, decode, digest
+from quant_rsi.forecast import forecast_context_collection as collection
+from quant_rsi.forecast import forecast_context_data as context
+from quant_rsi.forecast.forecast_workflow_config import ForecastWorkflowConfig
+from quant_rsi.forecast.recursive import forecast_recursive_campaign as campaign
+from quant_rsi.forecast.recursive import forecast_recursive_preparation as preparation
+from quant_rsi.forecast.recursive.forecast_recursive_market import project_market_target
+from quant_rsi.forecast.recursive.forecast_recursive_registration import verify_root_manifest
+from quant_rsi.market import market_contracts
+from quant_rsi.research import research
+from quant_rsi.research.researcher import ResearchPlan
 
 
 def fingerprint(root):
@@ -163,7 +165,7 @@ def test_actual_export_initialization_and_frozen_root_binding_without_a_fit(
 
 
 def test_wrong_actual_export_rejects_before_campaign_authority(offline_preparation, monkeypatch):
-    from quant_rsi import local_research
+    from quant_rsi.evaluation import local_research
 
     _, prepared, _ = offline_preparation
     workspace = Path(prepared["workspace"])

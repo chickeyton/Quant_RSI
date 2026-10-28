@@ -28,7 +28,7 @@ Commands return JSON. `summary.json` stores the summary produced by a run or res
 
 ~~~bash
 export QUANT_RSI_WORKSPACE="$PWD"
-quant-rsi forecast run SOXL --request-id soxl-first --output runs/soxl-first
+quant-rsi forecast run SOXL --request-id soxl-first --output runs/US/SOXL/soxl-first
 quant-rsi forecast status soxl-first
 quant-rsi forecast replay soxl-first
 ~~~
@@ -50,8 +50,8 @@ quant-rsi forecast-workflow preflight soxl-context-example \
   --campaign-id example-context --profile instruments/US/SOXL/forecast.json
 quant-rsi forecast-workflow execute soxl-context-example \
   --campaign-id example-context --profile instruments/US/SOXL/forecast.json \
-  --max-fits 10 --output runs/enhanced/soxl
-quant-rsi forecast-workflow report soxl-context-example --output runs/enhanced/soxl
+  --max-fits 10 --output runs/US/SOXL/soxl-context-example
+quant-rsi forecast-workflow report soxl-context-example --output runs/US/SOXL/soxl-context-example
 ~~~
 
 Preflight checks existing authority, configuration, runtime, and budget without collection or training. Execution saves `forecast.json` and a standalone `forecast.html` showing timing, actual inputs, naive controls, and usage. The [guide](docs/enhanced_forecast_workflow.md#preflight-and-execute-an-explicit-profile) includes complete installation, registration, both instrument profiles, and recovery instructions. Retain the original workspace and run ID; use the structured failure's recovery command when provided.
@@ -101,21 +101,28 @@ Directory and module responsibilities:
 
 | Path | Purpose |
 | --- | --- |
-| `src/quant_rsi/schemas.py` | Strict DevelopmentPlan schemas and bounded factor definitions |
-| `src/quant_rsi/data.py`, `model.py`, `worker.py` | Synthetic data, causal features, fixed training, and worker entry point |
-| `src/quant_rsi/accounting.py` | Independent accounting and primary-metric calculation used by the controller |
-| `src/quant_rsi/controller.py`, `journal.py`, `artifacts.py` | Scheduling, lifecycle, budgets, and artifact verification |
-| `market_contracts.py`, `market_data.py`, `asof.py`, `local_research.py` (under `src/quant_rsi/`) | Explicit local contracts, immutable receipts, causal views, and local inputs for the same C2 kernel |
-| `baseline.py`, `execution_account.py`, `observer*.py` (under `src/quant_rsi/`) | Model sealing, standalone inference, shared accounting, and finite-step observers |
-| `tests/` | pytest tests named `test_*.py` |
-| `examples/development.json` | Runnable development plan |
-| `docs/`, `discussion_boards/` | Agreed designs, review discussions, and historical records |
+| `src/quant_rsi/core/` | Shared contracts, data/model kernel, accounting, artifacts, journals, and controller |
+| `src/quant_rsi/market/` | Market contracts, immutable receipts, daily data, causal views, and signal sources |
+| `src/quant_rsi/forecast/` | Forecast inputs, features, comparison, publication, reports, and guided workflows |
+| `src/quant_rsi/forecast/recursive/` | Bounded recursive forecast preparation, policies, campaigns, and trajectories |
+| `src/quant_rsi/research/` | Research policies, package experiments, task definitions, and trajectory orchestration |
+| `src/quant_rsi/evaluation/` | Evidence verification, protected scoring, comparisons, and promotion decisions |
+| `src/quant_rsi/execution/` | Model sealing, standalone inference, shared execution accounting, and observers |
+| `src/quant_rsi/cli.py`, `__main__.py`, `worker.py` | Console command, `python -m quant_rsi`, and isolated worker entrypoints |
+| `instruments/US/<SYMBOL>/forecast.json` | Tracked instrument profiles; all instruments use the same engine |
+| `tests/`, `tests/fixtures/` | Offline `test_*.py` regression tests and deterministic fixtures, named by functional module |
+| `examples/`, `docs/` | Runnable plans, configuration examples, operating guides, and design records |
+| `data/`, `runs/`, `.quant_rsi/` | Ignored local exports, reports, and authoritative workspace state |
+
+See [instrument and output organization](instruments/README.md) for per-instrument paths. Keep the shared registry and campaign ledger in `QUANT_RSI_WORKSPACE/.quant_rsi`; an output directory does not create a separate allowance or authority.
+
+Runtime identity hashes every Python source beneath `src/quant_rsi/` using package-relative paths, including nested modules and entrypoints. This package reorganization changes that identity. Historical bound runs require their original source snapshot and dependencies for resume/replay; do not rewrite their manifests or migrate their stored paths.
 
 Use four-space indentation in Python, `snake_case` for functions and modules, and `PascalCase` for classes. Ruff handles formatting and static checks with a line length of 100. Dependencies are pinned in `requirements-dev.lock`; update and validate the lock file when changing dependencies. Use concise imperative commit subjects. Pull requests should explain the purpose, behavior changes, and validation results. This README is the reference for current commands; the existing `AGENTS.md` is preserved as requested.
 
 ### Contributor Delivery
 
-Submit code changes on a feature branch through a pull request targeting main. Include the concrete behavior change, related issue, validation commands and results, and any checks not run. Merge after the required checks and review; do not push code directly to main. Keep public documentation, issues and pull requests in English.
+Submit code changes on a temporary branch through a pull request targeting main. Remove the branch after its work is merged; keep `main` as the only persistent branch. Include the concrete behavior change, related issue, validation commands and results, and any checks not run. Merge after the required checks and review; do not push code directly to main. Keep public documentation, issues and pull requests in English.
 
 [CI](.github/workflows/ci.yml) runs the pinned Python 3.12 environment, Ruff and the offline regression suite. Tests use synthetic/local fixtures and mocked public data; model-training fixture tests are separate from live-market research budgets. CI does not establish predictive quality. Preserve completed experiment workspaces and their recorded runtimes during upgrades.
 
@@ -144,7 +151,7 @@ Cache acceptance and semantic replay verify expected proposals against the froze
 
 Reports include data, package, and checkpoint references; input evidence; hypotheses and failure reasons; development deltas against the fixed baseline and previous incumbent; selection results; remaining budgets; and stopping reasons. Per-attempt `elapsed_seconds` is measured, or `null` if recovery cannot determine it; it is distinct from the logical worker-slot allowance. `status` and `replay` do not publish research state. Replay additionally recomputes kernel accounting and research-state transitions without creating requests.
 
-The added modules are `researcher.py` for the frozen policy, `research.py` for campaign orchestration and reporting, and `research_journal.py` for reservations and observation transactions in the same database. Regression tests are in `tests/test_research.py`. Keep source and dependency snapshots of accepted versions (M0 is under `runs/accepted_source/m0_f54aa55ddba7`) to replay runs bound to those versions. Never overwrite old run artifacts with a newer implementation.
+The research modules under `src/quant_rsi/research/` are `researcher.py` for the frozen policy, `research.py` for campaign orchestration and reporting, and `research_journal.py` for reservations and observation transactions in the same database. Regression tests are in `tests/test_research.py`. Keep source and dependency snapshots of accepted versions (M0 is under `runs/accepted_source/m0_f54aa55ddba7`) to replay runs bound to those versions. Never overwrite old run artifacts with a newer implementation.
 
 ## Recursive Forecast Development
 
@@ -187,7 +194,7 @@ Historical source-evidence consumption and patch requests are reported separatel
 
 `status` and `replay` only inspect state; they do not commit missing outer receipts or manufacture artifacts. `committed_completion_ref` identifies the committed outer result. If both arms have finished but this field is `null`, an explicit resume is required to finalize the campaign. Resuming a terminal campaign creates no requests, experiments, rounds, or events. There is no `promote` command. `accepted_pointer` is a read-only engineering baseline reference for this campaign, not a C5 promotion registry; candidate development scores cannot update it.
 
-The C4 engine generates a new base-package identity and records its engineering ancestry relative to accepted C2; it does not attach an old digest to new source code. The original C2 source is preserved under `runs/accepted_source/c2_16b85204c890/`. New modules are `changes.py`, `package_journal.py`, and `package_experiment.py`. Mechanism, negative-case, initialization/commit-window, and orphan-lock tests are in `tests/test_packages.py`. In an executed synthetic example, the parent and candidate completed 6 and 8 experiments respectively, with a final development delta of 0; this does not demonstrate improved returns.
+The C4 engine generates a new base-package identity and records its engineering ancestry relative to accepted C2; it does not attach an old digest to new source code. The original C2 source is preserved under `runs/accepted_source/c2_16b85204c890/`. Package modules under `src/quant_rsi/research/` are `changes.py`, `package_journal.py`, and `package_experiment.py`. Mechanism, negative-case, initialization/commit-window, and orphan-lock tests are in `tests/test_packages.py`. In an executed synthetic example, the parent and candidate completed 6 and 8 experiments respectively, with a final development delta of 0; this does not demonstrate improved returns.
 
 
 ## C5: Protected Engineering Evaluation
@@ -207,7 +214,7 @@ quant-rsi compare decide runs/c5_comparison --request-id first-retain
 
 The initial version supports only `engineering_only`: it executes development searches and fixed-model scoring but requires retaining the incumbent. `confirmatory` is rejected before reading scoring data or allocating a new grant. `initial` aliases the same run, model, and score as `parent`; it does not add budget consumption or economic-quality evidence. Each task has 80 development sessions, 40 scoring decision sessions, and 2 execution/liquidation tail sessions.
 
-New source code requires a new runtime/package identity. The original C4 r2 source is preserved under `runs/accepted_source/c4_b4ad09985d3e/`; replay historical runs with the matching snapshot, without modifying their manifests. C5 modules are `evidence.py`, `comparison.py`, `protected_scoring.py`, and `promotion.py`. Failure and accounting regression tests are in `tests/test_comparison.py` and `tests/test_protected_accounting.py`.
+New source code requires a new runtime/package identity. The original C4 r2 source is preserved under `runs/accepted_source/c4_b4ad09985d3e/`; replay historical runs with the matching snapshot, without modifying their manifests. C5 modules under `src/quant_rsi/evaluation/` are `evidence.py`, `comparison.py`, `protected_scoring.py`, and `promotion.py`. Failure and accounting regression tests are in `tests/test_comparison.py` and `tests/test_protected_accounting.py`.
 
 ## Current Limitations and Future Work
 

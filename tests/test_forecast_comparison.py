@@ -6,19 +6,20 @@ import numpy as np
 import pytest
 from test_forecast_features import prepare_inputs  # noqa: F401
 
-from quant_rsi import controller, worker
-from quant_rsi.artifacts import canonical, decode, digest
-from quant_rsi.forecast_experiment import (
+from quant_rsi import worker
+from quant_rsi.core import controller
+from quant_rsi.core.artifacts import canonical, decode, digest
+from quant_rsi.core.journal import Journal
+from quant_rsi.forecast.forecast_experiment import (
     experiment_root,
     inspect_experiment,
     open_experiment,
     prepare_experiment,
     resume_experiment,
 )
-from quant_rsi.forecast_protocol import DEFAULT_FOLDS, ForecastComparisonPlan
-from quant_rsi.forecast_publication import confirmed_report
-from quant_rsi.journal import Journal
-from quant_rsi.market_contracts import utc_text
+from quant_rsi.forecast.forecast_protocol import DEFAULT_FOLDS, ForecastComparisonPlan
+from quant_rsi.forecast.forecast_publication import confirmed_report
+from quant_rsi.market.market_contracts import utc_text
 
 
 @pytest.fixture
@@ -228,7 +229,7 @@ def test_post_commit_receipt_after_deadline_cannot_claim_forward():
 def test_selection_uses_pooled_error_and_requires_every_fold(experiment):
     from math import log1p
 
-    from quant_rsi.forecast_comparison import select_recipe
+    from quant_rsi.forecast.forecast_comparison import select_recipe
 
     _, _, prepared = experiment
     journal, _, _, original, _ = open_experiment(experiment_root("engineering-context"))
@@ -283,7 +284,7 @@ def test_tampered_slot_charge_cannot_reset_remaining_budget(experiment, dummy_wo
 def test_publication_confirmation_recovers_without_another_fit(
     experiment, dummy_worker, monkeypatch
 ):
-    from quant_rsi import forecast_experiment
+    from quant_rsi.forecast import forecast_experiment
 
     _, _, prepared = experiment
     original = forecast_experiment.commit_event

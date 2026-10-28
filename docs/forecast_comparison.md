@@ -23,7 +23,7 @@ misaligned closes are exclusions, with no filling. See
 The source adapter accepts a saved audit package and a new output directory:
 
 ~~~python
-from quant_rsi.forecast_context_data import prepare_context_data
+from quant_rsi.forecast.forecast_context_data import prepare_context_data
 
 prepared = prepare_context_data("evidence/market_audit", "runs/context_inputs")
 ~~~

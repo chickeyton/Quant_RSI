@@ -5,11 +5,11 @@ from pathlib import Path
 import pytest
 from test_forecast_context_data import audit_package
 
-from quant_rsi import forecast_context_data as context
-from quant_rsi.artifacts import digest
-from quant_rsi.baseline import validate_forecast_evidence
-from quant_rsi.forecast_inputs import ForecastInputs
-from quant_rsi.market_data import DataRegistry
+from quant_rsi.core.artifacts import digest
+from quant_rsi.execution.baseline import validate_forecast_evidence
+from quant_rsi.forecast import forecast_context_data as context
+from quant_rsi.forecast.forecast_inputs import ForecastInputs
+from quant_rsi.market.market_data import DataRegistry
 
 
 @pytest.fixture

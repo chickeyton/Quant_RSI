@@ -13,8 +13,9 @@ import pytest
 from test_forecast_frontier_policy import frontier_packet
 from test_forecast_recursive_changes import plan_value
 
-from quant_rsi import changes, forecast_frontier_policy, package_experiment
-from quant_rsi.artifacts import ArtifactStore, canonical
+from quant_rsi.core.artifacts import ArtifactStore, canonical
+from quant_rsi.forecast.recursive import forecast_frontier_policy
+from quant_rsi.research import changes, package_experiment
 
 
 @pytest.mark.parametrize(

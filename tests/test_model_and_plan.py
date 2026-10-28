@@ -2,10 +2,10 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from quant_rsi.artifacts import canonical
-from quant_rsi.data import MarketData, features, synthetic_data
-from quant_rsi.model import fit_predict
-from quant_rsi.schemas import DevelopmentPlan, FactorSpec
+from quant_rsi.core.artifacts import canonical
+from quant_rsi.core.data import MarketData, features, synthetic_data
+from quant_rsi.core.model import fit_predict
+from quant_rsi.core.schemas import DevelopmentPlan, FactorSpec
 
 
 @pytest.mark.parametrize("op", ["momentum", "mean_return"])

@@ -1,0 +1,209 @@
+"""Frozen paired forecast comparison using the existing artifact and worker contracts."""
+
+from typing import Literal, Self
+
+from pydantic import Field, model_validator
+
+from quant_rsi.core.artifacts import canonical, digest
+from quant_rsi.core.contracts_base import StrictModel
+from quant_rsi.core.schemas import BudgetSpec, LocalDataSpec
+from quant_rsi.forecast.forecast_features import build_common_mask, build_feature_view
+from quant_rsi.forecast.forecast_inputs import ForecastRecipe
+from quant_rsi.market.market_contracts import Hash, Identifier, timestamp, utc_text
+
+MODEL_PARAMETERS = dict(
+    objective="regression",
+    verbosity=-1,
+    num_threads=1,
+    deterministic=True,
+    force_col_wise=True,
+    num_leaves=7,
+    min_data_in_leaf=5,
+    learning_rate=0.05,
+    feature_pre_filter=False,
+)
+BOOST_ROUNDS = 24
+
+GROUPS = ("B0", "B1", "B2")
+DEFAULT_FOLDS = tuple(tuple(range(start, start + 121, 5)) for start in (378, 504, 630))
+
+
+class ForecastFitProposal(StrictModel):
+    name: Identifier
+    purpose: Literal["evaluation", "publication"]
+    recipe: Literal["B0", "B1", "B2"] | None
+    fold: int | None = Field(ge=0, le=2)
+
+
+class ForecastComparisonPlan(StrictModel):
+    schema_version: Literal[1]
+    plan_type: Literal["forecast_comparison"]
+    data: LocalDataSpec
+    input_ref: Hash
+    protocol_ref: Hash
+    budget: BudgetSpec
+    proposals: tuple[ForecastFitProposal, ...]
+
+    @model_validator(mode="after")
+    def fixed_jobs(self) -> Self:
+        evaluations = self.proposals[:-1]
+        if not evaluations or len(evaluations) % 3 or len(evaluations) > 9:
+            raise ValueError("comparison requires one to three complete B0/B1/B2 folds")
+        expected = [
+            dict(name=f"fold_{fold}_{group.lower()}", purpose="evaluation", recipe=group, fold=fold)
+            for fold in range(len(evaluations) // 3)
+            for group in GROUPS
+        ] + [dict(name="publication", purpose="publication", recipe=None, fold=None)]
+        if [p.model_dump(mode="json") for p in self.proposals] != expected:
+            raise ValueError("comparison job order differs from the fixed paired protocol")
+        if (
+            self.budget.max_attempts != len(expected)
+            or self.budget.worker_timeout_seconds != 180
+            or self.budget.max_worker_seconds != 180 * len(expected)
+        ):
+            raise ValueError("each comparison fit requires its own bounded reservation")
+        return self
+
+
+def freeze_protocol(inputs, store, *, publication_asof, fold_origins=DEFAULT_FOLDS):
+    """Freeze all masks and feature views before the first fit; perform no fitting."""
+    data, _ = inputs.target
+    recipes = [
+        ForecastRecipe(schema_version=1, kind="forecast_feature_recipe", group=group)
+        for group in GROUPS
+    ]
+    if not 1 <= len(fold_origins) <= 3:
+        raise ValueError("one to three folds are required")
+    last_close = data.contract.calendar.sessions[data.spec.sessions - 1].close_at
+    if timestamp(publication_asof) < last_close:
+        raise ValueError("publication boundary precedes the last completed session")
+    if len(data.contract.calendar.sessions) < data.spec.sessions + 5:
+        raise ValueError("publication requires five future registered sessions")
+    cache, folds, previous_end = {}, [], -1
+    for number, values in enumerate(fold_origins):
+        origins = list(values)
+        if (
+            not origins
+            or origins != list(range(origins[0], origins[-1] + 1, 5))
+            or origins[0] < 77
+            or origins[0] <= previous_end
+            or origins[-1] + 5 >= data.spec.sessions
+        ):
+            raise ValueError("invalid disjoint step-five evaluation grid")
+        previous_end = origins[-1] + 5
+        boundary = data.contract.calendar.sessions[origins[0]].close_at
+        training = build_common_mask(
+            inputs,
+            recipes,
+            range(60, origins[0] - 4),
+            boundary,
+            purpose="training",
+            _feature_cache=cache,
+        )
+        evaluation = build_common_mask(
+            inputs,
+            recipes,
+            origins,
+            publication_asof,
+            purpose="evaluation",
+            _feature_cache=cache,
+        )
+        if len(training["mask"]["eligible_indices"]) < 12:
+            raise ValueError("insufficient common mature training rows")
+        if not evaluation["mask"]["eligible_indices"]:
+            raise ValueError("fold has no eligible common evaluation origins")
+        folds.append(
+            dict(
+                fold=number,
+                training_boundary=utc_text(boundary),
+                training_mask_ref=store.put_json(training["mask"]),
+                evaluation_mask_ref=store.put_json(evaluation["mask"]),
+                training_rows=len(training["mask"]["eligible_indices"]),
+                evaluation_rows=len(evaluation["mask"]["eligible_indices"]),
+                evaluation_origins=origins,
+            )
+        )
+    publication_mask = build_common_mask(
+        inputs,
+        recipes,
+        range(60, data.spec.sessions - 5),
+        publication_asof,
+        purpose="training",
+        label_basis="observed_receipts",
+        _feature_cache=cache,
+    )
+    if len(publication_mask["mask"]["eligible_indices"]) < 12:
+        raise ValueError("insufficient mature publication training rows")
+    for view in cache.values():
+        store.put_json(view)
+    publication_views = {
+        recipe.group: store.put_json(
+            build_feature_view(
+                inputs, recipe, data.dates[-1], publication_asof, basis="observed_receipts"
+            )
+        )
+        for recipe in recipes
+    }
+    protocol = dict(
+        kind="FrozenForecastComparison",
+        schema_version=1,
+        input_ref=inputs.ref,
+        data_specification=data.spec.model_dump(mode="json"),
+        target_instrument=data.instruments[0],
+        recipes={r.group: r.definition for r in recipes},
+        recipe_refs={r.group: r.ref for r in recipes},
+        folds=folds,
+        publication=dict(
+            as_of=utc_text(publication_asof),
+            origin_session=data.dates[-1],
+            training_mask_ref=store.put_json(publication_mask["mask"]),
+            training_rows=len(publication_mask["mask"]["eligible_indices"]),
+            feature_view_refs=publication_views,
+        ),
+        selection=dict(
+            metric="pooled_mae_pp",
+            tie_order=list(GROUPS),
+            requires_all_folds=True,
+            independent_confirmation=False,
+        ),
+        model_parameters=MODEL_PARAMETERS | {"seed": data.spec.seed},
+        boost_rounds=BOOST_ROUNDS,
+        model_inputs=["target_prices", "industry_prices", "market_prices"],
+        sidecar_inputs_used_in_training=[],
+        sidecar_snapshot_ref=(
+            digest(canonical(inputs.signals.model_dump(mode="json"))) if inputs.signals else None
+        ),
+        evaluation_knowledge_basis={
+            "target": data.contract.knowledge_basis,
+            **{
+                role: source[0].contract.knowledge_basis for role, source in inputs.contexts.items()
+            },
+        },
+        qualifications=[
+            "development_comparison_not_independent_statistical_confirmation",
+            "price_and_context_features_only_news_and_fundamentals_not_model_inputs",
+        ],
+    )
+    protocol_ref = store.put_json(protocol)
+    proposals = [
+        dict(name=f"fold_{fold}_{group.lower()}", purpose="evaluation", recipe=group, fold=fold)
+        for fold in range(len(folds))
+        for group in GROUPS
+    ] + [dict(name="publication", purpose="publication", recipe=None, fold=None)]
+    return ForecastComparisonPlan.model_validate_json(
+        canonical(
+            dict(
+                schema_version=1,
+                plan_type="forecast_comparison",
+                data=data.spec.model_dump(mode="json"),
+                input_ref=inputs.ref,
+                protocol_ref=protocol_ref,
+                budget=dict(
+                    max_attempts=len(proposals),
+                    worker_timeout_seconds=180,
+                    max_worker_seconds=180 * len(proposals),
+                ),
+                proposals=proposals,
+            )
+        )
+    )

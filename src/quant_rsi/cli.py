@@ -6,25 +6,30 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from quant_rsi.baseline import infer_at, inspect_baseline, seal_baseline
-from quant_rsi.comparison import (
+from quant_rsi.core.controller import create_run, inspect_run, resume_run
+from quant_rsi.evaluation.comparison import (
     cancel_comparison,
     decide_comparison,
     inspect_comparison,
     register_comparison,
     resume_comparison,
 )
-from quant_rsi.controller import create_run, inspect_run, resume_run
-from quant_rsi.evidence import ComparisonInput, init_evidence, parse_program
-from quant_rsi.forecast_contracts import parse_development_plan
-from quant_rsi.market_contracts import DataContract, parse_observation_plan
-from quant_rsi.market_data import ingest, inspect_data
-from quant_rsi.observer import advance_observer, inspect_observer, register_observer, stop_observer
-from quant_rsi.package_experiment import create_package, inspect_package, resume_package
-from quant_rsi.research import create_research, inspect_research, resume_research
-from quant_rsi.researcher import ResearchPlan
-from quant_rsi.trajectory import init_trajectory, inspect_trajectory, resume_trajectory
-from quant_rsi.trajectory_state import TrajectoryPlan
+from quant_rsi.evaluation.evidence import ComparisonInput, init_evidence, parse_program
+from quant_rsi.execution.baseline import infer_at, inspect_baseline, seal_baseline
+from quant_rsi.execution.observer import (
+    advance_observer,
+    inspect_observer,
+    register_observer,
+    stop_observer,
+)
+from quant_rsi.forecast.forecast_contracts import parse_development_plan
+from quant_rsi.market.market_contracts import DataContract, parse_observation_plan
+from quant_rsi.market.market_data import ingest, inspect_data
+from quant_rsi.research.package_experiment import create_package, inspect_package, resume_package
+from quant_rsi.research.research import create_research, inspect_research, resume_research
+from quant_rsi.research.researcher import ResearchPlan
+from quant_rsi.research.trajectory import init_trajectory, inspect_trajectory, resume_trajectory
+from quant_rsi.research.trajectory_state import TrajectoryPlan
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -204,8 +209,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "forecast":
-            from quant_rsi.forecast_requests import inspect_forecast
-            from quant_rsi.forecast_workflow import display_forecast, run_forecast
+            from quant_rsi.forecast.forecast_requests import inspect_forecast
+            from quant_rsi.forecast.forecast_workflow import display_forecast, run_forecast
 
             if args.forecast_command == "run":
                 report = run_forecast(
@@ -219,18 +224,22 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(display_forecast(report), indent=2, allow_nan=False))
             return 0
         if args.command == "forecast-campaign":
-            from quant_rsi.forecast_campaign import init_campaign, inspect_campaign
+            from quant_rsi.forecast.forecast_campaign import init_campaign, inspect_campaign
 
             if args.campaign_command == "init":
                 report = init_campaign(json.loads(args.plan.read_text()))
             elif args.campaign_command == "recursive-init":
-                from quant_rsi.forecast_recursive_campaign import init_recursive_campaign
+                from quant_rsi.forecast.recursive.forecast_recursive_campaign import (
+                    init_recursive_campaign,
+                )
 
                 report = init_recursive_campaign(
                     json.loads(args.plan.read_text()), market_preparation=args.market_preparation
                 )
             elif args.campaign_command == "recursive-prepare":
-                from quant_rsi.forecast_recursive_preparation import prepare_market_campaign
+                from quant_rsi.forecast.recursive.forecast_recursive_preparation import (
+                    prepare_market_campaign,
+                )
 
                 report = prepare_market_campaign(
                     json.loads(args.profile.read_text()),
@@ -245,8 +254,8 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(report, indent=2, allow_nan=False))
             return 0
         if args.command == "forecast-workflow":
-            from quant_rsi import forecast_usability as usability
-            from quant_rsi.enhanced_forecast_workflow import (
+            from quant_rsi.forecast import forecast_usability as usability
+            from quant_rsi.forecast.enhanced_forecast_workflow import (
                 inspect_workflow,
                 prepare_workflow,
                 run_workflow,
@@ -317,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(report, indent=2, allow_nan=False))
             return 0
         if args.command == "forecast-compare":
-            from quant_rsi.forecast_experiment import (
+            from quant_rsi.forecast.forecast_experiment import (
                 inspect_experiment,
                 prepare_experiment,
                 resume_experiment,

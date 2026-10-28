@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from quant_rsi.artifacts import ArtifactStore, canonical, digest
-from quant_rsi.forecast_contracts import ForecastDevelopmentPlan
-from quant_rsi.researcher import ResearchPlan
-from quant_rsi.task_definition import (
+from quant_rsi.core.artifacts import ArtifactStore, canonical, digest
+from quant_rsi.forecast.forecast_contracts import ForecastDevelopmentPlan
+from quant_rsi.research.researcher import ResearchPlan
+from quant_rsi.research.task_definition import (
     ForecastRecursiveProfile,
     RegisteredNeighborDomain,
     domain_ref,

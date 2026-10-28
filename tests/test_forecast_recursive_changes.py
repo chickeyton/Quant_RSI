@@ -7,11 +7,9 @@ import pytest
 from pydantic import ValidationError
 from test_task_definition import domain_value, forecast_value
 
-from quant_rsi.artifacts import ArtifactStore, canonical, digest
-from quant_rsi.changes import expected_change as dispatched_change
-from quant_rsi.changes import request_definition
-from quant_rsi.forecast_contracts import ForecastDevelopmentPlan
-from quant_rsi.forecast_recursive_changes import (
+from quant_rsi.core.artifacts import ArtifactStore, canonical, digest
+from quant_rsi.forecast.forecast_contracts import ForecastDevelopmentPlan
+from quant_rsi.forecast.recursive.forecast_recursive_changes import (
     RegisteredCapPatch,
     ResetOpportunity,
     _FinalFeedback,
@@ -22,14 +20,16 @@ from quant_rsi.forecast_recursive_changes import (
     reset_opportunity,
     validate_registered_evidence,
 )
-from quant_rsi.researcher import (
+from quant_rsi.research.changes import expected_change as dispatched_change
+from quant_rsi.research.changes import request_definition
+from quant_rsi.research.researcher import (
     ResearchPlan,
     advance,
     initial_state,
     next_factor,
     package_definition,
 )
-from quant_rsi.task_definition import (
+from quant_rsi.research.task_definition import (
     ForecastRecursiveProfile,
     forecast_profile_ref,
     task_definition,
@@ -255,7 +255,9 @@ def test_private_counterfactual_boundary_uses_valid_typed_allowed_feedback(cap):
 def test_protected_only_changes_cannot_affect_real_response_or_trigger_reads(monkeypatch, tmp_path):
     args = packet(plan_value())
     baseline = expected_change(*args)
-    source_dir = Path(__import__("quant_rsi.researcher", fromlist=["__file__"]).__file__).parent
+    source_dir = Path(
+        __import__("quant_rsi.research.researcher", fromlist=["__file__"]).__file__
+    ).parent
     original = Path.read_bytes
     reads = []
 

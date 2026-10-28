@@ -5,7 +5,7 @@ import resource
 import signal
 from pathlib import Path
 
-from quant_rsi.artifacts import ArtifactStore, atomic_write, canonical, decode, digest
+from quant_rsi.core.artifacts import ArtifactStore, atomic_write, canonical, decode, digest
 
 
 def main() -> None:
@@ -36,10 +36,10 @@ def main() -> None:
     resource.setrlimit(resource.RLIMIT_CPU, (seconds + 1, seconds + 1))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
-    from quant_rsi.data import MarketData
-    from quant_rsi.forecast_contracts import parse_development_plan
-    from quant_rsi.model import fit_predict
-    from quant_rsi.schemas import FactorSpec
+    from quant_rsi.core.data import MarketData
+    from quant_rsi.core.model import fit_predict
+    from quant_rsi.core.schemas import FactorSpec
+    from quant_rsi.forecast.forecast_contracts import parse_development_plan
 
     store = ArtifactStore(args.job.resolve().parents[2] / "artifacts")
     manifest = binding["manifest"]
@@ -55,8 +55,8 @@ def main() -> None:
     ):
         raise ValueError("worker computation differs from the sealed plan")
     if plan.plan_type == "forecast_comparison":
-        from quant_rsi.forecast_comparison import fit_comparison
-        from quant_rsi.forecast_inputs import ForecastInputs
+        from quant_rsi.forecast.forecast_comparison import fit_comparison
+        from quant_rsi.forecast.forecast_inputs import ForecastInputs
 
         data = ForecastInputs(store.json(manifest["data_ref"]))
         result = fit_comparison(data, plan, plan.proposals[ordinal], store, manifest)

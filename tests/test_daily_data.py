@@ -10,8 +10,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from quant_rsi import daily_data
-from quant_rsi.market_contracts import DataContract, SourceEvent
+from quant_rsi.market import daily_data
+from quant_rsi.market.market_contracts import DataContract, SourceEvent
 
 HOLIDAYS = {
     "2026-01-01",
@@ -341,7 +341,7 @@ def test_future_calendar_year_requires_published_evidence(tmp_path, monkeypatch)
 
 
 def test_public_binary_float_prices_fit_registered_decimal_precision():
-    from quant_rsi.market_contracts import decimal_text
+    from quant_rsi.market.market_contracts import decimal_text
 
     normalized = daily_data._price(144.16000366210938)
     assert normalized == "144.160003662109"

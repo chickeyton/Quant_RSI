@@ -5,9 +5,9 @@ from urllib.error import HTTPError
 
 import pytest
 
-from quant_rsi import forecast_context_collection as collection
-from quant_rsi import forecast_context_data as adapter
-from quant_rsi.artifacts import canonical, decode, digest
+from quant_rsi.core.artifacts import canonical, decode, digest
+from quant_rsi.forecast import forecast_context_collection as collection
+from quant_rsi.forecast import forecast_context_data as adapter
 
 NOW = datetime(2025, 1, 3, 22, tzinfo=timezone.utc)
 FIRST = {"target": "SOXL", "industry": "XSD", "market": "SPY"}

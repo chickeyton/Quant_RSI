@@ -8,13 +8,14 @@ from types import SimpleNamespace
 import pytest
 from test_forecast_context_data import audit_package
 
-from quant_rsi import controller, market_contracts
-from quant_rsi import forecast_campaign as campaign
-from quant_rsi import forecast_context_data as context
-from quant_rsi.artifacts import ArtifactStore, atomic_write, canonical, decode, digest
-from quant_rsi.forecast_inputs import ForecastInputs
-from quant_rsi.forecast_protocol import freeze_protocol
-from quant_rsi.journal import Journal
+from quant_rsi.core import controller
+from quant_rsi.core.artifacts import ArtifactStore, atomic_write, canonical, decode, digest
+from quant_rsi.core.journal import Journal
+from quant_rsi.forecast import forecast_campaign as campaign
+from quant_rsi.forecast import forecast_context_data as context
+from quant_rsi.forecast.forecast_inputs import ForecastInputs
+from quant_rsi.forecast.forecast_protocol import freeze_protocol
+from quant_rsi.market import market_contracts
 
 NOW = "2026-10-26T21:00:00+00:00"
 

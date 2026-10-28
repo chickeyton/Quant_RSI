@@ -6,11 +6,11 @@ import pytest
 from pydantic import ValidationError
 from test_task_definition import recursive_value
 
-from quant_rsi import package_experiment
-from quant_rsi.artifacts import ArtifactStore, canonical, digest
-from quant_rsi.researcher import ResearchPlan
-from quant_rsi.task_definition import verify_domain
-from quant_rsi.trajectory_state import TrajectoryPlan
+from quant_rsi.core.artifacts import ArtifactStore, canonical, digest
+from quant_rsi.research import package_experiment
+from quant_rsi.research.researcher import ResearchPlan
+from quant_rsi.research.task_definition import verify_domain
+from quant_rsi.research.trajectory_state import TrajectoryPlan
 
 
 def trajectory_value():
@@ -73,7 +73,8 @@ def test_unmanaged_recursive_package_rejects_before_creating_child(tmp_path):
 
 
 def test_recursive_source_requires_shared_registration_before_input_access(tmp_path, monkeypatch):
-    from quant_rsi import local_research, research
+    from quant_rsi.evaluation import local_research
+    from quant_rsi.research import research
 
     workspace = tmp_path / "unregistered-workspace"
     workspace.mkdir()
@@ -94,8 +95,8 @@ def test_recursive_source_requires_shared_registration_before_input_access(tmp_p
 def test_root_allowance_preserves_full_paired_development_template(tmp_path, monkeypatch):
     from test_forecast_recursive_campaign import plan as campaign_value
 
-    from quant_rsi.forecast_recursive_campaign import init_recursive_campaign
-    from quant_rsi.forecast_recursive_registration import (
+    from quant_rsi.forecast.recursive.forecast_recursive_campaign import init_recursive_campaign
+    from quant_rsi.forecast.recursive.forecast_recursive_registration import (
         effective_budget,
         require_root_identity,
         root_execution,
@@ -132,7 +133,7 @@ def test_root_allowance_preserves_full_paired_development_template(tmp_path, mon
 
 
 def test_c5_forecast_views_remain_rejected(tmp_path):
-    from quant_rsi.research import authorize_managed
+    from quant_rsi.research.research import authorize_managed
 
     plan = ResearchPlan.model_validate_json(canonical(recursive_value()))
     with pytest.raises(ValueError, match="C4/C5"):
@@ -154,9 +155,9 @@ def test_fixed_context_feedback_intervention_reaches_real_proposer_and_response(
     """A test-only intervention after envelope validation, never an admitted history."""
     from test_forecast_recursive_changes import packet, plan_value
 
-    from quant_rsi import changes
-    from quant_rsi import forecast_recursive_changes as proposer
-    from quant_rsi.researcher import package_definition
+    from quant_rsi.forecast.recursive import forecast_recursive_changes as proposer
+    from quant_rsi.research import changes
+    from quant_rsi.research.researcher import package_definition
 
     plan = plan_value(cap=cap)
     args = packet(plan, tuple(float(x) for x in range(-cap, -1)))
@@ -235,8 +236,8 @@ def test_full_proposer_response_and_grants_ignore_protected_only_changes(
 ):
     from test_forecast_recursive_changes import packet, plan_value
 
-    from quant_rsi import changes
-    from quant_rsi import forecast_recursive_changes as proposer
+    from quant_rsi.forecast.recursive import forecast_recursive_changes as proposer
+    from quant_rsi.research import changes
 
     plan = plan_value(cap=cap)
     args = packet(plan, tuple(float(x) for x in range(-cap, -1)))
@@ -274,8 +275,8 @@ def test_full_proposer_response_and_grants_ignore_protected_only_changes(
 def test_two_policy_advances_preserve_complete_immediate_parent_closure(tmp_path):
     from test_forecast_recursive_changes import packet, plan_value
 
-    from quant_rsi import changes
-    from quant_rsi.researcher import package_definition
+    from quant_rsi.research import changes
+    from quant_rsi.research.researcher import package_definition
 
     store = ArtifactStore(tmp_path / "allowed")
     plan = plan_value()

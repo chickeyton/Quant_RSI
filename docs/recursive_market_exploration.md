@@ -130,9 +130,9 @@ import json
 import os
 from pathlib import Path
 
-from quant_rsi.baseline import seal_forecast
-from quant_rsi.forecast_requests import issue_forecast
-from quant_rsi.trajectory import inspect_trajectory
+from quant_rsi.execution.baseline import seal_forecast
+from quant_rsi.forecast.forecast_requests import issue_forecast
+from quant_rsi.research.trajectory import inspect_trajectory
 
 out = Path("runs/recursive-soxl")
 workspace = Path(os.environ["QUANT_RSI_WORKSPACE"])
