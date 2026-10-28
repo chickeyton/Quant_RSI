@@ -8,6 +8,8 @@ Profiles follow `instruments/<MARKET>/<SYMBOL>/forecast.json`. The current US ex
 
 To configure another supported instrument, copy a profile into its symbol directory and edit the explicit roles. Validate it with `forecast-workflow preflight` against a registered campaign. The profile must match the frozen campaign configuration; changing a JSON file does not modify an existing run. Use a new registered workflow identity when inputs change. See the [enhanced workflow guide](../docs/enhanced_forecast_workflow.md) for registration and supported contracts.
 
+The [CALM factor tree](US/CALM/factor_tree.json) is a specification-only factor-discovery ledger, not a runnable forecast profile or development plan. See its [worked example](../docs/calm_factor_discovery_example.md) for the node meanings and unresolved evidence.
+
 ## Ignored Data and Reports
 
 Use these destinations for new local exports and reports:

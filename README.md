@@ -4,6 +4,8 @@ See [Development trajectory](docs/development_trajectory.md) for entry points, b
 
 A quantitative research system based on the [agreed architecture](docs/architecture.md). It currently provides an **M0 fixed-model kernel, C2 dynamic research loop, C4 bounded research-package experiments, and C5 protected engineering evaluation** on synthetic data, plus [local data, the same C2 research path, standalone inference, and persistent baseline observation](docs/local_observer.md). Programs remain fixed within each run. A [five-session price forecast baseline](docs/forecast_baseline.md) is also available; calibrated statistical promotion and full recursive self-improvement remain unfinished.
 
+The first worked example of multi-branch factor discovery is the [CALM egg-price tree](docs/calm_factor_discovery_example.md), with its node ledger in [`instruments/US/CALM/factor_tree.json`](instruments/US/CALM/factor_tree.json). It shows how a claim splits into a primary driver and sibling inputs, how a public series is bound, and how an unresolved node such as H5N1 stops for the next generation. It is a specification, not a runnable plan.
+
 ## Installation and Usage
 
 Validated on Linux with Python 3.12. Process control relies on POSIX `flock`, signals, and resource limits; Windows is not supported. Installing dependencies requires network access. Synthetic experiments need no external services. Automatic data collection for five-session forecasts requires access to public market data and exchange calendars, without an API key.
@@ -110,6 +112,7 @@ Directory and module responsibilities:
 | `src/quant_rsi/execution/` | Model sealing, standalone inference, shared execution accounting, and observers |
 | `src/quant_rsi/cli.py`, `__main__.py`, `worker.py` | Console command, `python -m quant_rsi`, and isolated worker entrypoints |
 | `instruments/US/<SYMBOL>/forecast.json` | Tracked instrument profiles; all instruments use the same engine |
+| `instruments/US/CALM/factor_tree.json` | Specification-only CALM factor tree; not accepted by `quant-rsi run` |
 | `tests/`, `tests/fixtures/` | Offline `test_*.py` regression tests and deterministic fixtures, named by functional module |
 | `examples/`, `docs/` | Runnable plans, configuration examples, operating guides, and design records |
 | `data/`, `runs/`, `.quant_rsi/` | Ignored local exports, reports, and authoritative workspace state |
