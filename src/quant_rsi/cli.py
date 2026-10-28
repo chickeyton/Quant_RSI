@@ -43,6 +43,16 @@ def main(argv: list[str] | None = None) -> int:
     factor_validate.add_argument("market")
     factor_validate.add_argument("instrument")
     factor_validate.add_argument("--root", type=Path, default=Path("instruments"))
+    discovery = commands.add_parser("factor-discovery", help="bounded typed factor discovery")
+    discovery_commands = discovery.add_subparsers(dest="discovery_command", required=True)
+    discovery_init = discovery_commands.add_parser("init")
+    discovery_init.add_argument("plan", type=Path)
+    discovery_init.add_argument("--inputs", type=Path, required=True)
+    for name in ("resume", "status", "replay"):
+        command = discovery_commands.add_parser(name)
+        command.add_argument("campaign_id")
+        if name == "resume":
+            command.add_argument("--max-fits", type=int, default=1)
     forecast = commands.add_parser("forecast", help="fixed five-session daily price forecast")
     forecast_commands = forecast.add_subparsers(dest="forecast_command", required=True)
     forecast_run = forecast_commands.add_parser("run")
@@ -214,6 +224,20 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--steps", type=int, default=1)
     args = parser.parse_args(argv)
     try:
+        if args.command == "factor-discovery":
+            from quant_rsi.factors import discovery
+
+            if args.discovery_command == "init":
+                plan = discovery.DiscoveryPlan.model_validate_json(args.plan.read_bytes())
+                report = discovery.initialize(json.loads(args.inputs.read_bytes()), plan)
+            elif args.discovery_command == "resume":
+                report = discovery.resume(args.campaign_id, max_fits=args.max_fits)
+            else:
+                report = discovery.inspect(
+                    args.campaign_id, replay=args.discovery_command == "replay"
+                )
+            print(json.dumps(report, indent=2, allow_nan=False))
+            return 0
         if args.command == "factors":
             from quant_rsi.factors.catalog import resolve_instrument_factors
 

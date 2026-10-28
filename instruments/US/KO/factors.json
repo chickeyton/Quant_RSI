@@ -12,6 +12,11 @@
       "source": {"source_id": "target_daily_prices", "entity": "KO", "field": "close"}
     },
     {
+      "binding_id": "price_mean_return",
+      "definition_id": "equity.price_mean_return_5",
+      "source": {"source_id": "target_daily_prices", "entity": "KO", "field": "close"}
+    },
+    {
       "binding_id": "announced_events",
       "definition_id": "equity.announced_events",
       "source": {"source_id": "issuer_announcements", "entity": "KO", "field": "text"}

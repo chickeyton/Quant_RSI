@@ -98,3 +98,12 @@ ruff format --check src tests
 
 Adding Python sources changes the runtime fingerprint. Historical runs must keep
 using their original source environment, as described in [version control](version_control.md).
+
+## Executable bounded discovery
+
+The opt-in [factor discovery workflow](factor_discovery.md) selects numeric bindings
+from this resolver, retains their ownership/source evidence, and materializes them
+through registered forecast input roles. KO now explicitly selects the shared
+mean-return definition alongside momentum. Validation by itself remains read-only
+and specification-only; unimplemented text tasks and general factor trees are not
+silently enabled by the discovery adapter.

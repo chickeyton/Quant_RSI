@@ -49,7 +49,7 @@ def job_inputs(inputs, plan, proposal, store, manifest):
             raise ValueError("publication selection does not bind this experiment")
         group = selection["selected_recipe"]
         section = protocol["publication"]
-    recipe = comparison_recipe(group)
+    recipe = comparison_recipe(group, protocol.get("discovery"))
     if (
         protocol["recipe_refs"][group] != recipe.ref
         or protocol["recipes"][group] != recipe.definition
@@ -113,7 +113,13 @@ def job_inputs(inputs, plan, proposal, store, manifest):
         model_parameters=MODEL_PARAMETERS | {"seed": plan.data.seed},
         boost_rounds=BOOST_ROUNDS,
         selection_ref=manifest.get("selection_ref") if proposal.purpose == "publication" else None,
-        sidecar_inputs_used_in_training=["news"] if group == "N1" else [],
+        sidecar_inputs_used_in_training=(
+            ["news"]
+            if group == "N1"
+            else protocol.get("sidecar_inputs_used_in_training", [])
+            if group == "D1"
+            else []
+        ),
     )
     return x, y, predict_x, predict_rows, metadata
 
@@ -236,7 +242,7 @@ def verify_comparison_result(inputs, plan, proposal, store, manifest, result, mo
         protocol_ref=plan.protocol_ref,
         input_ref=inputs.ref,
     )
-    if plan.schema_version == 2:
+    if plan.schema_version in {2, 3}:
         protocol = store.json(plan.protocol_ref)
         section = protocol["folds"][proposal.fold]
         report["sample_coverage"] = {}

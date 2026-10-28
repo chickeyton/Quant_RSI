@@ -27,10 +27,20 @@ def experiment_root(experiment_id):
 
 
 def _prepare_experiment(
-    value, experiment_id, *, fold_origins=DEFAULT_FOLDS, managed=None, news_factor=False
+    value,
+    experiment_id,
+    *,
+    fold_origins=DEFAULT_FOLDS,
+    managed=None,
+    news_factor=False,
+    discovery=None,
 ):
     inputs = ForecastInputs(value)
-    if managed is not None and news_factor:
+    if discovery is not None:
+        from quant_rsi.factors.discovery import verify_allocation
+
+        verify_allocation(discovery, experiment_id, inputs.ref, fold_origins)
+    if managed is not None and (news_factor or discovery is not None):
         raise ValueError("news comparison requires an explicitly registered news campaign")
     if managed is not None:
         _managed_inputs(managed, inputs, fold_origins)
@@ -51,7 +61,9 @@ def _prepare_experiment(
                     protocol = store.json(plan.protocol_ref)
                     if (
                         plan.input_ref != inputs.ref
-                        or plan.schema_version != (2 if news_factor else 1)
+                        or plan.schema_version
+                        != (3 if discovery is not None else (2 if news_factor else 1))
+                        or protocol.get("discovery") != discovery
                         or [f["evaluation_origins"] for f in protocol["folds"]] != origins
                     ):
                         raise ValueError("experiment ID already binds different inputs/protocol")
@@ -68,6 +80,7 @@ def _prepare_experiment(
                     or intent["fold_origins"] != origins
                     or intent.get("news_factor", False) != news_factor
                     or intent.get("news_accounting") != news_accounting
+                    or intent.get("discovery") != discovery
                 ):
                     raise ValueError("unfinished initialization binds different inputs")
                 if intent.get("managed_run") != (managed.binding if managed else None):
@@ -81,9 +94,13 @@ def _prepare_experiment(
                     experiment_id=experiment_id,
                     input_ref=store.put_json(inputs.value),
                     fold_origins=origins,
-                    publication_asof=market_contracts.trusted_now(),
+                    publication_asof=discovery["as_of"]
+                    if discovery
+                    else market_contracts.trusted_now(),
                     runtime_ref=store.put_json(controller.runtime_identity()),
                 )
+                if discovery is not None:
+                    intent["discovery"] = discovery
                 if news_factor:
                     intent["news_factor"] = True
                     intent["news_accounting"] = news_accounting
@@ -100,6 +117,7 @@ def _prepare_experiment(
                     fold_origins=origins,
                     news_factor=news_factor,
                     news_accounting=news_accounting,
+                    discovery=discovery,
                 )
             except ValueError as exc:
                 if not news_factor or str(exc) not in {
@@ -207,6 +225,17 @@ def _open_experiment(root, *, verify_runtime=True, managed=None):
         inputs = ForecastInputs(store.json(manifest["data_ref"]))
         if plan.input_ref != inputs.ref or plan.protocol_ref != manifest["protocol_ref"]:
             raise ValueError("forecast experiment inputs/protocol differ")
+        if plan.schema_version == 3:
+            from quant_rsi.factors.discovery import verify_allocation
+
+            protocol = store.json(plan.protocol_ref)
+            verify_allocation(
+                protocol["discovery"],
+                manifest["experiment_id"],
+                inputs.ref,
+                [f["evaluation_origins"] for f in protocol["folds"]],
+                verify_runtime=verify_runtime,
+            )
         if plan.schema_version == 2:
             from quant_rsi.factors.news import authorize_news_comparison
 
@@ -576,7 +605,9 @@ def _managed_inputs(managed, inputs, fold_origins):
         journal.close()
 
 
-def prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS, news_factor=False):
+def prepare_experiment(
+    value, experiment_id, *, fold_origins=DEFAULT_FOLDS, news_factor=False, discovery=None
+):
     with _campaign_scope(experiment_id, _saved_manifest(experiment_id)) as managed:
         return _prepare_experiment(
             value,
@@ -584,6 +615,7 @@ def prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS, news
             fold_origins=fold_origins,
             managed=managed,
             news_factor=news_factor,
+            discovery=discovery,
         )
 
 
