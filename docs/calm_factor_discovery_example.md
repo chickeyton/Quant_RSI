@@ -7,7 +7,7 @@ accepts only a flat `(operator, window)` factor on one series. See issue
 [#8](https://github.com/natureofnature/Quant_RSI/issues/8).
 
 The machine-readable tree is
-[`examples/calm_factor_tree.json`](../examples/calm_factor_tree.json). Nodes
+[`instruments/US/CALM/factor_tree.json`](../instruments/US/CALM/factor_tree.json). Nodes
 there use the same ids as this document. Neither file is accepted by
 `quant-rsi run`.
 
