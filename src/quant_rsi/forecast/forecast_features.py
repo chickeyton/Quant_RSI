@@ -132,6 +132,14 @@ def build_feature_view(inputs, recipe, origin, as_of, *, basis=None):
                                 for window in (5, 20)
                             ]
                         )
+    if recipe.group == "N1":
+        from quant_rsi.factors.news import news_scalar
+
+        news = news_scalar(inputs, origin, as_of)
+        reasons.extend(news["reasons"])
+        refs.update(news["source_refs"])
+        if values is not None and not news["reasons"]:
+            values.append(news["value"])
     if not reasons and (
         values is None or len(values) != len(recipe.names) or not all(map(math.isfinite, values))
     ):

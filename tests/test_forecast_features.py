@@ -34,12 +34,13 @@ def prepare_inputs(tmp_path, monkeypatch):
         later_market_availability=False,
         shifted_market_close=False,
         future_calendar=0,
+        target_instrument="A",
     ):
         nonlocal serial
         serial += 1
         evidence_hex = {}
         roles = {}
-        for role, instrument in (("target", "A"), ("industry", "I"), ("market", "M")):
+        for role, instrument in (("target", target_instrument), ("industry", "I"), ("market", "M")):
             contract, events, availability = contract_and_events(
                 instruments=(instrument,), count=100 + future_calendar
             )

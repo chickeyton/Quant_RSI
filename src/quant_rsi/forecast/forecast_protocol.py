@@ -25,18 +25,31 @@ MODEL_PARAMETERS = dict(
 BOOST_ROUNDS = 24
 
 GROUPS = ("B0", "B1", "B2")
+NEWS_GROUPS = ("B0", "N1")
+
+
+def comparison_groups(plan):
+    return NEWS_GROUPS if plan.schema_version == 2 else GROUPS
+
+
+def comparison_recipe(group):
+    return ForecastRecipe(
+        schema_version=2 if group == "N1" else 1, kind="forecast_feature_recipe", group=group
+    )
+
+
 DEFAULT_FOLDS = tuple(tuple(range(start, start + 121, 5)) for start in (378, 504, 630))
 
 
 class ForecastFitProposal(StrictModel):
     name: Identifier
     purpose: Literal["evaluation", "publication"]
-    recipe: Literal["B0", "B1", "B2"] | None
+    recipe: Literal["B0", "B1", "B2", "N1"] | None
     fold: int | None = Field(ge=0, le=2)
 
 
 class ForecastComparisonPlan(StrictModel):
-    schema_version: Literal[1]
+    schema_version: Literal[1, 2]
     plan_type: Literal["forecast_comparison"]
     data: LocalDataSpec
     input_ref: Hash
@@ -47,12 +60,13 @@ class ForecastComparisonPlan(StrictModel):
     @model_validator(mode="after")
     def fixed_jobs(self) -> Self:
         evaluations = self.proposals[:-1]
-        if not evaluations or len(evaluations) % 3 or len(evaluations) > 9:
-            raise ValueError("comparison requires one to three complete B0/B1/B2 folds")
+        groups = comparison_groups(self)
+        if not evaluations or len(evaluations) % len(groups) or len(evaluations) > 3 * len(groups):
+            raise ValueError("comparison requires one to three complete registered paired folds")
         expected = [
             dict(name=f"fold_{fold}_{group.lower()}", purpose="evaluation", recipe=group, fold=fold)
-            for fold in range(len(evaluations) // 3)
-            for group in GROUPS
+            for fold in range(len(evaluations) // len(groups))
+            for group in groups
         ] + [dict(name="publication", purpose="publication", recipe=None, fold=None)]
         if [p.model_dump(mode="json") for p in self.proposals] != expected:
             raise ValueError("comparison job order differs from the fixed paired protocol")
@@ -65,13 +79,25 @@ class ForecastComparisonPlan(StrictModel):
         return self
 
 
-def freeze_protocol(inputs, store, *, publication_asof, fold_origins=DEFAULT_FOLDS):
+class InsufficientComparisonEvidence(ValueError):
+    def __init__(self, reason, evidence):
+        super().__init__(reason)
+        self.evidence = evidence
+
+
+def freeze_protocol(
+    inputs,
+    store,
+    *,
+    publication_asof,
+    fold_origins=DEFAULT_FOLDS,
+    news_factor=False,
+    news_accounting=None,
+):
     """Freeze all masks and feature views before the first fit; perform no fitting."""
     data, _ = inputs.target
-    recipes = [
-        ForecastRecipe(schema_version=1, kind="forecast_feature_recipe", group=group)
-        for group in GROUPS
-    ]
+    groups = NEWS_GROUPS if news_factor else GROUPS
+    recipes = [comparison_recipe(group) for group in groups]
     if not 1 <= len(fold_origins) <= 3:
         raise ValueError("one to three folds are required")
     last_close = data.contract.calendar.sessions[data.spec.sessions - 1].close_at
@@ -80,6 +106,27 @@ def freeze_protocol(inputs, store, *, publication_asof, fold_origins=DEFAULT_FOL
     if len(data.contract.calendar.sessions) < data.spec.sessions + 5:
         raise ValueError("publication requires five future registered sessions")
     cache, folds, previous_end = {}, [], -1
+
+    def insufficient(reason, **masks):
+        if not news_factor:
+            raise ValueError(reason)
+        for view in cache.values():
+            store.put_json(view)
+        evidence = {}
+        for purpose, item in masks.items():
+            mask = item["mask"]
+            evidence[purpose] = dict(
+                mask_ref=store.put_json(mask),
+                requested=len(mask["rows"]),
+                eligible=len(mask["eligible_indices"]),
+                exclusions=[
+                    dict(origin_session=row["origin_session"], reasons=row["reasons"])
+                    for row in mask["rows"]
+                    if not row["eligible"]
+                ],
+            )
+        raise InsufficientComparisonEvidence(reason, evidence)
+
     for number, values in enumerate(fold_origins):
         origins = list(values)
         if (
@@ -109,9 +156,15 @@ def freeze_protocol(inputs, store, *, publication_asof, fold_origins=DEFAULT_FOL
             _feature_cache=cache,
         )
         if len(training["mask"]["eligible_indices"]) < 12:
-            raise ValueError("insufficient common mature training rows")
+            insufficient(
+                "insufficient common mature training rows", training=training, evaluation=evaluation
+            )
         if not evaluation["mask"]["eligible_indices"]:
-            raise ValueError("fold has no eligible common evaluation origins")
+            insufficient(
+                "fold has no eligible common evaluation origins",
+                training=training,
+                evaluation=evaluation,
+            )
         folds.append(
             dict(
                 fold=number,
@@ -133,7 +186,9 @@ def freeze_protocol(inputs, store, *, publication_asof, fold_origins=DEFAULT_FOL
         _feature_cache=cache,
     )
     if len(publication_mask["mask"]["eligible_indices"]) < 12:
-        raise ValueError("insufficient mature publication training rows")
+        insufficient(
+            "insufficient mature publication training rows", publication_training=publication_mask
+        )
     for view in cache.values():
         store.put_json(view)
     publication_views = {
@@ -146,7 +201,7 @@ def freeze_protocol(inputs, store, *, publication_asof, fold_origins=DEFAULT_FOL
     }
     protocol = dict(
         kind="FrozenForecastComparison",
-        schema_version=1,
+        schema_version=2 if news_factor else 1,
         input_ref=inputs.ref,
         data_specification=data.spec.model_dump(mode="json"),
         target_instrument=data.instruments[0],
@@ -162,7 +217,7 @@ def freeze_protocol(inputs, store, *, publication_asof, fold_origins=DEFAULT_FOL
         ),
         selection=dict(
             metric="pooled_mae_pp",
-            tie_order=list(GROUPS),
+            tie_order=list(groups),
             requires_all_folds=True,
             independent_confirmation=False,
         ),
@@ -184,16 +239,29 @@ def freeze_protocol(inputs, store, *, publication_asof, fold_origins=DEFAULT_FOL
             "price_and_context_features_only_news_and_fundamentals_not_model_inputs",
         ],
     )
+    if news_factor:
+        if news_accounting is None:
+            raise ValueError("news comparison requires campaign accounting")
+        protocol.update(
+            news_accounting=news_accounting,
+            model_inputs=["target_prices", "typed_news_factor"],
+            sidecar_inputs_used_in_training=["news"],
+            qualifications=[
+                "development_comparison_not_independent_statistical_confirmation",
+                "retained_corpus_coverage_not_complete_historical_news",
+                "news_features_require_observed_evidence_and_extraction_receipts",
+            ],
+        )
     protocol_ref = store.put_json(protocol)
     proposals = [
         dict(name=f"fold_{fold}_{group.lower()}", purpose="evaluation", recipe=group, fold=fold)
         for fold in range(len(folds))
-        for group in GROUPS
+        for group in groups
     ] + [dict(name="publication", purpose="publication", recipe=None, fold=None)]
     return ForecastComparisonPlan.model_validate_json(
         canonical(
             dict(
-                schema_version=1,
+                schema_version=2 if news_factor else 1,
                 plan_type="forecast_comparison",
                 data=data.spec.model_dump(mode="json"),
                 input_ref=inputs.ref,

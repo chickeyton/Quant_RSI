@@ -103,8 +103,9 @@ def publication_report(inputs, plan, protocol, store, result_ref, selection_ref,
         publication_model_validation_metrics=None,
         publication_model_inherits_evaluation_scores=False,
         model_inputs=["target_prices"]
-        + (["industry_prices", "market_prices"] if group == "B2" else []),
-        sidecar_inputs_used_in_training=[],
+        + (["industry_prices", "market_prices"] if group == "B2" else [])
+        + (["typed_news_factor"] if group == "N1" else []),
+        sidecar_inputs_used_in_training=["news"] if group == "N1" else [],
         qualifications=sorted(
             set(
                 protocol["qualifications"]

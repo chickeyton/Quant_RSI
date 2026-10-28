@@ -6,9 +6,13 @@ import numpy as np
 
 from quant_rsi.core.artifacts import digest
 from quant_rsi.forecast.forecast_features import ordered_feature_values
-from quant_rsi.forecast.forecast_inputs import ForecastRecipe
 from quant_rsi.forecast.forecast_kernel import forecast_errors
-from quant_rsi.forecast.forecast_protocol import BOOST_ROUNDS, GROUPS, MODEL_PARAMETERS
+from quant_rsi.forecast.forecast_protocol import (
+    BOOST_ROUNDS,
+    MODEL_PARAMETERS,
+    comparison_groups,
+    comparison_recipe,
+)
 from quant_rsi.market import market_contracts
 from quant_rsi.market.market_contracts import timestamp, utc_text
 
@@ -16,7 +20,10 @@ from quant_rsi.market.market_contracts import timestamp, utc_text
 def job_inputs(inputs, plan, proposal, store, manifest):
     protocol = store.json(plan.protocol_ref)
     if (
-        inputs.ref != plan.input_ref
+        protocol["schema_version"] != plan.schema_version
+        or set(protocol["recipes"]) != set(comparison_groups(plan))
+        or protocol["selection"]["tie_order"] != list(comparison_groups(plan))
+        or inputs.ref != plan.input_ref
         or protocol["input_ref"] != inputs.ref
         or inputs.target[0].spec != plan.data
         or protocol["data_specification"] != plan.data.model_dump(mode="json")
@@ -37,12 +44,12 @@ def job_inputs(inputs, plan, proposal, store, manifest):
         if (
             selection["protocol_ref"] != plan.protocol_ref
             or selection["input_ref"] != inputs.ref
-            or selection["selected_recipe"] not in GROUPS
+            or selection["selected_recipe"] not in comparison_groups(plan)
         ):
             raise ValueError("publication selection does not bind this experiment")
         group = selection["selected_recipe"]
         section = protocol["publication"]
-    recipe = ForecastRecipe(schema_version=1, kind="forecast_feature_recipe", group=group)
+    recipe = comparison_recipe(group)
     if (
         protocol["recipe_refs"][group] != recipe.ref
         or protocol["recipes"][group] != recipe.definition
@@ -106,7 +113,7 @@ def job_inputs(inputs, plan, proposal, store, manifest):
         model_parameters=MODEL_PARAMETERS | {"seed": plan.data.seed},
         boost_rounds=BOOST_ROUNDS,
         selection_ref=manifest.get("selection_ref") if proposal.purpose == "publication" else None,
-        sidecar_inputs_used_in_training=[],
+        sidecar_inputs_used_in_training=["news"] if group == "N1" else [],
     )
     return x, y, predict_x, predict_rows, metadata
 
@@ -210,7 +217,7 @@ def verify_comparison_result(inputs, plan, proposal, store, manifest, result, mo
     actual = [row["label"]["value"] for row in rows]
     predictions = [row["score"] for row in expected]
     mean = float(np.mean(y))
-    return dict(
+    report = dict(
         kind="ForecastFoldReport",
         eligible=True,
         fold=proposal.fold,
@@ -229,12 +236,30 @@ def verify_comparison_result(inputs, plan, proposal, store, manifest, result, mo
         protocol_ref=plan.protocol_ref,
         input_ref=inputs.ref,
     )
+    if plan.schema_version == 2:
+        protocol = store.json(plan.protocol_ref)
+        section = protocol["folds"][proposal.fold]
+        report["sample_coverage"] = {}
+        for purpose in ("training", "evaluation"):
+            mask = store.json(section[purpose + "_mask_ref"])
+            report["sample_coverage"][purpose] = dict(
+                requested=len(mask["rows"]),
+                eligible=len(mask["eligible_indices"]),
+                exclusions=[
+                    dict(origin_session=row["origin_session"], reasons=row["reasons"])
+                    for row in mask["rows"]
+                    if not row["eligible"]
+                ],
+            )
+        report["qualifications"] = protocol["qualifications"]
+    return report
 
 
 def select_recipe(plan, reports):
     """Use all frozen folds, pooled MAE, and the predeclared B0/B1/B2 tie order."""
-    protocol_folds = len(plan.proposals[:-1]) // 3
-    by_group, evidence = {group: [] for group in GROUPS}, {}
+    groups = comparison_groups(plan)
+    protocol_folds = len(plan.proposals[:-1]) // len(groups)
+    by_group, evidence = {group: [] for group in groups}, {}
     for name, (report_ref, report) in reports.items():
         expected = next((p for p in plan.proposals[:-1] if p.name == name), None)
         if (
@@ -249,7 +274,7 @@ def select_recipe(plan, reports):
             by_group[expected.recipe].append(report)
             evidence[name] = report_ref
     candidates = {}
-    for group in GROUPS:
+    for group in groups:
         folds = sorted(by_group[group], key=lambda r: r["fold"])
         if [r["fold"] for r in folds] != list(range(protocol_folds)):
             continue
@@ -261,7 +286,7 @@ def select_recipe(plan, reports):
     selected = (
         min(
             candidates,
-            key=lambda group: (candidates[group]["pooled"]["mae_pp"], GROUPS.index(group)),
+            key=lambda group: (candidates[group]["pooled"]["mae_pp"], groups.index(group)),
         )
         if candidates
         else None
@@ -275,6 +300,6 @@ def select_recipe(plan, reports):
         candidates=candidates,
         report_refs=evidence,
         selection_metric="pooled_mae_pp",
-        tie_order=list(GROUPS),
+        tie_order=list(groups),
         independent_confirmation=False,
     )
