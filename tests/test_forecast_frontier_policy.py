@@ -14,6 +14,7 @@ from test_forecast_recursive_changes import packet, plan_value, ref
 from quant_rsi.core.artifacts import canonical, digest
 from quant_rsi.forecast.recursive import forecast_frontier_policy as frontier
 from quant_rsi.forecast.recursive.forecast_recursive_changes import expected_change as legacy_change
+from quant_rsi.research import research, research_journal, researcher, task_definition
 from quant_rsi.research.changes import request_definition
 from quant_rsi.research.researcher import package_definition
 
@@ -261,14 +262,8 @@ def test_protected_only_changes_do_not_affect_response_or_trigger_artifact_reads
     protected.write_text('{"score": 100}')
     read_bytes = Path.read_bytes
     implementations = {
-        Path(frontier.__file__).with_name(name)
-        for name in (
-            "forecast_frontier_policy.py",
-            "researcher.py",
-            "research.py",
-            "research_journal.py",
-            "task_definition.py",
-        )
+        Path(module.__file__)
+        for module in (frontier, researcher, research, research_journal, task_definition)
     }
 
     def only_implementation(path):

@@ -7,7 +7,13 @@ from pydantic import ValidationError
 from test_task_definition import recursive_value
 
 from quant_rsi.core.artifacts import ArtifactStore, canonical, digest
-from quant_rsi.research import package_experiment
+from quant_rsi.research import (
+    package_experiment,
+    research,
+    research_journal,
+    researcher,
+    task_definition,
+)
 from quant_rsi.research.researcher import ResearchPlan
 from quant_rsi.research.task_definition import verify_domain
 from quant_rsi.research.trajectory_state import TrajectoryPlan
@@ -249,13 +255,16 @@ def test_full_proposer_response_and_grants_ignore_protected_only_changes(
     )
     response = changes.propose_change(*args)
     expected_decision = package_experiment.decision_content(store, manifest, plan, response)
-    source_directory = Path(proposer.__file__).parent
+    implementations = {
+        Path(module.__file__)
+        for module in (proposer, researcher, research, research_journal, task_definition)
+    }
     original_read = Path.read_bytes
     reads = []
 
     def permitted_read(path):
         reads.append(path)
-        if path.parent not in (source_directory, store.root):
+        if path not in implementations and path.parent != store.root:
             pytest.fail("full decision path read protected or unrelated inputs")
         return original_read(path)
 

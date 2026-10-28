@@ -15,7 +15,14 @@ from test_forecast_recursive_changes import plan_value
 
 from quant_rsi.core.artifacts import ArtifactStore, canonical
 from quant_rsi.forecast.recursive import forecast_frontier_policy
-from quant_rsi.research import changes, package_experiment
+from quant_rsi.research import (
+    changes,
+    package_experiment,
+    research,
+    research_journal,
+    researcher,
+    task_definition,
+)
 
 
 @pytest.mark.parametrize(
@@ -42,15 +49,14 @@ def test_protected_only_feedback_preserves_full_decision_and_grants(
     original_objects = {ref: store.get(ref) for ref in stored_refs}
     protected = tmp_path / "protected.json"
     protected_store = ArtifactStore(tmp_path / "protected_objects")
-    implementation = Path(forecast_frontier_policy.__file__).parent
     allowed_paths = {
-        (implementation / name).resolve()
-        for name in (
-            "forecast_frontier_policy.py",
-            "researcher.py",
-            "research.py",
-            "research_journal.py",
-            "task_definition.py",
+        Path(module.__file__).resolve()
+        for module in (
+            forecast_frontier_policy,
+            researcher,
+            research,
+            research_journal,
+            task_definition,
         )
     } | {(store.root / ref).resolve() for ref in stored_refs}
     original_open, original_get = io.open, ArtifactStore.get
