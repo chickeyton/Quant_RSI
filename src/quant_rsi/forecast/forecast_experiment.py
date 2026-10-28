@@ -11,6 +11,7 @@ from quant_rsi.forecast.forecast_inputs import ForecastInputs
 from quant_rsi.forecast.forecast_protocol import (
     DEFAULT_FOLDS,
     ForecastComparisonPlan,
+    comparison_recipe,
     freeze_protocol,
 )
 from quant_rsi.forecast.forecast_publication import confirmed_report, publication_report
@@ -25,13 +26,22 @@ def experiment_root(experiment_id):
     return authority_root() / "forecast_experiments" / experiment_id
 
 
-def _prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS, managed=None):
+def _prepare_experiment(
+    value, experiment_id, *, fold_origins=DEFAULT_FOLDS, managed=None, news_factor=False
+):
     inputs = ForecastInputs(value)
+    if managed is not None and news_factor:
+        raise ValueError("news comparison requires an explicitly registered news campaign")
     if managed is not None:
         _managed_inputs(managed, inputs, fold_origins)
     root = experiment_root(experiment_id)
-    root.parent.mkdir(parents=True, exist_ok=True)
     origins = [list(values) for values in fold_origins]
+    news_accounting = None
+    if news_factor:
+        from quant_rsi.factors.news import authorize_news_comparison
+
+        news_accounting = authorize_news_comparison(inputs, experiment_id, origins)
+    root.parent.mkdir(parents=True, exist_ok=True)
     with controller.controller_lock(root.parent):
         root.mkdir(exist_ok=True)
         with controller.controller_lock(root):
@@ -41,6 +51,7 @@ def _prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS, man
                     protocol = store.json(plan.protocol_ref)
                     if (
                         plan.input_ref != inputs.ref
+                        or plan.schema_version != (2 if news_factor else 1)
                         or [f["evaluation_origins"] for f in protocol["folds"]] != origins
                     ):
                         raise ValueError("experiment ID already binds different inputs/protocol")
@@ -52,7 +63,12 @@ def _prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS, man
             marker = root / "bootstrap.json"
             if marker.exists():
                 intent = decode(marker.read_bytes())
-                if intent["input_ref"] != inputs.ref or intent["fold_origins"] != origins:
+                if (
+                    intent["input_ref"] != inputs.ref
+                    or intent["fold_origins"] != origins
+                    or intent.get("news_factor", False) != news_factor
+                    or intent.get("news_accounting") != news_accounting
+                ):
                     raise ValueError("unfinished initialization binds different inputs")
                 if intent.get("managed_run") != (managed.binding if managed else None):
                     raise ValueError("initialization parent campaign binding differs")
@@ -68,12 +84,55 @@ def _prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS, man
                     publication_asof=market_contracts.trusted_now(),
                     runtime_ref=store.put_json(controller.runtime_identity()),
                 )
+                if news_factor:
+                    intent["news_factor"] = True
+                    intent["news_accounting"] = news_accounting
                 if managed is not None:
                     intent["managed_run"] = managed.binding
                 atomic_write(marker, canonical(intent))
-            plan = freeze_protocol(
-                inputs, store, publication_asof=intent["publication_asof"], fold_origins=origins
-            )
+            if intent.get("terminal_result_ref"):
+                return _news_terminal(root, verify_runtime=True)
+            try:
+                plan = freeze_protocol(
+                    inputs,
+                    store,
+                    publication_asof=intent["publication_asof"],
+                    fold_origins=origins,
+                    news_factor=news_factor,
+                    news_accounting=news_accounting,
+                )
+            except ValueError as exc:
+                if not news_factor or str(exc) not in {
+                    "insufficient common mature training rows",
+                    "fold has no eligible common evaluation origins",
+                    "insufficient mature publication training rows",
+                }:
+                    raise
+                result = dict(
+                    kind="NewsComparisonInsufficientEvidence",
+                    schema_version=1,
+                    experiment_id=experiment_id,
+                    input_ref=inputs.ref,
+                    status="insufficient_evidence",
+                    reason=str(exc),
+                    sample_coverage=getattr(exc, "evidence", {}),
+                    fold_origins=origins,
+                    publication_asof=intent["publication_asof"],
+                    recipes={group: comparison_recipe(group).definition for group in ("B0", "N1")},
+                    news_accounting=news_accounting,
+                    protocol_ref=None,
+                    fit_reservations=0,
+                    reserved_worker_seconds=0,
+                    attempts=[],
+                    independent_confirmation=False,
+                    qualifications=[
+                        "insufficient_common_rows_no_predictive_comparison",
+                        "retained_corpus_coverage_not_complete_historical_news",
+                    ],
+                )
+                intent["terminal_result_ref"] = store.put_json(result)
+                atomic_write(marker, canonical(intent))
+                return result
             manifest = dict(
                 kind="ForecastComparisonExperiment",
                 schema_version=1,
@@ -95,6 +154,40 @@ def _prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS, man
                 journal.close()
 
 
+def _news_terminal(root, *, verify_runtime=False):
+    """Read a sealed no-fit outcome; never retry feature preparation or renew its claim."""
+    marker = root / "bootstrap.json"
+    if not marker.exists():
+        return None
+    intent = decode(marker.read_bytes())
+    if not intent.get("terminal_result_ref"):
+        return None
+    from quant_rsi.factors.news import authorize_news_comparison
+
+    store = ArtifactStore(root / "artifacts")
+    result = store.json(intent["terminal_result_ref"])
+    inputs = ForecastInputs(store.json(intent["input_ref"]))
+    if (
+        not intent.get("news_factor")
+        or root.resolve() != experiment_root(intent["experiment_id"]).resolve()
+        or result["kind"] != "NewsComparisonInsufficientEvidence"
+        or result["experiment_id"] != intent["experiment_id"]
+        or result["input_ref"] != inputs.ref
+        or result["fold_origins"] != intent["fold_origins"]
+        or result["publication_asof"] != intent["publication_asof"]
+        or result["news_accounting"] != intent["news_accounting"]
+    ):
+        raise ValueError("insufficient news outcome identity differs")
+    receipt = authorize_news_comparison(
+        inputs, intent["experiment_id"], intent["fold_origins"], verify_only=True
+    )
+    if receipt != result["news_accounting"]:
+        raise ValueError("insufficient news outcome campaign differs")
+    if verify_runtime and store.json(intent["runtime_ref"]) != controller.runtime_identity():
+        raise ValueError("source/runtime changed; use the frozen version for resume/replay")
+    return result
+
+
 def _open_experiment(root, *, verify_runtime=True, managed=None):
     manifest_raw = (root / "manifest.json").read_bytes()
     journal = Journal(root)
@@ -114,6 +207,18 @@ def _open_experiment(root, *, verify_runtime=True, managed=None):
         inputs = ForecastInputs(store.json(manifest["data_ref"]))
         if plan.input_ref != inputs.ref or plan.protocol_ref != manifest["protocol_ref"]:
             raise ValueError("forecast experiment inputs/protocol differ")
+        if plan.schema_version == 2:
+            from quant_rsi.factors.news import authorize_news_comparison
+
+            protocol = store.json(plan.protocol_ref)
+            receipt = authorize_news_comparison(
+                inputs,
+                manifest["experiment_id"],
+                [fold["evaluation_origins"] for fold in protocol["folds"]],
+                verify_only=True,
+            )
+            if receipt != protocol["news_accounting"]:
+                raise ValueError("news campaign accounting differs from frozen protocol")
         if verify_runtime and store.json(manifest["runtime_ref"]) != controller.runtime_identity():
             raise ValueError("source/runtime changed; use the frozen version for resume/replay")
         validate_ledger(journal, store, plan)
@@ -243,6 +348,8 @@ def _resume_experiment(
         raise ValueError("max_fits must be an integer from 0 to 10")
     root = experiment_root(experiment_id)
     with controller.controller_lock(root) as owner_fd:
+        if _news_terminal(root) is not None:
+            raise ValueError("insufficient news outcome has no fitted protocol to resume")
         journal, store, manifest, plan, inputs = open_experiment(root)
         try:
             if protocol_ref != plan.protocol_ref:
@@ -318,7 +425,7 @@ def summarize(journal, store, manifest, plan):
     selection = event_payload(journal, "forecast_selection_committed")
     publication = event_payload(journal, "forecast_publication_committed")
     confirmation = event_payload(journal, "forecast_publication_confirmed")
-    return dict(
+    summary = dict(
         experiment_id=manifest["experiment_id"],
         input_ref=plan.input_ref,
         protocol_ref=plan.protocol_ref,
@@ -334,11 +441,17 @@ def summarize(journal, store, manifest, plan):
         else None,
         qualifications=protocol["qualifications"],
     )
+    if plan.schema_version == 2:
+        summary["news_accounting"] = protocol["news_accounting"]
+    return summary
 
 
 def _inspect_experiment(experiment_id, *, replay=False):
     root = experiment_root(experiment_id)
     with controller.controller_lock(root):
+        terminal = _news_terminal(root, verify_runtime=replay)
+        if terminal is not None:
+            return terminal
         journal, store, manifest, plan, inputs = open_experiment(root, verify_runtime=replay)
         try:
             selection = event_payload(journal, "forecast_selection_committed")
@@ -463,13 +576,14 @@ def _managed_inputs(managed, inputs, fold_origins):
         journal.close()
 
 
-def prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS):
+def prepare_experiment(value, experiment_id, *, fold_origins=DEFAULT_FOLDS, news_factor=False):
     with _campaign_scope(experiment_id, _saved_manifest(experiment_id)) as managed:
         return _prepare_experiment(
             value,
             experiment_id,
             fold_origins=fold_origins,
             managed=managed,
+            news_factor=news_factor,
         )
 
 

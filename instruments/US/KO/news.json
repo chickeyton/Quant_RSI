@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "instrument": "KO",
+  "source_id": "retained_issuer_news",
+  "source_capability": "retained_corpus_search",
+  "task_id": "issuer_earnings_title_v1",
+  "rule_version": "ko_earnings_title_v1",
+  "entity_aliases": [
+    "The Coca-Cola Company",
+    "Coca-Cola"
+  ],
+  "coverage_scope": "supplied_retained_corpus_only",
+  "provider_search": false,
+  "network_requests": 0,
+  "retention_policy": "Caller must supply already-authorized retained JSON title payloads and original receipts. No live source is selected or fetched."
+}

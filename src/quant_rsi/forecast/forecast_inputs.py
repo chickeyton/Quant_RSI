@@ -14,9 +14,15 @@ from quant_rsi.market.market_contracts import Hash, Identifier, timestamp
 
 
 class ForecastRecipe(StrictModel):
-    schema_version: Literal[1]
+    schema_version: Literal[1, 2]
     kind: Literal["forecast_feature_recipe"]
-    group: Literal["B0", "B1", "B2"]
+    group: Literal["B0", "B1", "B2", "N1"]
+
+    @model_validator(mode="after")
+    def versioned_group(self) -> Self:
+        if (self.schema_version == 2) != (self.group == "N1"):
+            raise ValueError("news recipe requires version 2; legacy recipes require version 1")
+        return self
 
     @property
     def names(self):
@@ -30,11 +36,15 @@ class ForecastRecipe(StrictModel):
                 for quantity in ("return", "relative_return")
                 for window in (5, 20)
             )
+        if self.group == "N1":
+            from quant_rsi.factors.news import NEWS_FEATURE_DEFINITION
+
+            names += (NEWS_FEATURE_DEFINITION["name"],)
         return names
 
     @property
     def definition(self):
-        return dict(
+        value = dict(
             **self.model_dump(mode="json"),
             feature_names=list(self.names),
             feature_units=["dimensionless_return"] * len(self.names),
@@ -43,6 +53,15 @@ class ForecastRecipe(StrictModel):
             relative_return="target_simple_return_minus_context_simple_return",
             context_alignment="exact_registered_close_timestamp_no_fill",
         )
+        if self.group == "N1":
+            from quant_rsi.factors.news import NEWS_FEATURE_DEFINITION
+
+            value.update(
+                feature_units=["dimensionless_return"] * 3 + [NEWS_FEATURE_DEFINITION["unit"]],
+                close_windows=[5],
+                news_factor=NEWS_FEATURE_DEFINITION,
+            )
+        return value
 
     @property
     def ref(self):
