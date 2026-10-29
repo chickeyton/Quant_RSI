@@ -22,11 +22,79 @@ quant-rsi research-demo KO --json
 quant-rsi research-demo KO --catalog instruments/shared/equities.json
 ```
 
-The command does not collect data, call an external LLM, train a model or create
+The default command does not collect data, call an external LLM, train a model or create
 a research workspace. It reads actual `FactorCatalog` definitions from the given
 file. Related companies, headlines, feature values, model outputs and observations
 are simulated. A catalog definition describes a factor; its presence does not
 mean the demo computed that factor from prices or extracted it from real news.
+
+## Use a real LLM for hypotheses
+
+Keep the same entry point and replace only the two hypothesis calls. The default
+is `--llm simulated`; it remains offline and needs no credentials.
+
+### Codex CLI with existing login
+
+Install a Codex CLI version supporting `exec`, `--ephemeral`, `--output-schema`,
+`--ignore-user-config` and `--ignore-rules`, and make `codex` available on `PATH`.
+Authenticate using `codex login` if you have not already done so:
+
+```bash
+quant-rsi research-demo KO --llm codex
+quant-rsi research-demo KO --llm codex --llm-model MODEL_ID --llm-timeout 240
+```
+
+Replace `MODEL_ID` with a model available to your account, or omit it to use the
+Codex built-in default. The adapter reuses saved CLI authentication, but does not
+resume this chat or any previous Codex conversation. Each hypothesis uses a fresh
+`codex exec --ephemeral` invocation in a temporary directory. The second receives
+the previous hypothesis and feedback explicitly. User configuration/rules are
+ignored for these calls; shell, apps, multi-agent and web search are disabled.
+See the official [Codex non-interactive guide](https://learn.chatgpt.com/docs/non-interactive-mode).
+
+### OpenAI Responses API
+
+Make `OPENAI_API_KEY` available in the process environment, then select a model
+your API account can use with Responses API Structured Outputs:
+
+```bash
+quant-rsi research-demo KO --llm api --llm-model MODEL_ID --json
+```
+
+`--llm-model` is required for API mode. This adapter calls the official
+`https://api.openai.com/v1/responses` endpoint directly using Python's standard
+library; no additional SDK is required. It requests a strict JSON schema via
+`text.format` and sets `store: false`. See the official
+[Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs).
+Codex login alone does not supply the API mode's `OPENAI_API_KEY`.
+
+### What changes and what stays simulated
+
+A successful live run makes two external LLM calls: an initial selection and one
+revision after feedback. Both receive the stock/news context and actual catalog
+definitions. Responses must select existing factor IDs, cite supplied news IDs,
+and include a hypothesis and illustrative `event_signal` between `-1` and `1`.
+The revision must change the selected factor set. These constraints demonstrate
+the interaction; requiring a change does not establish a better research method.
+
+`--llm-timeout` is a positive number of seconds per call, defaulting to `180`.
+Missing credentials, unavailable CLI/model, connection/timeout failures, rejected
+or invalid output, unknown factor IDs or an unchanged revision stop the command.
+The adapter does not retry or fall back to simulated hypotheses.
+
+The trace identifies `codex_cli` or `openai_api` and reports `mode: mixed` with a
+simulation notice. Related stocks, news, reference price, numerical contributions,
+model predictions, observations and summary remain simulated. LLM outputs can
+vary, so the exact default numbers below apply only to simulated mode. Neither a
+successful response nor a revised factor selection proves predictive quality;
+the second prediction still has no observed outcome. Live calls use the selected
+account's service access and usage allowance.
+
+On 2026-10-29, a live Codex CLI 0.165.0 smoke run using existing ChatGPT login
+completed both calls for KO. It selected momentum/mean return, then revised to
+mean return after simulated feedback. This verifies the connection, not prediction
+accuracy; future LLM selections may differ. API mode was tested with offline
+responses only because an API key was unavailable.
 
 ## Follow the whole interaction
 
@@ -111,16 +179,17 @@ def my_hypothesis(context, library, *, previous=None, feedback=None):
 print(render_demo(run_demo("KO", hypothesize=my_hypothesis)))
 ```
 
-This example is still simulated. To use an actual LLM, replace the body of that
-function with your LLM call and return the same small dictionary. Give it the
+This example is still simulated. The CLI options above supply ready-made live
+hypothesis adapters. For another provider, replace the body of this function
+with your LLM call and return the same small dictionary. Give it the
 stock/news context, available definitions, previous hypothesis and feedback.
 Use a truthful `provider` label. No LLM SDK, credentials or prompt framework is
 required to run the default loop.
 
 A practical replacement order is:
 
-1. Replace `hypothesize` with a real LLM. Keep news, prices, prediction and outcome
-   simulated so you can inspect whether its choices and revisions are useful.
+1. Enable a live `hypothesize` adapter with `--llm codex` or `--llm api`. Keep news,
+   prices, prediction and outcome simulated so you can inspect its choices and revisions.
 2. Replace `news` or `related` with a data/tool adapter, independently. The remaining
    services continue to work against their existing inputs and outputs.
 3. Reuse or replace `catalog` to retrieve factor definitions. Connect actual
@@ -130,9 +199,10 @@ A practical replacement order is:
 4. Replace `observe` when actual outcomes become available, and `summarize` when
    a richer explanation is useful.
 
-The CLI exposes the stock symbol, catalog path and output format. Custom service
-injection currently uses the Python entry point. The aggregate mode remains
-`simulation` when injecting individual callables: inspect their provider labels
-to distinguish the real parts from the remaining simulated ones. Later, existing
+The CLI exposes the stock symbol, catalog path, output format and LLM options.
+Other custom service injection uses the Python entry point. Built-in live LLM
+providers set the aggregate mode to `mixed`; arbitrary injected callables do not
+automatically change that label. Inspect provider labels and the callable
+implementation to distinguish real parts from remaining simulated ones. Later, existing
 [bounded research](research_workflow.md), data and model capabilities can supply
 these adapters. They are not prerequisites for running this first product loop.

@@ -15,8 +15,10 @@ quant-rsi research-demo KO
 ```
 
 See the [simulated research loop](docs/simulated_research_loop.md) to inspect its
-inputs and outputs and replace the simulated LLM, news, model or other steps
-individually. The existing bounded research engine remains available for real
+inputs and outputs. Use `--llm codex` with existing Codex CLI login, or
+`--llm api --llm-model MODEL_ID` with `OPENAI_API_KEY`, to replace just the
+hypothesis step. News, prices, predictions and observations remain simulated.
+The existing bounded research engine remains available for real
 model experiments, budget accounting, strategy reports and replay.
 
 RSI means **recursive self-improvement** here. The long-term goal is to test
@@ -72,18 +74,19 @@ The simulated product loop has one entry point:
 flowchart TD
     A["Stock symbol"] --> B["Simulated related stocks and news"]
     B --> C["Actual factor catalog definitions"]
-    C --> D["Simulated LLM: choose factors"]
+    C --> D["LLM: choose factors (simulated / Codex / API)"]
     D --> E["Simulated model: first prediction"]
     E --> F["Simulated observation and feedback"]
-    F --> G["Simulated LLM: revise factor selection"]
+    F --> G["LLM: revise factor selection"]
     G --> H["Simulated model: next prediction"]
     H --> I["Summary of the full trace"]
 ```
 
 Factor selection actually changes the inputs of the next simulated prediction.
 The second prediction has no observed outcome yet. The numerical features,
-headlines, observations and LLM/model responses in this demo are simulated;
-reading a real catalog does not make them market evidence.
+headlines, observations and model predictions remain simulated. Optional live
+LLM calls only supply hypotheses and factor selections; reading a real catalog
+or using a real LLM does not make these results market evidence.
 
 For registered inputs and real LightGBM workers, use the separate
 [bounded research workflow](docs/research_workflow.md). It connects discovery,
@@ -97,6 +100,7 @@ at a time.
 | Capability | Status and boundary |
 | --- | --- |
 | Simulated product loop | One stock-symbol command shows context, catalog-based factor selection, prediction, feedback, revised selection and a second prediction; each simulated service can be replaced independently |
+| Live LLM hypotheses | Optional Codex CLI or OpenAI Responses API makes two independent calls with explicit feedback; all other demo services remain simulated |
 | Bounded research workflow | One profile runs bounded discovery, costed per-fold strategy/buy-and-hold reports and linked forecast/paper observation; feedback uses development forecast MAE only |
 | Five-session price forecasting | Available for explicitly supported sources/markets; includes collection, fixed-model research, model sealing and replay |
 | Prospective forecast observation | Offline registration and append-only outcome settlement from observed market receipts; real prospective accumulation and outcome-driven policy updates remain outstanding |
@@ -138,9 +142,16 @@ quant-rsi research-demo KO
 quant-rsi research-demo KO --json
 ```
 
-This entry point needs no data collection, API key, model fit or research
-workspace. See the [demo guide](docs/simulated_research_loop.md) for the optional
-catalog argument and ordinary Python callables used to replace each step.
+The default needs no data collection, API key, model fit or research workspace.
+To use your existing Codex CLI login for the two hypothesis calls:
+
+```bash
+quant-rsi research-demo KO --llm codex
+```
+
+See the [demo guide](docs/simulated_research_loop.md#use-a-real-llm-for-hypotheses)
+for Codex prerequisites, API credentials/model selection and per-call timeout.
+Errors stop the run without silently falling back to simulated hypotheses.
 
 When ready to run real model workers, the bounded engine has a separate example:
 
@@ -204,8 +215,8 @@ arbitrary generated code. Detailed contracts are in the
 
 ## Roadmap
 
-1. Replace the simulated LLM with a real implementation while keeping the rest
-   of the product loop runnable with simulated services.
+1. Use the optional live LLM hypothesis step to inspect selection and feedback
+   behavior while keeping the rest of the loop runnable with simulated services.
 2. Connect news tools, executable factor values and models individually, using
    the same visible inputs and outputs to inspect each change.
 3. Compare the resulting research methods under frozen tasks and budgets, using
