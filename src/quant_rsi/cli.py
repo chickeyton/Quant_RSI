@@ -37,6 +37,21 @@ def main(argv: list[str] | None = None) -> int:
         description="Bounded quant research and development observations"
     )
     commands = parser.add_subparsers(dest="command", required=True)
+    workflow = commands.add_parser("research-workflow", help="one frozen research/account profile")
+    workflow_commands = workflow.add_subparsers(dest="workflow_command", required=True)
+    for name in ("prepare", "run"):
+        command = workflow_commands.add_parser(name)
+        command.add_argument("profile", type=Path)
+        if name == "run":
+            command.add_argument("--max-fits", type=int, default=1)
+    for name in ("resume", "status", "replay", "report", "observe"):
+        command = workflow_commands.add_parser(name)
+        command.add_argument("campaign_id")
+        if name == "resume":
+            command.add_argument("--max-fits", type=int, default=1)
+        if name == "observe":
+            command.add_argument("--snapshot-ref", required=True)
+            command.add_argument("--request-id", required=True)
     observation = commands.add_parser(
         "forecast-observe", help="record outcomes of committed five-session forecasts; no fits"
     )
@@ -246,6 +261,28 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--steps", type=int, default=1)
     args = parser.parse_args(argv)
     try:
+        if args.command == "research-workflow":
+            from quant_rsi.research import workflow
+
+            if args.workflow_command in {"prepare", "run"}:
+                report = workflow.prepare(json.loads(args.profile.read_bytes()))
+                if args.workflow_command == "run":
+                    report = workflow.resume(report["campaign_id"], max_fits=args.max_fits)
+            elif args.workflow_command == "resume":
+                report = workflow.resume(args.campaign_id, max_fits=args.max_fits)
+            elif args.workflow_command == "observe":
+                report = workflow.observe(
+                    args.campaign_id, args.snapshot_ref, request_id=args.request_id
+                )
+            else:
+                report = workflow.inspect(
+                    args.campaign_id, replay=args.workflow_command == "replay"
+                )
+            if args.workflow_command == "report":
+                print(workflow.render_report(report))
+            else:
+                print(json.dumps(report, indent=2, allow_nan=False))
+            return 0
         if args.command == "forecast-observe":
             from quant_rsi.forecast import forecast_settlement
 

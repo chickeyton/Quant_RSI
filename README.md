@@ -8,8 +8,9 @@ and results so that research can be inspected, resumed and replayed.
 
 RSI means **recursive self-improvement** here. The long-term goal is to test whether
 feedback can improve factors and research strategies under a fixed budget. Today,
-the system runs fixed-model forecasts and bounded searches; general factor-tree
-execution, live news discovery and complete recursive self-improvement are still
+the system connects bounded factor searches, fixed-model forecasts and costed
+strategy reports in a [minimal research loop](docs/research_workflow.md). General
+factor-tree execution, live news discovery and complete recursive self-improvement are still
 under development. Predictive advantage has not been established.
 
 [Quick start](#installation-and-usage) · [Capabilities](#current-capabilities) ·
@@ -54,8 +55,9 @@ See [factor ownership and types](docs/factor_layers.md).
 
 ## Research workflow
 
-The intended workflow connects an information need to evidence, factors,
-experiments and feedback. The implemented paths cover only part of this chain.
+One frozen profile now connects registered inputs, bounded factor discovery,
+forecast comparisons and costed long/cash versus buy-and-hold reports. Development
+forecast error drives the next candidate; trading outcomes do not drive it.
 
 ```mermaid
 flowchart TD
@@ -65,22 +67,26 @@ flowchart TD
     C --> E["Training and development evaluation"]
     D --> E
     E -->|"bounded search feedback"| C
+    E --> S["Costed per-fold strategy / buy-and-hold accounts"]
     E --> F["Seal model and issue forecast"]
     E -.-> G["Planned: calibrated independent confirmation"]
-    F --> H["Register issuance and settle observed five-session outcomes"]
-    H -.-> A
+    F --> H["Registered forecast outcome and paper-account observation"]
+    H -.->|"planned: outcome-driven research"| A
 ```
 
 Solid arrows show existing paths; dashed arrows show integrations still to build.
 Forecast publication does not imply independent confirmation or production
 promotion. The [forecast observation ledger](docs/forecast_observations.md) links
 confirmed issuance to later market receipts and preserves outcome revisions.
-Feeding those outcomes into subsequent research decisions remains to be built.
+The [integrated workflow](docs/research_workflow.md) also connects timely paper
+submission to subsequent receipts, fills and valuation. Real elapsed prospective
+evidence and feeding those outcomes into research decisions remain outstanding.
 
 ## Current capabilities
 
 | Capability | Status and boundary |
 | --- | --- |
+| Minimal research loop | One profile runs bounded discovery, costed per-fold strategy/buy-and-hold reports and linked forecast/paper observation; feedback uses development forecast MAE only |
 | Five-session price forecasting | Available for explicitly supported sources/markets; includes collection, fixed-model research, model sealing and replay |
 | Prospective forecast observation | Offline registration and append-only outcome settlement from observed market receipts; real prospective accumulation and outcome-driven policy updates remain outstanding |
 | Enhanced forecast comparison | Available: three predefined price/context recipes, frozen folds, naive controls and a separate publication fit |
@@ -114,7 +120,25 @@ python -m pip install -r requirements-dev.lock
 python -m pip install --no-deps -e .
 ```
 
-Run the synthetic demonstration without external data services:
+Run the complete bounded workflow with invented data and real model workers:
+
+```bash
+export QUANT_RSI_WORKSPACE="$PWD"
+mkdir -p runs/workflow-demo
+python examples/prepare_research_workflow.py --fixture --output runs/workflow-demo
+quant-rsi research-workflow run runs/workflow-demo/profile.json --max-fits 10 \
+  > runs/workflow-demo/run.json
+quant-rsi research-workflow report rfc39-demo > runs/workflow-demo/report.md
+quant-rsi research-workflow replay rfc39-demo > runs/workflow-demo/replay.json
+```
+
+The default profile has two research rounds, two folds and a ten-fit allowance.
+It reports strategy costs, risk and buy-and-hold comparisons on separate fold
+accounts. Its invented historical prices establish no predictive or prospective
+advantage. See the [workflow guide](docs/research_workflow.md) for existing inputs,
+bounded resume, detailed status and later observations.
+
+For the smaller synthetic kernel demonstration:
 
 ```bash
 quant-rsi run examples/development.json --output runs/demo
@@ -158,18 +182,18 @@ arbitrary generated code. Detailed contracts are in the
 
 ## Roadmap
 
-1. Extend the [bounded factor discovery path](docs/factor_discovery.md) to richer
-   typed graphs and feedback-dependent research-policy changes.
-2. Extend [bounded issuer RSS observations](docs/news_collection.md) toward registered
-   provider search, richer extraction and prospective evidence with honest coverage.
-3. Evaluate research changes under matched budgets, accumulate prospective outcomes
-   with the [observation ledger](docs/forecast_observations.md), then connect
-   independent validation and those outcomes to subsequent research decisions.
+1. Measure the [minimal workflow](docs/research_workflow.md): hypothesis effort,
+   validation cost and honest baseline comparisons before broadening its scope.
+2. Evolve native research alongside a compatible mature-engine comparison under
+   matched data, information and budgets; expand factors and models where useful.
+3. Accumulate prospective outcomes, evaluate research strategies independently
+   and extend [news coverage](docs/news_collection.md) without hiding missing data.
 
 Track the [architecture RFC #24](https://github.com/natureofnature/Quant_RSI/issues/24),
 [factor-tree issue #8](https://github.com/natureofnature/Quant_RSI/issues/8),
 [news RFC #28](https://github.com/natureofnature/Quant_RSI/issues/28),
-[factor discovery RFC #31](https://github.com/natureofnature/Quant_RSI/issues/31) and
+[factor discovery RFC #31](https://github.com/natureofnature/Quant_RSI/issues/31),
+[minimal-loop RFC #39](https://github.com/natureofnature/Quant_RSI/issues/39) and
 [broader roadmap #1](https://github.com/natureofnature/Quant_RSI/issues/1).
 The [architecture specification](docs/architecture.md) describes the target design;
 it is not a declaration that every capability is implemented.
@@ -178,6 +202,7 @@ it is not a declaration that every capability is implemented.
 
 | Start here when you want to… | Guide |
 | --- | --- |
+| Run one profile through research, strategy comparison and observation | [Minimal research workflow](docs/research_workflow.md) |
 | Run detailed commands or recover an experiment | [Experiment workflows and recovery](docs/experiment_workflows.md) |
 | Run bounded discovery and manage event instances | [Factor discovery](docs/factor_discovery.md) |
 | Understand shared factors and single-stock bindings | [Factor layers](docs/factor_layers.md) |
