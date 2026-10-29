@@ -20,7 +20,8 @@ inputs and outputs. Use `--llm codex` with existing Codex CLI login, or
 hypothesis step. Add `--news issuer-rss` for KO's registered official RSS feed.
 Add `--model lightgbm` to compute numeric factors and fit real LightGBM models.
 Prices are synthetic by default; `--prices daily --prices-dir PATH` uses collected
-daily prices. Related stocks remain simulated.
+daily prices. Add `--related profile` for configured, source-backed company
+relationships; related stocks are simulated by default.
 The existing bounded research engine remains available for real
 model experiments, budget accounting, strategy reports and replay.
 
@@ -75,7 +76,7 @@ The simulated product loop has one entry point:
 
 ```mermaid
 flowchart TD
-    A["Stock symbol"] --> B["Related stocks: simulated; news: simulated / issuer RSS"]
+    A["Stock symbol"] --> B["Relationships: simulated / profile; news: simulated / issuer RSS"]
     B --> C["Actual factor catalog definitions"]
     C --> D["LLM: choose factors (simulated / Codex / API)"]
     D --> E["Model: simulated / LightGBM; prices: synthetic / daily"]
@@ -106,7 +107,8 @@ at a time.
 | --- | --- |
 | Simulated product loop | One stock-symbol command shows context, catalog-based factor selection, prediction, feedback, revised selection and a second prediction; each simulated service can be replaced independently |
 | Live LLM hypotheses | Optional Codex CLI or OpenAI Responses API makes two independent calls with explicit feedback; current news is research context, not historical training data |
-| Live news in the product loop | Optional registered KO issuer RSS supplies bounded titles/summaries and source timestamps to both hypothesis calls; no general search, article fetching or peer news collection |
+| Company relationships | Optional KO profile lists source-backed CCEP bottling and MNST distribution links; configured relationships, not automatic discovery or statistical correlations |
+| Live news in the product loop | Routes target and configured related issuers to registered RSS feeds; KO is available, CCEP/MNST are explicitly `not_configured`; no general search or article fetching |
 | LightGBM in the product loop | Numeric feature calculation and two fits on synthetic or collected daily prices; feedback informs a development reestimate at the same origin, with no independent improvement claim |
 | Daily prices in the product loop | Collect once or reuse verified daily evidence; report development errors separately from the latest-bar five-session forecast, whose outcome is unobserved |
 | Bounded research workflow | One profile runs bounded discovery, costed per-fold strategy/buy-and-hold reports and linked forecast/paper observation; feedback uses development forecast MAE only |
@@ -160,8 +162,11 @@ quant-rsi research-demo KO --llm codex
 To also supply real KO issuer news, use:
 
 ```bash
-quant-rsi research-demo KO --news issuer-rss --news-limit 5 --llm codex
+quant-rsi research-demo KO --related profile --news issuer-rss --news-limit 5 --llm codex
 ```
+
+The [relationship guide](docs/simulated_research_loop.md#use-configured-company-relationships)
+explains the source-backed KO links and reports missing related-company news coverage.
 
 To replace the model stub while keeping the other services offline:
 

@@ -190,19 +190,20 @@ def run_demo(
         for hypothesis in (initial, revised)
     )
     live_news = context["news"].get("provider") == "issuer_rss"
+    configured_related = context["related"].get("provider") == "instrument_relationship_profile"
     trained_model = first.get("provider") == "lightgbm"
     notice = "Product wiring demo. News, LLM, prices and predictions are simulated by default."
     if live_llm or live_news:
         notice = (
             f"Product wiring demo with {'real' if live_llm else 'simulated'} LLM hypotheses "
             f"and {'real issuer RSS' if live_news else 'simulated'} news. "
-            "Related stocks, prices, predictions and observations are simulated; "
+            "Prices, predictions and observations are simulated; "
             "improvement is not evaluated."
         )
     if trained_model:
         notice = (
             f"Real LightGBM training with {'real' if live_llm else 'simulated'} LLM hypotheses "
-            f"and {'real issuer RSS' if live_news else 'simulated'} news. Prices, related stocks "
+            f"and {'real issuer RSS' if live_news else 'simulated'} news. Prices "
             "and observed outcomes are synthetic. Both estimates use the same development origin; "
             "the revision reuses disclosed feedback. No independent improvement or market forecast."
         )
@@ -211,12 +212,22 @@ def run_demo(
                 "Real daily prices and LightGBM training with "
                 f"{'real' if live_llm else 'simulated'} LLM hypotheses "
                 f"and {'real issuer RSS' if live_news else 'simulated'} news. "
-                "Related stocks remain simulated. Historical estimates reuse development feedback; "
+                "Historical estimates reuse development feedback; "
                 "the separate latest forecast has no observed outcome. "
                 "No independent gain established."
             )
+    notice += (
+        " Related stocks use source-backed configuration, not automatic discovery or "
+        "measured return correlations."
+        if configured_related
+        else " Related stocks remain simulated."
+    )
+    if context["news"].get("coverage_status") == "partial":
+        notice += " Related-issuer news coverage is incomplete; see the news coverage entries."
     return {
-        "mode": "mixed" if live_llm or live_news or trained_model else "simulation",
+        "mode": "mixed"
+        if live_llm or live_news or trained_model or configured_related
+        else "simulation",
         "notice": notice,
         "target": symbol,
         "factor_revisions": 1,

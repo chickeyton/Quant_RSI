@@ -44,8 +44,9 @@ def main(argv: list[str] | None = None) -> int:
     demo.add_argument("--llm", choices=("simulated", "codex", "api"), default="simulated")
     demo.add_argument("--llm-model", help="model ID; required for API, optional for Codex")
     demo.add_argument("--llm-timeout", type=float, default=180, help="seconds per LLM call")
+    demo.add_argument("--related", choices=("simulated", "profile"), default="simulated")
     demo.add_argument("--news", choices=("simulated", "issuer-rss"), default="simulated")
-    demo.add_argument("--news-limit", type=int, default=5, help="issuer RSS items to use (1-20)")
+    demo.add_argument("--news-limit", type=int, default=5, help="RSS items per issuer (1-20)")
     demo.add_argument("--model", choices=("simulated", "lightgbm"), default="simulated")
     demo.add_argument("--prices", choices=("synthetic", "daily"), default="synthetic")
     demo.add_argument("--prices-dir", type=Path, help="retained daily collection directory")
@@ -315,6 +316,10 @@ def main(argv: list[str] | None = None) -> int:
                 from quant_rsi.research.llm import LLMHypothesizer
 
                 hypothesize = LLMHypothesizer(args.llm, args.llm_model, args.llm_timeout)
+            if args.related == "profile":
+                from quant_rsi.research.demo_related import profile_related
+
+                providers["related"] = profile_related
             result = run_demo(
                 args.symbol,
                 hypothesize=hypothesize,
