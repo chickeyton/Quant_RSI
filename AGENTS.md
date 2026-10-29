@@ -11,12 +11,21 @@ Place source code in `src/`, automated tests in `tests/`, and runnable examples 
 Use Linux and Python 3.12, as validated by CI. Follow installation instructions in [README.md](README.md). Dependencies are pinned in `requirements-dev.lock`; package and tool configuration live in `pyproject.toml`. From the activated environment, run:
 
 ```bash
-ruff check src tests
-ruff format --check src tests
+ruff check src tests examples/profile_validation.py
+ruff format --check src tests examples/profile_validation.py
 pytest -q
 ```
 
 Start with tests relevant to the change, then run the required broader checks. CI runs these checks in [.github/workflows/ci.yml](.github/workflows/ci.yml).
+
+For measured runs, `python examples/profile_validation.py --output /tmp/quant-rsi-validation`
+executes the complete suite and saves commands, environment, per-test timings and
+exit codes. Use a fresh output directory. `--shards 2` preserves module fixtures
+when running locally in parallel; focused selectors are development feedback,
+not a substitute for the complete required suite. See [validation cost](docs/validation_cost.md).
+Run the complete suite once on the frozen final revision; record whether its
+evidence is local or CI and whether it is still pending. Re-run after relevant
+changes or failures, rather than repeating identical successful runs by default.
 
 Keep README installation, execution, and test commands synchronized when tooling changes.
 

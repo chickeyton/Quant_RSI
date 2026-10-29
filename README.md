@@ -198,15 +198,20 @@ direction; its published results are not evidence for this implementation.
 From the activated environment:
 
 ```bash
-ruff check src tests
-ruff format --check src tests
+ruff check src tests examples/profile_validation.py
+ruff format --check src tests examples/profile_validation.py
 pytest -q
 ```
 
 [CI](.github/workflows/ci.yml) uses pinned dependencies and offline fixtures,
 including real LightGBM worker tests. It checks engineering behavior, not market
 predictive quality. Start with tests relevant to a change, then run the required
-broader checks; no coverage-percentage threshold is configured.
+broader checks; no coverage-percentage threshold is configured. For reproducible
+timings and bounded logs, use `python examples/profile_validation.py --output
+/tmp/quant-rsi-validation` with a fresh directory. Optional `--shards 2` keeps each
+module's shared fixtures in one process. [Validation cost and test tiers](docs/validation_cost.md)
+describes focused feedback and final-revision full-suite evidence. CI preserves
+these profiles as artifacts for 14 days.
 
 ### Contributor Delivery
 
