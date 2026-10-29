@@ -1,0 +1,438 @@
+{
+  "source_id": "qlib",
+  "scope": "String expression templates in Alpha158DL/Alpha360DL; duplicates and parameterized variants retained; no runtime expansion.",
+  "entries": [
+    {
+      "expression_template": "$close/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        30,
+        30
+      ]
+    },
+    {
+      "expression_template": "$open/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        35,
+        35
+      ]
+    },
+    {
+      "expression_template": "$high/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        40,
+        40
+      ]
+    },
+    {
+      "expression_template": "$low/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        45,
+        45
+      ]
+    },
+    {
+      "expression_template": "$vwap/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        50,
+        50
+      ]
+    },
+    {
+      "expression_template": "$volume/($volume+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        55,
+        55
+      ]
+    },
+    {
+      "expression_template": "($close-$open)/$open",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        106,
+        106
+      ]
+    },
+    {
+      "expression_template": "($high-$low)/$open",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        107,
+        107
+      ]
+    },
+    {
+      "expression_template": "($close-$open)/($high-$low+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        108,
+        108
+      ]
+    },
+    {
+      "expression_template": "($high-Greater($open, $close))/$open",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        109,
+        109
+      ]
+    },
+    {
+      "expression_template": "($high-Greater($open, $close))/($high-$low+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        110,
+        110
+      ]
+    },
+    {
+      "expression_template": "(Less($open, $close)-$low)/$open",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        111,
+        111
+      ]
+    },
+    {
+      "expression_template": "(Less($open, $close)-$low)/($high-$low+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        112,
+        112
+      ]
+    },
+    {
+      "expression_template": "(2*$close-$high-$low)/$open",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        113,
+        113
+      ]
+    },
+    {
+      "expression_template": "(2*$close-$high-$low)/($high-$low+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        114,
+        114
+      ]
+    },
+    {
+      "expression_template": "Ref($close, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        28,
+        28
+      ]
+    },
+    {
+      "expression_template": "Ref($open, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        33,
+        33
+      ]
+    },
+    {
+      "expression_template": "Ref($high, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        38,
+        38
+      ]
+    },
+    {
+      "expression_template": "Ref($low, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        43,
+        43
+      ]
+    },
+    {
+      "expression_template": "Ref($vwap, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        48,
+        48
+      ]
+    },
+    {
+      "expression_template": "Ref($volume, %d)/($volume+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        53,
+        53
+      ]
+    },
+    {
+      "expression_template": "$volume/($volume+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        136,
+        136
+      ]
+    },
+    {
+      "expression_template": "Ref($volume, %d)/($volume+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        136,
+        136
+      ]
+    },
+    {
+      "expression_template": "Ref($close, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        152,
+        152
+      ]
+    },
+    {
+      "expression_template": "Mean($close, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        157,
+        157
+      ]
+    },
+    {
+      "expression_template": "Std($close, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        161,
+        161
+      ]
+    },
+    {
+      "expression_template": "Slope($close, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        166,
+        166
+      ]
+    },
+    {
+      "expression_template": "Rsquare($close, %d)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        170,
+        170
+      ]
+    },
+    {
+      "expression_template": "Resi($close, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        174,
+        174
+      ]
+    },
+    {
+      "expression_template": "Max($high, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        178,
+        178
+      ]
+    },
+    {
+      "expression_template": "Min($low, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        182,
+        182
+      ]
+    },
+    {
+      "expression_template": "Quantile($close, %d, 0.8)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        187,
+        187
+      ]
+    },
+    {
+      "expression_template": "Quantile($close, %d, 0.2)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        191,
+        191
+      ]
+    },
+    {
+      "expression_template": "Rank($close, %d)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        196,
+        196
+      ]
+    },
+    {
+      "expression_template": "($close-Min($low, %d))/(Max($high, %d)-Min($low, %d)+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        200,
+        200
+      ]
+    },
+    {
+      "expression_template": "IdxMax($high, %d)/%d",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        207,
+        207
+      ]
+    },
+    {
+      "expression_template": "IdxMin($low, %d)/%d",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        214,
+        214
+      ]
+    },
+    {
+      "expression_template": "(IdxMax($high, %d)-IdxMin($low, %d))/%d",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        219,
+        219
+      ]
+    },
+    {
+      "expression_template": "Corr($close, Log($volume+1), %d)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        223,
+        223
+      ]
+    },
+    {
+      "expression_template": "Corr($close/Ref($close,1), Log($volume/Ref($volume, 1)+1), %d)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        227,
+        227
+      ]
+    },
+    {
+      "expression_template": "Mean($close>Ref($close, 1), %d)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        231,
+        231
+      ]
+    },
+    {
+      "expression_template": "Mean($close<Ref($close, 1), %d)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        235,
+        235
+      ]
+    },
+    {
+      "expression_template": "Mean($close>Ref($close, 1), %d)-Mean($close<Ref($close, 1), %d)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        239,
+        239
+      ]
+    },
+    {
+      "expression_template": "Sum(Greater($close-Ref($close, 1), 0), %d)/(Sum(Abs($close-Ref($close, 1)), %d)+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        245,
+        245
+      ]
+    },
+    {
+      "expression_template": "Sum(Greater(Ref($close, 1)-$close, 0), %d)/(Sum(Abs($close-Ref($close, 1)), %d)+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        254,
+        254
+      ]
+    },
+    {
+      "expression_template": "(Sum(Greater($close-Ref($close, 1), 0), %d)-Sum(Greater(Ref($close, 1)-$close, 0), %d))/(Sum(Abs($close-Ref($close, 1)), %d)+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        262,
+        263
+      ]
+    },
+    {
+      "expression_template": "Mean($volume, %d)/($volume+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        269,
+        269
+      ]
+    },
+    {
+      "expression_template": "Std($volume, %d)/($volume+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        273,
+        273
+      ]
+    },
+    {
+      "expression_template": "Std(Abs($close/Ref($close, 1)-1)*$volume, %d)/(Mean(Abs($close/Ref($close, 1)-1)*$volume, %d)+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        278,
+        278
+      ]
+    },
+    {
+      "expression_template": "Sum(Greater($volume-Ref($volume, 1), 0), %d)/(Sum(Abs($volume-Ref($volume, 1)), %d)+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        286,
+        286
+      ]
+    },
+    {
+      "expression_template": "Sum(Greater(Ref($volume, 1)-$volume, 0), %d)/(Sum(Abs($volume-Ref($volume, 1)), %d)+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        295,
+        295
+      ]
+    },
+    {
+      "expression_template": "(Sum(Greater($volume-Ref($volume, 1), 0), %d)-Sum(Greater(Ref($volume, 1)-$volume, 0), %d))/(Sum(Abs($volume-Ref($volume, 1)), %d)+1e-12)",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        304,
+        305
+      ]
+    },
+    {
+      "expression_template": "Ref($%s, %d)/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        132,
+        132
+      ]
+    },
+    {
+      "expression_template": "$%s/$close",
+      "path": "qlib/contrib/data/loader.py",
+      "lines": [
+        132,
+        132
+      ]
+    }
+  ]
+}

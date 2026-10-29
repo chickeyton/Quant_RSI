@@ -1,0 +1,366 @@
+{
+  "survey_version": 1,
+  "candidates": [
+    {
+      "id": "quantdinger.earnings_yield",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "QuantDinger",
+        "path": "backend_api_python/app/services/factors/registry.py",
+        "symbol": "_ratio_last",
+        "lines": [
+          407,
+          410
+        ],
+        "url": "https://github.com/OpenByteInc/QuantDinger/blob/8b2af21c288d87a5571d67ee6b2bfa860b06a4ba/backend_api_python/app/services/factors/registry.py#L407-L410"
+      },
+      "execution_modes": [
+        "report_asof",
+        "elementwise"
+      ],
+      "inputs": [
+        "net_income",
+        "market_cap"
+      ],
+      "example_parameters": {},
+      "formula_summary": "Last net_income / last market_cap.",
+      "output_units": "dimensionless",
+      "warmup_and_state": "Requires aligned latest available fields; upstream helper itself does not establish point-in-time eligibility.",
+      "semantic_edges": "Zero denominator becomes NaN; negative denominators are permitted upstream. Freeze fiscal period, currency, TTM versus annual basis.",
+      "integration_requirements": "Join by publication and first-seen time, preserve revisions, and align market-cap date; never join by period end alone.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed",
+      "declaration_lines": [
+        256,
+        256
+      ]
+    },
+    {
+      "id": "quantdinger.book_to_price",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "QuantDinger",
+        "path": "backend_api_python/app/services/factors/registry.py",
+        "symbol": "_ratio_last",
+        "lines": [
+          407,
+          410
+        ],
+        "url": "https://github.com/OpenByteInc/QuantDinger/blob/8b2af21c288d87a5571d67ee6b2bfa860b06a4ba/backend_api_python/app/services/factors/registry.py#L407-L410"
+      },
+      "execution_modes": [
+        "report_asof",
+        "elementwise"
+      ],
+      "inputs": [
+        "shareholder_equity",
+        "market_cap"
+      ],
+      "example_parameters": {},
+      "formula_summary": "Last shareholder_equity / last market_cap.",
+      "output_units": "dimensionless",
+      "warmup_and_state": "Requires aligned latest available fields; upstream helper itself does not establish point-in-time eligibility.",
+      "semantic_edges": "Zero denominator becomes NaN; negative denominators are permitted upstream. Freeze fiscal period, currency, TTM versus annual basis.",
+      "integration_requirements": "Join by publication and first-seen time, preserve revisions, and align market-cap date; never join by period end alone.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed",
+      "declaration_lines": [
+        257,
+        257
+      ]
+    },
+    {
+      "id": "quantdinger.return_on_equity",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "QuantDinger",
+        "path": "backend_api_python/app/services/factors/registry.py",
+        "symbol": "_ratio_last",
+        "lines": [
+          407,
+          410
+        ],
+        "url": "https://github.com/OpenByteInc/QuantDinger/blob/8b2af21c288d87a5571d67ee6b2bfa860b06a4ba/backend_api_python/app/services/factors/registry.py#L407-L410"
+      },
+      "execution_modes": [
+        "report_asof",
+        "elementwise"
+      ],
+      "inputs": [
+        "net_income",
+        "shareholder_equity"
+      ],
+      "example_parameters": {},
+      "formula_summary": "Last net_income / last shareholder_equity.",
+      "output_units": "dimensionless",
+      "warmup_and_state": "Requires aligned latest available fields; upstream helper itself does not establish point-in-time eligibility.",
+      "semantic_edges": "Zero denominator becomes NaN; negative denominators are permitted upstream. Freeze fiscal period, currency, TTM versus annual basis.",
+      "integration_requirements": "Join by publication and first-seen time, preserve revisions, and align market-cap date; never join by period end alone.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed",
+      "declaration_lines": [
+        258,
+        258
+      ]
+    },
+    {
+      "id": "quantdinger.free_cash_flow_yield",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "QuantDinger",
+        "path": "backend_api_python/app/services/factors/registry.py",
+        "symbol": "_ratio_last",
+        "lines": [
+          407,
+          410
+        ],
+        "url": "https://github.com/OpenByteInc/QuantDinger/blob/8b2af21c288d87a5571d67ee6b2bfa860b06a4ba/backend_api_python/app/services/factors/registry.py#L407-L410"
+      },
+      "execution_modes": [
+        "report_asof",
+        "elementwise"
+      ],
+      "inputs": [
+        "free_cash_flow",
+        "market_cap"
+      ],
+      "example_parameters": {},
+      "formula_summary": "Last free_cash_flow / last market_cap.",
+      "output_units": "dimensionless",
+      "warmup_and_state": "Requires aligned latest available fields; upstream helper itself does not establish point-in-time eligibility.",
+      "semantic_edges": "Zero denominator becomes NaN; negative denominators are permitted upstream. Freeze fiscal period, currency, TTM versus annual basis.",
+      "integration_requirements": "Join by publication and first-seen time, preserve revisions, and align market-cap date; never join by period end alone.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed",
+      "declaration_lines": [
+        261,
+        261
+      ]
+    },
+    {
+      "id": "quantdinger.revenue_growth",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "QuantDinger",
+        "path": "backend_api_python/app/services/factors/registry.py",
+        "symbol": "_last_value",
+        "lines": [
+          421,
+          425
+        ],
+        "url": "https://github.com/OpenByteInc/QuantDinger/blob/8b2af21c288d87a5571d67ee6b2bfa860b06a4ba/backend_api_python/app/services/factors/registry.py#L421-L425"
+      },
+      "execution_modes": [
+        "report_asof"
+      ],
+      "inputs": [
+        "revenue_growth"
+      ],
+      "example_parameters": {},
+      "formula_summary": "Return last supplied revenue_growth value.",
+      "output_units": "provider_defined",
+      "warmup_and_state": "Depends on an already computed fundamental field.",
+      "semantic_edges": "Upstream does not derive this from a revenue series; scale and fiscal comparison are provider metadata.",
+      "integration_requirements": "Register provider computation, reporting basis, publication/receipt time and revision lineage.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed",
+      "declaration_lines": [
+        259,
+        259
+      ]
+    },
+    {
+      "id": "quantdinger.amihud_illiquidity",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "QuantDinger",
+        "path": "backend_api_python/app/services/factors/registry.py",
+        "symbol": "_amihud_illiquidity",
+        "lines": [
+          1078,
+          1084
+        ],
+        "url": "https://github.com/OpenByteInc/QuantDinger/blob/8b2af21c288d87a5571d67ee6b2bfa860b06a4ba/backend_api_python/app/services/factors/registry.py#L1078-L1084"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "close",
+        "volume"
+      ],
+      "example_parameters": {
+        "period": 20
+      },
+      "formula_summary": "Mean(abs(simple_close_return) / (close * volume)).",
+      "output_units": "inverse_traded_currency",
+      "warmup_and_state": "period + 1 close observations and period aligned volumes.",
+      "semantic_edges": "No million-unit scaling. Zero traded value becomes NaN; NumPy mean propagates it. _require uses _numeric, which drops nonfinite rows; missing rows may compress time or misalign separately cleaned fields. Integration must define a joint eligibility policy.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Fix price/volume adjustment and currency; retain undefined liquidity as missing.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed",
+      "declaration_lines": [
+        254,
+        254
+      ]
+    },
+    {
+      "id": "quantdinger.parkinson_volatility",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "QuantDinger",
+        "path": "backend_api_python/app/services/factors/registry.py",
+        "symbol": "_parkinson_volatility",
+        "lines": [
+          1060,
+          1065
+        ],
+        "url": "https://github.com/OpenByteInc/QuantDinger/blob/8b2af21c288d87a5571d67ee6b2bfa860b06a4ba/backend_api_python/app/services/factors/registry.py#L1060-L1065"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "high",
+        "low"
+      ],
+      "example_parameters": {
+        "period": 20
+      },
+      "formula_summary": "sqrt(max(mean(log(high/low)^2)/(4*log(2)), 0) * 252).",
+      "output_units": "annualized_volatility",
+      "warmup_and_state": "period bars.",
+      "semantic_edges": "Annualization is hard-coded to 252 upstream; not universally correct for every market/frequency. _require uses _numeric, which drops nonfinite rows; missing rows may compress time or misalign separately cleaned fields. Integration must define a joint eligibility policy.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Require positive high/low; register frequency and annualization explicitly.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed",
+      "declaration_lines": [
+        252,
+        252
+      ]
+    },
+    {
+      "id": "quantdinger.supertrend",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "QuantDinger",
+        "path": "backend_api_python/app/services/factors/registry.py",
+        "symbol": "_supertrend",
+        "lines": [
+          717,
+          749
+        ],
+        "url": "https://github.com/OpenByteInc/QuantDinger/blob/8b2af21c288d87a5571d67ee6b2bfa860b06a4ba/backend_api_python/app/services/factors/registry.py#L717-L749"
+      },
+      "execution_modes": [
+        "recursive_state",
+        "multi_output"
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "example_parameters": {
+        "period": 10,
+        "multiplier": 3.0,
+        "output": "direction"
+      },
+      "formula_summary": "ATR bands around (high+low)/2 with recursive trailing bands and direction switches.",
+      "output_units": "direction_or_price",
+      "warmup_and_state": "period + 1 bars; ATR seeded by mean of first period true ranges, then Wilder recurrence; initial direction +1.",
+      "semantic_edges": "Output selector direction or line changes type/units. Full prior path affects current state.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Version ATR, band and direction state; freeze output selection and test reset/chunk replay.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed",
+      "declaration_lines": [
+        216,
+        216
+      ]
+    },
+    {
+      "id": "quantdinger.kama",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "QuantDinger",
+        "path": "backend_api_python/app/services/factors/registry.py",
+        "symbol": "_kama",
+        "lines": [
+          923,
+          939
+        ],
+        "url": "https://github.com/OpenByteInc/QuantDinger/blob/8b2af21c288d87a5571d67ee6b2bfa860b06a4ba/backend_api_python/app/services/factors/registry.py#L923-L939"
+      },
+      "execution_modes": [
+        "recursive_state"
+      ],
+      "inputs": [
+        "close"
+      ],
+      "example_parameters": {
+        "period": 10,
+        "fast_period": 2,
+        "slow_period": 30
+      },
+      "formula_summary": "ER = abs(close[t]-close[t-period]) / sum(abs(close differences over period)); SC = (ER * (2/(fast+1)-2/(slow+1)) + 2/(slow+1))^2; KAMA[t] = KAMA[t-1] + SC * (close[t]-KAMA[t-1]).",
+      "output_units": "price",
+      "warmup_and_state": "Requires period + 1 closes. Seed is mean of first period closes; subsequent updates depend on entire path.",
+      "semantic_edges": "Zero movement sets efficiency ratio to zero; not an ordinary fixed-window mean. _require uses _numeric, which drops nonfinite rows; missing rows may compress time or misalign separately cleaned fields. Integration must define a joint eligibility policy.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Freeze seed and parameter ordering, persist state and compare chunked/full replay.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed",
+      "declaration_lines": [
+        240,
+        240
+      ]
+    },
+    {
+      "id": "quantdinger.vwap",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "QuantDinger",
+        "path": "backend_api_python/app/services/factors/registry.py",
+        "symbol": "_vwap",
+        "lines": [
+          854,
+          866
+        ],
+        "url": "https://github.com/OpenByteInc/QuantDinger/blob/8b2af21c288d87a5571d67ee6b2bfa860b06a4ba/backend_api_python/app/services/factors/registry.py#L854-L866"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "example_parameters": {
+        "period": 20,
+        "output": "distance"
+      },
+      "formula_summary": "Rolling volume-weighted HLC3 price; output value or close/value - 1.",
+      "output_units": "price_or_dimensionless",
+      "warmup_and_state": "period bars.",
+      "semantic_edges": "Default output is distance, not price; volume NaN becomes zero and nonpositive total volume returns NaN. Distinct from LEAN OHLC4.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Freeze output, partial-volume coverage and price units; do not equate missing volume with verified zero trading.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed",
+      "declaration_lines": [
+        234,
+        234
+      ]
+    }
+  ]
+}

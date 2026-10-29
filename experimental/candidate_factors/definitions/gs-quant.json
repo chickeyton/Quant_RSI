@@ -1,0 +1,200 @@
+{
+  "survey_version": 1,
+  "candidates": [
+    {
+      "id": "gs_quant.sma",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "gs-quant",
+        "path": "gs_quant/timeseries/technicals.py",
+        "symbol": "moving_average",
+        "lines": [
+          56,
+          94
+        ],
+        "url": "https://github.com/goldmansachs/gs-quant/blob/e2b98f5fa0bfd3a931b9a6fcbee84c027588edea/gs_quant/timeseries/technicals.py#L56-L94"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "series"
+      ],
+      "example_parameters": {
+        "window": 20
+      },
+      "formula_summary": "Rolling arithmetic mean.",
+      "output_units": "same_as_input",
+      "warmup_and_state": "Window and ramp are independent upstream settings; inspect partial-window behavior.",
+      "semantic_edges": "Integer and date-offset windows are distinct.",
+      "integration_requirements": "Freeze window, minimum observations, NaN handling and session/calendar interpretation before integration.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "gs_quant.ema",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "gs-quant",
+        "path": "gs_quant/timeseries/technicals.py",
+        "symbol": "exponential_moving_average",
+        "lines": [
+          260,
+          295
+        ],
+        "url": "https://github.com/goldmansachs/gs-quant/blob/e2b98f5fa0bfd3a931b9a6fcbee84c027588edea/gs_quant/timeseries/technicals.py#L260-L295"
+      },
+      "execution_modes": [
+        "recursive_state"
+      ],
+      "inputs": [
+        "series"
+      ],
+      "example_parameters": {
+        "beta": 0.5
+      },
+      "formula_summary": "ema[t] = beta * ema[t-1] + (1-beta) * x[t], pandas ewm(adjust=False).",
+      "output_units": "same_as_input",
+      "warmup_and_state": "First observation seeds the recurrence.",
+      "semantic_edges": "Beta weights previous state; this differs from period-based alpha and an SMA seed.",
+      "integration_requirements": "Freeze initialization, reset, gap and out-of-order policies; persist/replay state.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "gs_quant.bollinger",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "gs-quant",
+        "path": "gs_quant/timeseries/technicals.py",
+        "symbol": "bollinger_bands",
+        "lines": [
+          98,
+          142
+        ],
+        "url": "https://github.com/goldmansachs/gs-quant/blob/e2b98f5fa0bfd3a931b9a6fcbee84c027588edea/gs_quant/timeseries/technicals.py#L98-L142"
+      },
+      "execution_modes": [
+        "rolling_window",
+        "multi_output"
+      ],
+      "inputs": [
+        "series"
+      ],
+      "example_parameters": {
+        "window": 20,
+        "k": 2
+      },
+      "formula_summary": "Moving average plus/minus k times rolling standard deviation.",
+      "output_units": "same_as_input",
+      "warmup_and_state": "Window/ramp settings control availability.",
+      "semantic_edges": "Upstream output has lower and upper columns; no middle column. Pin ddof and NaN behavior in conformance tests.",
+      "integration_requirements": "Freeze window, minimum observations, NaN handling and session/calendar interpretation before integration. Bind ordered named outputs in the model schema.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "gs_quant.market_beta",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "gs-quant",
+        "path": "gs_quant/timeseries/econometrics.py",
+        "symbol": "beta",
+        "lines": [
+          966,
+          1055
+        ],
+        "url": "https://github.com/goldmansachs/gs-quant/blob/e2b98f5fa0bfd3a931b9a6fcbee84c027588edea/gs_quant/timeseries/econometrics.py#L966-L1055"
+      },
+      "execution_modes": [
+        "rolling_window",
+        "multi_series_alignment"
+      ],
+      "inputs": [
+        "asset_series",
+        "benchmark_series"
+      ],
+      "example_parameters": {
+        "window": 4,
+        "prices": false
+      },
+      "formula_summary": "Rolling covariance(asset returns, benchmark returns) / rolling variance(benchmark returns).",
+      "output_units": "dimensionless",
+      "warmup_and_state": "First three returned rows are forced missing; window/ramp also apply.",
+      "semantic_edges": "prices=True converts levels to simple returns; prices=False expects returns. Zero benchmark variance is undefined.",
+      "integration_requirements": "Freeze benchmark identity, same-time index alignment and return basis. Freeze window, minimum observations, NaN handling and session/calendar interpretation before integration.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "gs_quant.rolling_ols",
+      "role": "estimator",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "gs-quant",
+        "path": "gs_quant/timeseries/statistics.py",
+        "symbol": "RollingLinearRegression",
+        "lines": [
+          1173,
+          1256
+        ],
+        "url": "https://github.com/goldmansachs/gs-quant/blob/e2b98f5fa0bfd3a931b9a6fcbee84c027588edea/gs_quant/timeseries/statistics.py#L1173-L1256"
+      },
+      "execution_modes": [
+        "rolling_fit",
+        "multi_series_alignment",
+        "multi_output"
+      ],
+      "inputs": [
+        "regressors",
+        "response"
+      ],
+      "example_parameters": {
+        "window": 20,
+        "fit_intercept": true
+      },
+      "formula_summary": "RollingOLS after dropping nonfinite rows and aligning X/y; exposes coefficients, fit statistics and fitted values.",
+      "output_units": "response_per_regressor_for_coefficients",
+      "warmup_and_state": "Window must exceed the number of regressors including intercept.",
+      "semantic_edges": "A fitted value uses a regression containing its current response; it is not an out-of-sample prediction.",
+      "integration_requirements": "Use only mature, available responses; separate fit cutoff from forecast time and retain training lineage.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "gs_quant.seasonal_trend",
+      "role": "reference",
+      "review_status": "reference_only_noncausal",
+      "source": {
+        "source_id": "gs-quant",
+        "path": "gs_quant/timeseries/technicals.py",
+        "symbol": "trend",
+        "lines": [
+          539,
+          577
+        ],
+        "url": "https://github.com/goldmansachs/gs-quant/blob/e2b98f5fa0bfd3a931b9a6fcbee84c027588edea/gs_quant/timeseries/technicals.py#L539-L577"
+      },
+      "execution_modes": [
+        "centered_noncausal"
+      ],
+      "inputs": [
+        "series"
+      ],
+      "example_parameters": {
+        "period": 12
+      },
+      "formula_summary": "Trend component of seasonal_decompose using its centered moving-average filter.",
+      "output_units": "same_as_input",
+      "warmup_and_state": "Requires full decomposition history and endpoint handling.",
+      "semantic_edges": "Centered filtering can use future observations.",
+      "integration_requirements": "Blocked for point-in-time features. A causal redesign must have a distinct definition and separate validation.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    }
+  ]
+}

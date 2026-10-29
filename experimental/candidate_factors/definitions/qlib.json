@@ -1,0 +1,347 @@
+{
+  "survey_version": 1,
+  "candidates": [
+    {
+      "id": "qlib.kmid",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "qlib",
+        "path": "qlib/contrib/data/loader.py",
+        "symbol": "Alpha158DL.get_feature_config",
+        "lines": [
+          73,
+          310
+        ],
+        "url": "https://github.com/microsoft/qlib/blob/54355232463878d2eebb91fe0ee5fa7fa1f5976c/qlib/contrib/data/loader.py#L73-L310"
+      },
+      "execution_modes": [
+        "elementwise"
+      ],
+      "inputs": [
+        "open",
+        "close"
+      ],
+      "example_parameters": {},
+      "formula_summary": "(close - open) / open",
+      "output_units": "dimensionless",
+      "warmup_and_state": "One finalized bar.",
+      "semantic_edges": "Zero open is undefined; no epsilon is used by this expression.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "qlib.klen",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "qlib",
+        "path": "qlib/contrib/data/loader.py",
+        "symbol": "Alpha158DL.get_feature_config",
+        "lines": [
+          73,
+          310
+        ],
+        "url": "https://github.com/microsoft/qlib/blob/54355232463878d2eebb91fe0ee5fa7fa1f5976c/qlib/contrib/data/loader.py#L73-L310"
+      },
+      "execution_modes": [
+        "elementwise"
+      ],
+      "inputs": [
+        "open",
+        "high",
+        "low"
+      ],
+      "example_parameters": {},
+      "formula_summary": "(high - low) / open",
+      "output_units": "dimensionless",
+      "warmup_and_state": "One finalized bar.",
+      "semantic_edges": "This is normalized bar range, not true range; zero open is undefined.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "qlib.roc",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "qlib",
+        "path": "qlib/contrib/data/loader.py",
+        "symbol": "Alpha158DL.get_feature_config",
+        "lines": [
+          73,
+          310
+        ],
+        "url": "https://github.com/microsoft/qlib/blob/54355232463878d2eebb91fe0ee5fa7fa1f5976c/qlib/contrib/data/loader.py#L73-L310"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "close"
+      ],
+      "example_parameters": {
+        "d": 5
+      },
+      "formula_summary": "close[t - d] / close[t]",
+      "output_units": "dimensionless",
+      "warmup_and_state": "d + 1 bars.",
+      "semantic_edges": "Reciprocal price ratio, not the conventional percentage rate of change.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Freeze window, minimum observations, NaN handling and session/calendar interpretation before integration.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "qlib.ma",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "qlib",
+        "path": "qlib/contrib/data/loader.py",
+        "symbol": "Alpha158DL.get_feature_config",
+        "lines": [
+          73,
+          310
+        ],
+        "url": "https://github.com/microsoft/qlib/blob/54355232463878d2eebb91fe0ee5fa7fa1f5976c/qlib/contrib/data/loader.py#L73-L310"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "close"
+      ],
+      "example_parameters": {
+        "d": 5
+      },
+      "formula_summary": "Mean(close, d) / close[t]",
+      "output_units": "dimensionless",
+      "warmup_and_state": "d bars for a full window.",
+      "semantic_edges": "Normalized price level, not a price-unit moving average.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Freeze window, minimum observations, NaN handling and session/calendar interpretation before integration.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "qlib.beta",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "qlib",
+        "path": "qlib/contrib/data/loader.py",
+        "symbol": "Alpha158DL.get_feature_config",
+        "lines": [
+          73,
+          310
+        ],
+        "url": "https://github.com/microsoft/qlib/blob/54355232463878d2eebb91fe0ee5fa7fa1f5976c/qlib/contrib/data/loader.py#L73-L310"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "close"
+      ],
+      "example_parameters": {
+        "d": 5
+      },
+      "formula_summary": "Slope(close, d) / close[t]",
+      "output_units": "per_bar",
+      "warmup_and_state": "d bars; regression requires enough nonconstant observations.",
+      "semantic_edges": "Time-trend slope, not covariance with a market benchmark.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Freeze window, minimum observations, NaN handling and session/calendar interpretation before integration.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "qlib.rsqr",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "qlib",
+        "path": "qlib/contrib/data/loader.py",
+        "symbol": "Alpha158DL.get_feature_config",
+        "lines": [
+          73,
+          310
+        ],
+        "url": "https://github.com/microsoft/qlib/blob/54355232463878d2eebb91fe0ee5fa7fa1f5976c/qlib/contrib/data/loader.py#L73-L310"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "close"
+      ],
+      "example_parameters": {
+        "d": 5
+      },
+      "formula_summary": "Rsquare(close, d)",
+      "output_units": "dimensionless",
+      "warmup_and_state": "d bars; constant-series policy must be checked.",
+      "semantic_edges": "R-squared of price against time; not evidence of predictive fit.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Freeze window, minimum observations, NaN handling and session/calendar interpretation before integration.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "qlib.resi",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "qlib",
+        "path": "qlib/contrib/data/loader.py",
+        "symbol": "Alpha158DL.get_feature_config",
+        "lines": [
+          73,
+          310
+        ],
+        "url": "https://github.com/microsoft/qlib/blob/54355232463878d2eebb91fe0ee5fa7fa1f5976c/qlib/contrib/data/loader.py#L73-L310"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "close"
+      ],
+      "example_parameters": {
+        "d": 5
+      },
+      "formula_summary": "Resi(close, d) / close[t]",
+      "output_units": "dimensionless",
+      "warmup_and_state": "d bars; current observation belongs to fitted window.",
+      "semantic_edges": "Current residual of rolling time regression divided by current price.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Freeze window, minimum observations, NaN handling and session/calendar interpretation before integration.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "qlib.rank",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "qlib",
+        "path": "qlib/contrib/data/loader.py",
+        "symbol": "Alpha158DL.get_feature_config",
+        "lines": [
+          73,
+          310
+        ],
+        "url": "https://github.com/microsoft/qlib/blob/54355232463878d2eebb91fe0ee5fa7fa1f5976c/qlib/contrib/data/loader.py#L73-L310"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "close"
+      ],
+      "example_parameters": {
+        "d": 5
+      },
+      "formula_summary": "Rank(close, d)",
+      "output_units": "dimensionless",
+      "warmup_and_state": "d bars for a full window.",
+      "semantic_edges": "Temporal rolling percentile; do not substitute cross-sectional ranking. Verify tie and NaN behavior against the pinned operator.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Freeze window, minimum observations, NaN handling and session/calendar interpretation before integration.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "qlib.corr",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "qlib",
+        "path": "qlib/contrib/data/loader.py",
+        "symbol": "Alpha158DL.get_feature_config",
+        "lines": [
+          73,
+          310
+        ],
+        "url": "https://github.com/microsoft/qlib/blob/54355232463878d2eebb91fe0ee5fa7fa1f5976c/qlib/contrib/data/loader.py#L73-L310"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "close",
+        "volume"
+      ],
+      "example_parameters": {
+        "d": 5
+      },
+      "formula_summary": "Corr(close, Log(volume + 1), d)",
+      "output_units": "dimensionless",
+      "warmup_and_state": "d aligned bars.",
+      "semantic_edges": "Price levels versus log volume, not return-volume correlation; constant input needs a missingness policy.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Freeze window, minimum observations, NaN handling and session/calendar interpretation before integration.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "qlib.cord",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "qlib",
+        "path": "qlib/contrib/data/loader.py",
+        "symbol": "Alpha158DL.get_feature_config",
+        "lines": [
+          73,
+          310
+        ],
+        "url": "https://github.com/microsoft/qlib/blob/54355232463878d2eebb91fe0ee5fa7fa1f5976c/qlib/contrib/data/loader.py#L73-L310"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "close",
+        "volume"
+      ],
+      "example_parameters": {
+        "d": 5
+      },
+      "formula_summary": "Corr(close / Ref(close, 1), Log(volume / Ref(volume, 1) + 1), d)",
+      "output_units": "dimensionless",
+      "warmup_and_state": "d + 1 aligned bars.",
+      "semantic_edges": "Uses gross price ratio and log of gross volume ratio plus one; zero lagged volume is an edge case.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Freeze window, minimum observations, NaN handling and session/calendar interpretation before integration.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "qlib.csrank",
+      "role": "transform",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "qlib",
+        "path": "qlib/data/dataset/processor.py",
+        "symbol": "CSRankNorm",
+        "lines": [
+          326,
+          359
+        ],
+        "url": "https://github.com/microsoft/qlib/blob/54355232463878d2eebb91fe0ee5fa7fa1f5976c/qlib/data/dataset/processor.py#L326-L359"
+      },
+      "execution_modes": [
+        "cross_section"
+      ],
+      "inputs": [
+        "feature_value",
+        "datetime",
+        "instrument"
+      ],
+      "example_parameters": {},
+      "formula_summary": "(average_tie_percentile_rank_within_datetime - 0.5) * 3.46",
+      "output_units": "dimensionless",
+      "warmup_and_state": "Needs the eligible instrument universe at each timestamp, not one instrument history.",
+      "semantic_edges": "Pandas rank(pct=True) uses average ties. Finite small populations need not have mean zero or variance one.",
+      "integration_requirements": "Freeze universe membership and common eligibility before scores; missing members are not zero.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    }
+  ]
+}

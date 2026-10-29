@@ -1,0 +1,70 @@
+{
+  "kind": "proposed_integration_requirements_not_upstream_results",
+  "execution": "not_run",
+  "cases": [
+    {
+      "id": "late_report",
+      "candidate_ids": [
+        "quantdinger.earnings_yield"
+      ],
+      "inputs": {
+        "fiscal_period_end": "2025-12-31",
+        "published_at": "2026-02-10T12:00:00Z",
+        "first_seen_at": "2026-02-11T09:00:00Z",
+        "decision_at": "2026-02-10T16:00:00Z",
+        "net_income": 10,
+        "market_cap": 100
+      },
+      "required_outcome": "missing_unobserved_report",
+      "reason": "A fiscal date and earlier publication do not override first-seen availability."
+    },
+    {
+      "id": "zero_denominator",
+      "candidate_ids": [
+        "quantdinger.earnings_yield"
+      ],
+      "inputs": {
+        "net_income": 10,
+        "market_cap": 0
+      },
+      "required_outcome": "missing_undefined_ratio",
+      "reason": "Undefined ratios must not become numeric zero in the model input."
+    },
+    {
+      "id": "reset_and_chunk_replay",
+      "candidate_ids": [
+        "lean.obv",
+        "gs_quant.ema",
+        "quantdinger.supertrend",
+        "quantdinger.kama"
+      ],
+      "required_outcome": "full_replay_equals_chunked_replay",
+      "reason": "Persist parameter identity, prior input and recursive state; compare after the same warmup."
+    },
+    {
+      "id": "prefix_invariance",
+      "candidate_ids": [
+        "qlib.roc",
+        "lean.ichimoku"
+      ],
+      "required_outcome": "future_input_changes_do_not_change_past_feature_rows",
+      "reason": "Feature time is observation time, not a shifted chart label."
+    },
+    {
+      "id": "centered_filter_rejection",
+      "candidate_ids": [
+        "gs_quant.seasonal_trend"
+      ],
+      "required_outcome": "reject_for_point_in_time_materialization",
+      "reason": "The upstream centered filter uses future observations."
+    },
+    {
+      "id": "missing_universe_member",
+      "candidate_ids": [
+        "qlib.csrank"
+      ],
+      "required_outcome": "apply_frozen_population_eligibility_policy",
+      "reason": "Dropping a difficult instrument after observing outcomes changes ranks and comparison population."
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "kind": "synthetic_hand_calculated_oracles",
+  "upstream_execution": "not_run",
+  "purpose": "Small arithmetic examples for future adapter tests; passing local consistency checks does not establish upstream runtime equivalence.",
+  "cases": [
+    {
+      "id": "reciprocal_roc",
+      "candidate_ids": [
+        "qlib.roc"
+      ],
+      "inputs": {
+        "close": [
+          10,
+          20,
+          40
+        ],
+        "d": 2
+      },
+      "expected": 0.25
+    },
+    {
+      "id": "bar_shape",
+      "candidate_ids": [
+        "qlib.kmid",
+        "qlib.klen"
+      ],
+      "inputs": {
+        "open": 10,
+        "high": 15,
+        "low": 9,
+        "close": 12
+      },
+      "expected": [
+        0.2,
+        0.6
+      ]
+    },
+    {
+      "id": "cross_section_ties",
+      "candidate_ids": [
+        "qlib.csrank"
+      ],
+      "inputs": {
+        "values": [
+          10,
+          20,
+          20
+        ],
+        "instruments": [
+          "A",
+          "B",
+          "C"
+        ]
+      },
+      "expected": [
+        -0.5766666666666667,
+        1.1533333333333333,
+        1.1533333333333333
+      ]
+    },
+    {
+      "id": "ema_seed",
+      "candidate_ids": [
+        "gs_quant.ema"
+      ],
+      "inputs": {
+        "values": [
+          10,
+          14,
+          12
+        ],
+        "beta": 0.5
+      },
+      "expected": [
+        10,
+        12,
+        12
+      ]
+    },
+    {
+      "id": "market_beta",
+      "candidate_ids": [
+        "gs_quant.market_beta"
+      ],
+      "inputs": {
+        "asset_returns": [
+          0.02,
+          0.04,
+          0.06,
+          0.08
+        ],
+        "benchmark_returns": [
+          0.01,
+          0.02,
+          0.03,
+          0.04
+        ],
+        "window": 4,
+        "ramp": 0,
+        "prices": false
+      },
+      "expected": [
+        null,
+        null,
+        null,
+        2.0
+      ]
+    },
+    {
+      "id": "obv_seed_and_flat",
+      "candidate_ids": [
+        "lean.obv"
+      ],
+      "inputs": {
+        "close": [
+          10,
+          11,
+          11,
+          9
+        ],
+        "volume": [
+          100,
+          150,
+          200,
+          300
+        ]
+      },
+      "expected": [
+        100,
+        250,
+        250,
+        -50
+      ]
+    },
+    {
+      "id": "vwap_price_basis",
+      "candidate_ids": [
+        "lean.vwap",
+        "quantdinger.vwap"
+      ],
+      "inputs": {
+        "open": [
+          10,
+          12
+        ],
+        "high": [
+          16,
+          18
+        ],
+        "low": [
+          8,
+          10
+        ],
+        "close": [
+          14,
+          16
+        ],
+        "volume": [
+          2,
+          1
+        ],
+        "period": 2,
+        "output": "value"
+      },
+      "expected": {
+        "lean": 12.666666666666666,
+        "quantdinger": 13.333333333333334
+      }
+    },
+    {
+      "id": "earnings_yield_ratio",
+      "candidate_ids": [
+        "quantdinger.earnings_yield"
+      ],
+      "inputs": {
+        "net_income": 10,
+        "market_cap": 100
+      },
+      "expected": 0.1
+    }
+  ]
+}
