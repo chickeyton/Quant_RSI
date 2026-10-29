@@ -43,4 +43,4 @@ def evaluate_price_adapter(recipe: CandidatePriceRecipe, prices: list[float]) ->
         scale = max(prices)
         mean = (math.fsum(price / scale for price in prices) / len(prices)) * scale
         value = mean / prices[-1]
-    return value if math.isfinite(value) else None
+    return value if math.isfinite(value) and value > 0 else None

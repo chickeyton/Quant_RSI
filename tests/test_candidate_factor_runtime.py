@@ -87,6 +87,11 @@ def test_incomplete_invalid_and_unrepresentable_values_are_missing(op, window, p
     assert evaluate_price_adapter(CandidatePriceRecipe(op=op, window=window), prices) is None
 
 
+def test_positive_inverse_ratio_underflow_remains_missing():
+    recipe = CandidatePriceRecipe(op="qlib_roc_v1", window=1)
+    assert evaluate_price_adapter(recipe, [1e-308, 1e308]) is None
+
+
 @pytest.mark.parametrize(
     "change",
     [
