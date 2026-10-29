@@ -43,8 +43,20 @@ jobs:
 
       - name: Check lint and formatting
         run: |
-          ruff check src tests
-          ruff format --check src tests
+          ruff check src tests examples/profile_validation.py
+          ruff format --check src tests examples/profile_validation.py
 
       - name: Run offline regression tests
-        run: pytest -q
+        run: python examples/profile_validation.py --output "$RUNNER_TEMP/validation-profile"
+
+      - name: Preserve validation timings and failures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: validation-profile-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/validation-profile/*.json
+            ${{ runner.temp }}/validation-profile/*.xml
+            ${{ runner.temp }}/validation-profile/*.log
+          if-no-files-found: warn
+          retention-days: 14
