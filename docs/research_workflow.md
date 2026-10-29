@@ -123,6 +123,12 @@ assessment; reusing an ID with a different snapshot fails. Resume an unfinished
 request before submitting another. The workflow has a fixed 256-request allowance.
 Corrections append assessments and preserve earlier fills and valuations.
 
+A deterministic child rejection (for example, a source watermark already advanced
+through `forecast-observe`) records a terminal rejected request, including any
+preceding child results. It consumes one request slot, preserves each account's
+last recorded state and permits a new request; repeating the rejected ID reports
+the original error. I/O interruption instead leaves the same request resumable.
+
 ## What the evidence establishes
 
 The offline example exercises historical research with real workers. Separate
@@ -130,6 +136,29 @@ clock-controlled tests use deterministic worker doubles to verify timely
 publication, durable submission, later quote receipts, fills, valuation and
 outcome linkage. Those tests establish engineering behavior, not elapsed
 prospective performance or a realistic trading simulator.
+
+### Recorded local smoke run (October 29, 2026)
+
+A fresh workspace ran the commands above with Python 3.12, real LightGBM,
+`PYTHONHASHSEED=0` and one OMP/OpenBLAS/MKL thread. Two rounds consumed exactly
+10 fits and produced all eight fold/recipe account comparisons. Every command
+exited zero and the source/runtime identity remained unchanged.
+
+| Operation | Wall time |
+| --- | ---: |
+| Generate fixture/profile | 1.714 s |
+| Run both rounds and assemble report | 6.857 s |
+| Read status | 0.279 s |
+| Render report | 0.269 s |
+| Replay saved models/accounts | 0.784 s |
+
+These are one-run usability measurements on a small invented dataset, not a
+speedup or portable performance claim. Processes and workspace were fresh;
+OS caches were uncontrolled and focused regression tests were running concurrently.
+The shared host reported 16 logical CPUs. The equivalent integrated command did
+not exist on the base revision, so no before/after hands-on time reduction is
+claimed. Larger tasks, a comparable ordinary factor change and full CI cost
+remain separate acceptance measurements in RFC #39.
 
 There is no broker, real order, online scheduler, independent confirmation,
 account-return-driven research policy or established predictive advantage here.
