@@ -206,6 +206,15 @@ def run_demo(
             "and observed outcomes are synthetic. Both estimates use the same development origin; "
             "the revision reuses disclosed feedback. No independent improvement or market forecast."
         )
+        if first.get("price_provider") == "public_daily_prices":
+            notice = (
+                "Real daily prices and LightGBM training with "
+                f"{'real' if live_llm else 'simulated'} LLM hypotheses "
+                f"and {'real issuer RSS' if live_news else 'simulated'} news. "
+                "Related stocks remain simulated. Historical estimates reuse development feedback; "
+                "the separate latest forecast has no observed outcome. "
+                "No independent gain established."
+            )
     return {
         "mode": "mixed" if live_llm or live_news or trained_model else "simulation",
         "notice": notice,

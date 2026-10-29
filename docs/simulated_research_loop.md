@@ -31,7 +31,7 @@ mean the demo computed that factor from prices or extracted it from real news.
 ## Use a real LLM for hypotheses
 
 Keep the same entry point and replace only the two hypothesis calls. The default
-is `--llm simulated`; with the default news mode it remains offline and needs no credentials.
+is `--llm simulated`; with default news and prices it remains offline and needs no credentials.
 
 ### Codex CLI with existing login
 
@@ -83,9 +83,10 @@ or invalid output, unknown factor IDs or an unchanged revision stop the command.
 The adapter does not retry or fall back to simulated hypotheses.
 
 The trace identifies `codex_cli` or `openai_api` and reports `mode: mixed` with a
-simulation notice. Related stocks and price data remain synthetic. Predictions
-use illustrative contributions by default, or actual fitting on synthetic prices
-with `--model lightgbm`. News is simulated unless `--news issuer-rss` is selected. LLM outputs can
+simulation notice. Related stocks remain synthetic. Predictions use illustrative
+contributions by default, or actual fitting with `--model lightgbm`; prices default
+to synthetic, with collected data available via `--prices daily`. News is simulated
+unless `--news issuer-rss` is selected. LLM outputs can
 vary, so the exact default numbers below apply only to simulated mode. Neither a
 successful response nor a revised factor selection proves predictive quality;
 the default model's second prediction has no observed outcome, while LightGBM
@@ -129,9 +130,9 @@ items supply only a title.
 The same selected news context reaches both hypothesis calls. In Codex/API mode,
 the model is told whether news is real or simulated through its provider label;
 its illustrative `event_signal` still is not an executed or calibrated text factor.
-Related companies and prices remain synthetic. The default model and observation
-are simulated; optional LightGBM uses the synthetic price path for fitting and
-observation. Live news alone also marks the output as a mixed simulation.
+Related companies remain synthetic. The default model and observation are
+simulated; optional LightGBM uses synthetic or collected prices for fitting and
+development observation. Live news alone also marks the output as a mixed simulation.
 
 Unsupported symbols, an empty feed, transport failures and invalid feed content
 stop the run. There is no fallback to invented news or historical backfill. This
@@ -154,7 +155,8 @@ quant-rsi research-demo KO --model lightgbm --news issuer-rss --llm codex
 ```
 
 The default remains `--model simulated`. LightGBM mode uses the existing installed
-LightGBM dependency, shared model parameters and boosting rounds. It generates a
+LightGBM dependency, shared model parameters and boosting rounds. With the default
+`--prices synthetic`, it generates a
 fixed-seed synthetic path of 128 sessions and uses session index `100` as the
 forecast origin. Selected momentum/mean-return definitions become actual numeric
 feature columns using the existing feature implementation. Training labels are
@@ -187,6 +189,56 @@ momentum to mean return; error against the reused synthetic observation changed
 from approximately `-1.1710` to `-1.1936`, a worse absolute error. This verifies
 the complete connection, not an independent gain or a real KO price forecast.
 
+## Use collected daily prices
+
+Use the same model with actual prices, keeping data outside the repository:
+
+```bash
+quant-rsi research-demo KO --model lightgbm --prices daily \
+  --prices-dir "$HOME/quant-rsi-data/KO-demo" --json
+quant-rsi research-demo KO --model lightgbm --prices daily \
+  --prices-dir "$HOME/quant-rsi-data/KO-demo" --news issuer-rss --llm codex
+```
+
+`--prices daily` requires both `--model lightgbm` and `--prices-dir`. For an empty
+or nonexistent directory, the existing daily collector requests Yahoo prices and
+NYSE calendar evidence once. For a populated directory, the adapter verifies the
+successful collection receipt, contract and quote events and reuses them. It does
+not redownload or overwrite existing files, even after a failed collection. Use a
+new directory for a new collection. These are local data artifacts; the demo does
+not create another research ledger.
+
+The model uses 120 daily bars. Its development origin is six positions from the
+end, and the last bar supplies the five-session observed outcome. Both fits keep
+the same training samples, with labels ending at or before that origin. Feedback
+then informs a revision at that same origin: the reported development errors
+reuse an already disclosed outcome and are not independent validation. Current
+issuer news can guide numeric factor selection, but is not claimed to have been
+available at that historical origin and never becomes historical text features.
+
+Each fitted model also returns `latest_forecast` from the latest stored completed
+bar, targeting five further sessions using the registered future calendar. It
+uses that same fitted model, without refitting on labels newly available after
+the development cutoff. The report exposes the training cutoff and keeps the
+revised latest forecast separate from the reused development error. Its outcome
+is `not_observed`; the demo does not settle or independently evaluate it.
+
+Prices are raw USD closes, unadjusted for dividends, rather than total-return
+prices. Known unsupported corporate actions within the window reject the run.
+Data freshness is bounded by the collection receipt; reusing a directory is not
+a fresh market download. A latest-bar forecast from old evidence is correspondingly
+dated, not a claim to reflect today's market. Related companies remain simulated,
+and text factors are excluded from the model.
+
+On 2026-10-29, a combined daily-price, issuer-RSS and Codex run completed with 120
+actual daily bars (May 8–October 28), two LLM calls and two LightGBM fits using
+105 training rows and 24 boosting rounds each. Revising momentum to mean return
+reduced the development error from approximately `+2.1021` to `+1.9731` against
+the reused October 28 close; this is not independent improvement evidence.
+The separate latest forecast used the retained October 28 bar, targeted November 4
+and retained an October 21 training cutoff, with outcome `not_observed`. Here
+“latest” means the last retained completed bar, not a current market quote.
+
 ## Test an unmerged feature
 
 An existing clone or installed CLI may still use older code. To test this feature
@@ -194,19 +246,20 @@ before merge, run the following from your existing repository. The separate
 worktree and environment leave that checkout on its current branch:
 
 ```bash
-git fetch origin feat/model-research-loop
-git worktree add --detach ../Quant_RSI-model-demo FETCH_HEAD
-cd ../Quant_RSI-model-demo
+git fetch origin feat/prices-research-loop
+git worktree add --detach ../Quant_RSI-prices-demo FETCH_HEAD
+cd ../Quant_RSI-prices-demo
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-dev.lock
 python -m pip install --no-deps -e .
 quant-rsi research-demo --help
-quant-rsi research-demo KO --model lightgbm
+quant-rsi research-demo KO --model lightgbm --prices daily \
+  --prices-dir "$HOME/quant-rsi-data/KO-demo"
 ```
 
 Use this while the feature branch is available; after merge, a fresh checkout of
-updated `main` contains the feature. Check that `--help` lists `--model`, `--news` and `--llm`
+updated `main` contains the feature. Check that `--help` lists `--prices` and `--prices-dir`
 before trying live calls. Installing editable code in the dedicated environment
 ensures its CLI uses that worktree's source and catalog.
 
@@ -217,7 +270,7 @@ ensures its CLI uses that worktree's source and catalog.
 2. Read the existing factor definitions and ask the selected LLM to choose an
    initial factor set.
 3. Pass that selected set to the chosen model to produce the first prediction.
-4. Obtain the simulated/synthetic observation and compare it with the first prediction.
+4. Obtain the simulated or historical development observation and compare it with the first prediction.
 5. Pass the feedback back to the selected LLM, which revises the factor set.
 6. Run the chosen model again with the revised selection and summarize both
    attempts and the reason for the change.
@@ -244,7 +297,7 @@ possible to see exactly where a replacement changes the flow.
 The Python entry point is `quant_rsi.research.demo.run_demo`. Services are ordinary
 callables with plain dictionary inputs and outputs. `context` starts with `symbol`
 and the simulated `reference_price`; an optional `price_context(symbol)` callback
-supplies the LightGBM adapter's synthetic origin and reference price. The context
+supplies the LightGBM adapter's origin and reference price. The context
 then gains `related` and `news`. Each service
 can identify itself with a `provider` value in its output.
 
@@ -310,13 +363,13 @@ A practical replacement order is:
    prices, prediction and outcome simulated so you can inspect its choices and revisions.
 2. Enable `--news issuer-rss` for KO, or replace `news`/`related` with another
    data/tool adapter independently. Other services retain their existing inputs and outputs.
-3. Enable `--model lightgbm` for actual numeric feature calculation and fitting
-   on synthetic data. Replace its price input with suitable real data in a later
-   adapter; catalog metadata or live news alone does not supply historical prices.
+3. Enable `--model lightgbm` for numeric feature calculation and fitting, then
+   `--prices daily --prices-dir PATH` for collected historical prices. Catalog
+   metadata or live news alone does not supply historical prices.
 4. Replace `observe` when actual outcomes become available, and `summarize` when
    a richer explanation is useful.
 
-The CLI exposes the stock symbol, catalog path, output format, LLM, news and model options.
+The CLI exposes the stock symbol, catalog path, output format, LLM, news, model and price options.
 Other custom service injection uses the Python entry point. Built-in live LLM,
 issuer-news or LightGBM providers set the aggregate mode to `mixed`; arbitrary injected callables do not
 automatically change that label. Inspect provider labels and the callable

@@ -9,7 +9,7 @@ import pytest
 
 from quant_rsi.cli import main
 from quant_rsi.research import demo, llm
-from quant_rsi.research.demo_model import SyntheticLightGBMDemo
+from quant_rsi.research.demo_model import LightGBMDemo
 
 CATALOG = Path(__file__).resolve().parents[1] / "instruments/shared/equities.json"
 
@@ -77,7 +77,7 @@ def test_one_command_fits_selected_columns_then_reuses_feedback(monkeypatch, cap
 
 
 def test_future_prices_and_news_signal_cannot_change_fitted_prediction():
-    model = SyntheticLightGBMDemo(demo.load_catalog(CATALOG))
+    model = LightGBMDemo(demo.load_catalog(CATALOG))
     selected = model.library["definitions"]
     prediction = model.predict({}, selected, {"event_signal": -1})
     prices = model.data.closes[:, 0]
@@ -115,8 +115,8 @@ def test_offline_hypothesis_uses_executable_catalog_with_real_model(capsys):
 
 def test_model_rejects_text_inputs_and_catalog_without_revision_choices():
     library = demo.load_catalog(CATALOG)
-    model = SyntheticLightGBMDemo(library)
+    model = LightGBMDemo(library)
     with pytest.raises(ValueError, match="only selected numeric"):
         model.predict({}, library["definitions"], {})
     with pytest.raises(ValueError, match="at least two numeric"):
-        SyntheticLightGBMDemo({"definitions": library["definitions"][:1]})
+        LightGBMDemo({"definitions": library["definitions"][:1]})

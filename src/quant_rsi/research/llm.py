@@ -64,9 +64,11 @@ class LLMHypothesizer:
             "for one exploratory revision. Do not merely reorder IDs. Do not claim improvement "
             "or treat preset observations as real market evidence. "
             "Follow context.model_mode and context.model_note when supplied. "
-            "The lightgbm mode fits real models on synthetic prices; both estimates share a "
+            "The lightgbm mode fits real models on the stated price source; both estimates share a "
             "development origin. The revision uses disclosed feedback, "
             "not independent validation. "
+            "A separate latest_forecast, if supplied, is unobserved; do not confuse it with "
+            "the historical prediction error. "
             "Otherwise predictions use fixed simulated contributions."
             "\nINPUT_JSON:\n"
             + json.dumps(
