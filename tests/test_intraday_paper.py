@@ -10,9 +10,11 @@ from intraday_helpers import blocks_for, build_snapshot, plan, sessions
 
 from quant_rsi.brokers.ibkr.guard import LiveAccountRefused
 from quant_rsi.brokers.ibkr.orders import IbkrPaperBackend
+from quant_rsi.intraday.contracts import SignalPolicy
 from quant_rsi.intraday.features import build_features
 from quant_rsi.intraday.model import fit, label_vector
 from quant_rsi.intraday.paper import EpisodeJournal, PaperPlan, PaperRunner
+from quant_rsi.intraday.policy import signal_digest
 from quant_rsi.intraday.schedule import anchor_for
 from quant_rsi.intraday.storage import VALID
 
@@ -77,6 +79,12 @@ def _plan(snapshot, model, **overrides):
         "max_lag_seconds": 400,
     }
     value.update(overrides)
+    if "signal_sha256" not in overrides:
+        signal = SignalPolicy.model_validate(
+            value["signal"] if isinstance(value["signal"], dict) else value["signal"].model_dump(),
+            strict=False,
+        )
+        value["signal_sha256"] = signal_digest(signal)
     return PaperPlan.model_validate(value, strict=False)
 
 

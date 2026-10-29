@@ -20,6 +20,7 @@ quality, and paper fills are simulated by IBKR.
 | IBKR session, paper-only guard, pacing, contract qualification | Implemented; tested offline with a scripted fake transport |
 | Intraday snapshots (decision, 1-minute execution and bid/ask grids) | Implemented; deterministic content-addressed column blocks |
 | Timing, labels, features, fixed LightGBM, session folds | Implemented |
+| Learnable trading policy: cost-aware entry, edge-scaled sizing, nested calibration | Implemented |
 | Replay simulator and development evaluation | Implemented; `development_only` evidence |
 | Paper episodes: journal, scheduled submission, deadlines, flatten, stop and handover, reconciliation, risk stops, shadow report | Implemented |
 | Forward session schedule and temporal-ordering check | Implemented as library functions |
@@ -71,8 +72,29 @@ python -m quant_rsi.intraday collect --config .quant_rsi/ibkr.json \
 python -m quant_rsi.intraday evaluate --store runs/ko/store --snapshot SNAPSHOT_SHA256 \
   --plan examples/intraday_development.json
 python -m quant_rsi.intraday fit --store runs/ko/store --snapshot SNAPSHOT_SHA256 \
-  --plan examples/intraday_development.json --output runs/ko/model.txt
+  --plan examples/intraday_development.json --output runs/ko/model.txt \
+  --policy-output runs/ko/signal.json
 ```
+
+### Learned trading policy
+
+The model only predicts the return over the next H decision bars (30 minutes with the
+example plan); the trading policy decides whether and how
+much to buy (design section 5.7). With `policy_search` in the plan, the policy is learned
+from a registered grid:
+- **`evaluate`:** each fold learns its policy from its own training sessions. It holds out
+  the last `calibration_sessions`, replays every candidate on them, and scores its test
+  sessions with the winner. Each fold's `policy` entry shows the winner and every
+  candidate's calibration result.
+- **`fit`:** learns the policy on the snapshot's last `calibration_sessions`, then fits the
+  final model on all sessions. It prints the chosen `signal` and `signal_sha256`, and
+  `--policy-output` writes the `signal`. Copy both into the paper plan; a `signal` that
+  does not match `signal_sha256` is refused.
+
+The example plan uses `entry_rule: net_of_cost`, which only buys when the prediction
+exceeds the estimated round-trip commission and spread plus `entry_threshold`. Without
+`policy_search`, the plan's `signal` is used as written. Declined entries are counted as
+`policy_declined_entries` in evaluation and journaled as `entry_declined` on paper.
 
 `calendar.json` is an explicit `CalendarSpec`: calendar ID, IANA time zone and every
 session's open and close. The collector never infers sessions, and it refuses sessions that
@@ -98,6 +120,7 @@ Copy [`examples/intraday_paper.json.template`](../examples/intraday_paper.json.t
 and fill in:
 - the snapshot reference;
 - the model SHA-256 printed by `fit`;
+- the `signal` and `signal_sha256` printed by `fit` (or the `--policy-output` file);
 - the schedule's `anchor_monday` (the Monday of the first paper week);
 - `expires_at`.
 
@@ -202,7 +225,8 @@ python -m quant_rsi.intraday paper-stop --journal runs/ko/paper.sqlite \
 ```bash
 pytest -q tests/test_intraday_core.py tests/test_ibkr_adapter.py \
   tests/test_intraday_paper.py tests/test_intraday_schedule.py tests/test_intraday_cli.py \
-  tests/test_intraday_review_regressions.py tests/test_intraday_second_review.py
+  tests/test_intraday_review_regressions.py tests/test_intraday_second_review.py \
+  tests/test_intraday_policy.py
 ```
 
 These tests use synthetic bars and a scripted fake TWS. They need neither `ibapi` nor a

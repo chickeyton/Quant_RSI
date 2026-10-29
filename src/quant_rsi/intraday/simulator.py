@@ -11,12 +11,14 @@ import heapq
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from decimal import ROUND_FLOOR, ROUND_HALF_EVEN, Decimal
+from decimal import ROUND_FLOOR, Decimal
 
 import numpy as np
 
-from quant_rsi.intraday.contracts import CostModel, IntradayDevelopmentPlan
+from quant_rsi.intraday.contracts import CostModel, IntradayDevelopmentPlan, SignalPolicy
+from quant_rsi.intraday.costs import commission, money, price_decimal
 from quant_rsi.intraday.features import BarSource
+from quant_rsi.intraday.policy import entry_quantity
 from quant_rsi.intraday.storage import VALID, Block
 from quant_rsi.intraday.timing import (
     NO_INDEX,
@@ -31,20 +33,7 @@ from quant_rsi.intraday.timing import (
 PriceKey = tuple[str, int, int]  # (target, session_index, decision bar)
 
 
-def money(value: Decimal, costs: CostModel) -> Decimal:
-    return value.quantize(Decimal(1).scaleb(-costs.currency_precision), rounding=ROUND_HALF_EVEN)
-
-
-def price_decimal(value: float) -> Decimal:
-    return Decimal(repr(round(float(value), 6)))
-
-
-def commission(quantity: int, notional: Decimal, costs: CostModel) -> Decimal:
-    """IBKR fixed per-share: per-share rate, per-order minimum, capped at a notional fraction."""
-    raw = Decimal(costs.commission_per_share) * quantity
-    raw = max(raw, Decimal(costs.min_commission))
-    raw = min(raw, notional * Decimal(costs.max_commission_fraction))
-    return money(raw, costs)
+__all__ = ["commission", "fill_price", "money", "price_decimal", "simulate"]
 
 
 def fill_price(
@@ -103,6 +92,7 @@ class SimulationResult:
     spread_fallbacks: int
     cancelled_entries: int
     initial_capital: Decimal
+    declined_entries: int = 0
 
     def metrics(self, sessions_per_year: int = 252) -> dict:
         returns = [s.net_return for s in self.sessions]
@@ -132,6 +122,7 @@ class SimulationResult:
             ),
             "spread_fallbacks": self.spread_fallbacks,
             "cancelled_entries": self.cancelled_entries,
+            "policy_declined_entries": self.declined_entries,
         }
 
 
@@ -220,17 +211,18 @@ class _Session:
             occupied = len(self.positions) + len(self.pending_entries)
             if score <= signal.entry_threshold or occupied >= signal.max_positions:
                 continue
-            self.schedule_entry(instrument, t)
+            self.schedule_entry(instrument, t, score)
 
-    def schedule_entry(self, instrument: str, t: int) -> None:
+    def schedule_entry(self, instrument: str, t: int, score: float) -> None:
         signal = self.sim.plan.signal
         decision = self.decision[instrument]
         if decision is None or decision.columns["status"][t] != VALID:
             return
         reference = price_decimal(decision.columns["close"][t])
-        budget = self.start_cash * Decimal(signal.notional_fraction)
-        lots = (budget / reference / signal.lot_size).to_integral_value(rounding=ROUND_FLOOR)
-        quantity = int(lots) * signal.lot_size
+        quantity = entry_quantity(signal, self.sim.plan.costs, score, reference, self.start_cash)
+        if quantity is None:
+            self.sim.declined_entries += 1
+            return
         execution = self.execution[instrument]
         index = (
             NO_INDEX
@@ -415,7 +407,7 @@ class Simulator:
         self.fills: list[dict] = []
         self.round_trips: list[dict] = []
         self.eligible_bars = self.scored_bars = 0
-        self.spread_fallbacks = self.cancelled_entries = 0
+        self.spread_fallbacks = self.cancelled_entries = self.declined_entries = 0
 
     def block(self, instrument, grid, session):
         return self.source.block(instrument, grid, session.session_id)
@@ -440,6 +432,7 @@ class Simulator:
             self.spread_fallbacks,
             self.cancelled_entries,
             capital,
+            self.declined_entries,
         )
 
 
@@ -449,6 +442,10 @@ def simulate(
     predictions: Mapping[PriceKey, float],
     session_indices: Sequence[int],
     capital: Decimal | None = None,
+    signal: SignalPolicy | None = None,
 ) -> SimulationResult:
+    """Replay `session_indices`; `signal` replaces the plan's policy (policy calibration)."""
     start = Decimal(plan.initial_capital) if capital is None else capital
+    if signal is not None:
+        plan = plan.model_copy(update={"signal": signal})
     return Simulator(source, plan, predictions).run(session_indices, start)

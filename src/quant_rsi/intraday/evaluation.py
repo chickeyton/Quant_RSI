@@ -5,15 +5,19 @@ sessions only, predicts its test sessions without touching their labels, and rep
 through the trusted simulator. Ranking is the median across folds of mean net return per
 session; eligibility (minimum trades, prediction coverage, no unresolved sessions) is a
 candidate-validity outcome, not an evidence status.
+
+With a `policy_search`, each fold first learns its trading policy from its own training
+sessions (`calibration.choose_policy`), then replays its test sessions with that policy.
 """
 
 from decimal import Decimal
 
 import numpy as np
 
+from quant_rsi.intraday.calibration import choose_policy, row_predictions
 from quant_rsi.intraday.contracts import IntradayDevelopmentPlan, validate_timing
 from quant_rsi.intraday.features import BarSource, build_features, validate_leaves
-from quant_rsi.intraday.model import fit, label_vector, predict, walk_forward_folds
+from quant_rsi.intraday.model import fit, label_vector, walk_forward_folds
 from quant_rsi.intraday.simulator import simulate
 
 
@@ -37,14 +41,9 @@ def evaluate_development(source: BarSource, plan: IntradayDevelopmentPlan) -> di
             seed=plan.seed,
             min_rows=plan.min_training_rows,
         )
-        scores = predict(model.model_text, table.values[test], table.names)
-        predictions = {
-            (row[0], row[2], row[3]): float(score)
-            for row, score in zip(
-                (r for r, keep in zip(table.rows, test, strict=True) if keep), scores, strict=True
-            )
-        }
-        result = simulate(source, plan, predictions, fold.test_sessions)
+        choice = choose_policy(source, plan, table, targets, fold.train_sessions)
+        predictions = row_predictions(model, table, test)
+        result = simulate(source, plan, predictions, fold.test_sessions, signal=choice.signal)
         metrics = result.metrics(plan.sessions_per_year)
         reasons = []
         if metrics["round_trips"] < plan.min_trades_per_fold:
@@ -64,6 +63,7 @@ def evaluate_development(source: BarSource, plan: IntradayDevelopmentPlan) -> di
                 "test_sessions": [sessions[i].session_id for i in fold.test_sessions],
                 "model_digest": model.model_digest,
                 "training_rows": model.training_rows,
+                "policy": choice.report([s.session_id for s in sessions]),
                 "metrics": metrics,
                 "ineligible_reasons": reasons,
             }

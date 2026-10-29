@@ -13,6 +13,7 @@ exists under `src/quant_rsi/brokers/` and `src/quant_rsi/intraday/`; see the
 [operating guide](intraday_ibkr.md). It covers:
 - the IBKR adapter, paper guard and pacing;
 - intraday snapshots and timing, features and the fixed model;
+- the learnable trading policy and its nested calibration (section 5.7);
 - the replay simulator and development evaluation;
 - paper episodes and the forward schedule.
 
@@ -420,12 +421,12 @@ missing until the warm-up completes.
   session, so a fold boundary needs no intra-session purge. An optional embargo of
   `embargo_sessions` (default 1) is registered. Dependence clusters are whole sessions,
   and uncertainty uses block resampling over sessions.
-- **Signal to position:** long-only in v1. Go long when `score > entry_threshold`, where
-  the threshold is at least the round-trip cost estimate in return units. Exit when the
-  score falls below `exit_threshold`, after `H` decision bars, or at `flatten_at`,
-  whichever comes first. Position size is a fixed notional fraction, rounded to lots.
-  The architecture specification calls for an explicit long-only start; short selling
-  is a later registered extension.
+- **Signal to position:** long-only in v1. Go long when the score clears the entry
+  hurdle, exit when the score falls below `exit_threshold`, after `H` decision bars, or
+  at `flatten_at`, whichever comes first. The hurdle, the size and both thresholds are
+  set by the trading policy, which can be learned (section 5.7). The architecture
+  specification calls for an explicit long-only start; short selling is a later
+  registered extension.
 - **Missing predictions.** The existing `predict_fixed` raises on any non-finite feature.
   The intraday path does not pass missing values to the model and does not convert them
   to cash:
@@ -483,6 +484,126 @@ Add an `IntradayDataSpec` with its own bounds rather than reusing C2's 24–1000
 - a total row limit per job, for example 2,000,000 instrument-bars.
 
 Workers get a memory limit to match. Larger runs need a new registered plan.
+
+### 5.7 Learnable trading policy
+
+The model predicts the `H`-bar forward return; it does not trade. A **trading policy**
+turns each finite prediction into an entry quantity, or no entry. Intraday strategies
+usually lose more to costs than to bad predictions, so the policy's main job is to decide
+when **not** to trade and how much to risk. v1 makes that policy learnable with a small,
+registered parameter grid rather than a separate policy model.
+
+**Why not an end-to-end policy model.** A reinforcement-learning or directly
+P&L-optimised policy has far more free parameters than one year of 5-minute bars (about
+20,000 decisions per instrument) can constrain, and P&L rewards are noisier than return
+labels. It would learn the backtest. It would also break the guarantee that the replay
+simulator and the paper runner trade the same strategy. It may be revisited once a simple
+policy has shown a profit on reserved sessions and much more data is available.
+
+**Policy fields** (`SignalPolicy`, sealed with the strategy):
+
+| Field | Values | Meaning |
+| --- | --- | --- |
+| `entry_rule` | `fixed_threshold` (default), `net_of_cost` | Hurdle is `entry_threshold`, or `entry_threshold` plus the estimated round-trip cost |
+| `entry_threshold`, `exit_threshold` | Returns | Entry margin and early-exit level; `exit_threshold <= entry_threshold` |
+| `sizing` | `fixed_fraction` (default), `edge_scaled` | Full `notional_fraction`, or scaled by how far the score clears the hurdle |
+| `full_size_edge` | Return in (0, 1] | `edge_scaled` only: the edge above the hurdle that earns the full size |
+
+The defaults reproduce the earlier fixed policy exactly.
+
+**Entry rule** (`policy.entry_quantity`, called by both the simulator and the paper
+runner, using only the score, the decision bar's close and the session's starting
+equity):
+
+1. `full = lots(equity × notional_fraction / close)`. If `full` is 0, the entry is
+   cancelled, as before.
+2. `round_trip_cost(q) = 2 × commission(q) / notional(q) + assumed_spread_bps / 10⁴`:
+   IBKR per-share commission with its minimum and cap on entry and exit, plus one full
+   assumed spread. It is an estimate for the full order at the decision bar's close: a
+   fill reduced by the participation cap pays a larger commission share than estimated,
+   and the actual spread can differ from `assumed_spread_bps`.
+3. `hurdle = entry_threshold`, plus `round_trip_cost(full)` under `net_of_cost`. If
+   `score <= hurdle`, the policy declines.
+4. Under `edge_scaled`, `q = lots(full budget × min(1, (score − hurdle) / full_size_edge))`.
+   A smaller order pays a larger commission share, so the hurdle is checked again at `q`.
+   If `q` is 0 or the check fails, the policy declines.
+
+A declined entry is recorded (`policy_declined_entries` in the simulator,
+`entry_declined` in the paper journal); it is not a cancelled order.
+
+**Policy search** (`IntradayDevelopmentPlan.policy_search`, optional):
+
+```python
+class PolicySearch(StrictModel):
+    entry_thresholds: tuple[float, ...]   # 1-8 values
+    exit_thresholds: tuple[float, ...]    # 1-8 values; pairs with exit > entry are skipped
+    full_size_edges: tuple[float, ...]    # searched exactly when sizing is edge_scaled
+    calibration_sessions: int             # 5-250
+    min_calibration_trades: int
+```
+
+- The grid holds at most 64 candidates, in registered order. `entry_rule` and `sizing`
+  are declared, not searched.
+- `H` is **not** searched. Changing `H` changes the label, so it is a model change and
+  stays a declared C4 intervention.
+- The plan's `signal` is the fallback when no candidate is eligible.
+- Plan validation checks that the first (smallest) fold's training block holds the
+  calibration sessions, the embargo before them and at least one inner training session.
+
+**Nested calibration** (`calibration.choose_policy`). The policy is learned inside each
+training block, so it never sees the sessions it is scored on:
+
+```mermaid
+flowchart LR
+    subgraph TRN["Training sessions of one outer fold"]
+        IN["Inner training sessions"] --> EM1["embargo"] --> CAL["Last calibration_sessions"]
+    end
+    TRN --> EM2["fold embargo"] --> TEST["Test sessions"]
+    IN -->|"fit model"| M1["Inner model"]
+    M1 -->|"predict"| CAL
+    CAL -->|"replay every grid candidate"| PICK{"Best eligible mean<br/>net return per session"}
+    PICK --> POL["Chosen policy"]
+    TRN -->|"fit model on all training sessions"| M2["Fold model"]
+    M2 --> TEST
+    POL --> TEST
+```
+
+1. Split the training block: the last `calibration_sessions` are held out, and the inner
+   training sessions end `embargo_sessions` before them.
+2. Fit the fixed LightGBM recipe on the inner sessions and predict the calibration
+   sessions.
+3. Replay every candidate on those predictions with the trusted simulator.
+4. A candidate is eligible if it has no unresolved session and at least
+   `min_calibration_trades` round trips. The eligible candidate with the highest mean net
+   return per session wins; ties go to the earlier candidate. With none eligible, the
+   declared `signal` is used and recorded as `declared_fallback`.
+5. The fold's model is then fitted on the whole training block, as before, and its test
+   sessions are replayed with the chosen policy.
+
+Each fold report records the source (`declared`, `calibrated`, `declared_fallback`), the
+chosen policy fields, the calibration sessions and every candidate's calibration result.
+
+**Known limitation.** The policy is chosen on predictions from the inner model, but trades
+on predictions from the model fitted on the whole training block. Both predict the same
+return, so the thresholds keep their meaning, but the spread of predictions can differ.
+Evaluation uses exactly this procedure, so each fold's test result already includes the
+effect; it is not hidden.
+
+**Final fit.** `fit` runs the same procedure with the whole snapshot as the training
+block: it learns the policy on the snapshot's last `calibration_sessions`, fits the final
+model on all sessions, and prints the chosen `signal` with its SHA-256 (optionally
+writing it with `--policy-output`). The paper plan registers that `signal` together with
+`signal_sha256`. A plan whose `signal` does not match its digest is refused, so the policy
+cannot be edited by hand after `fit`, just as the model is checked against
+`model_sha256`.
+
+**Selection-bias controls.**
+- The grid is small and registered before any calibration.
+- The policy is learned only from sessions inside the training block, so each fold's test
+  result is an out-of-sample estimate of the whole procedure (model plus policy).
+- Every candidate's calibration result is reported, not just the winner's.
+- The C5 protected comparison scores the sealed model and policy together on reserved
+  sessions, under the temporal ordering rule (section 7).
 
 ## 6. Simulated trading
 
@@ -648,7 +769,7 @@ implementation covers today.
 flowchart TD
     A["1. Collect: IBKR history -> immutable intraday snapshot"] --> B["2. Plan: IntradayDevelopmentPlan + budget"]
     B --> C["3. C2 inner loop: intraday factor grammar, fixed LightGBM"]
-    C --> D["4. Trusted replay simulator: net session P&L, costs"]
+    C --> D["4. Trusted replay simulator: learned policy, net session P&L, costs"]
     D -->|"filtered development feedback"| C
     D --> E["5. C4: research-program patch, paired arms"]
     E --> F["6. C5: protected comparison on reserved session blocks"]
@@ -709,7 +830,7 @@ paper episode trade the same strategy (section 5.3).
 | 2 Plan | `DevelopmentPlan`, budget ledger | `IntradayDevelopmentPlan` (grid, H, folds, thresholds, costs, bounds) |
 | 3 C2 | `factors/discovery.py` frontier, journal, worker | Intraday leaf catalog (section 5.4), intraday feature view and mask |
 | 4 Evaluate | `execution_account.py` accounting | Intraday fill and cost model, session-flat accounting, session-block metrics |
-| 5 C4 | `research/package_experiment.py`, trajectory | Patch targets: leaf set, H, thresholds, frontier policy (allowlisted fields only) |
+| 5 C4 | `research/package_experiment.py`, trajectory | Patch targets: leaf set, H, policy rule and search grid, frontier policy (allowlisted fields only) |
 | 6 C5 | `evaluation/protected_scoring.py`, evidence ledger | Reserved session blocks; TaskWeightManifest by session mass |
 | 7 Seal | `execution/baseline.py` | Intraday bundle fields (grid, execution grid, latencies, H, flatten rule, cost model version) |
 | 8 Paper | Observer journal, CAS checkpoints, stop semantics | `intraday_paper.py`, `brokers/ibkr/orders.py`, stream, guard, `ForwardSessionSchedule` |
@@ -810,7 +931,9 @@ computes this list, and `validate_temporal_order` rejects a batch that breaks it
   data comes before them, as the temporal ordering rule requires. Later cycles reserve
   from accumulated `reserved_protected` blocks under the same rule.
 - **What the cycle can change.** Next-cycle changes include cost assumptions calibrated
-  from shortfall on development sessions only, a new leaf set and a new H. Each change is
+  from shortfall on development sessions only, a new leaf set, a new H, and a new policy
+  rule or search grid (section 5.7). Within a cycle, the policy is re-learned
+  automatically by nested calibration; between cycles, its rule and grid are declared. Each change is
   a declared intervention in the new cycle's plan, never an edit to an existing plan.
 - **Two separate decisions per cycle.** The architecture keeps researcher promotion and
   strategy release apart, so each cycle records both:

@@ -13,12 +13,12 @@ import sqlite3
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
-from decimal import ROUND_FLOOR, Decimal
+from decimal import Decimal
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
 import numpy as np
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime, Field, model_validator
 
 from quant_rsi.brokers.contracts import BrokerEvent, OrderIntent
 from quant_rsi.brokers.ibkr.connection import IbkrSession
@@ -35,6 +35,7 @@ from quant_rsi.intraday.contracts import (
 )
 from quant_rsi.intraday.features import session_features, validate_leaves
 from quant_rsi.intraday.model import predict
+from quant_rsi.intraday.policy import entry_quantity, signal_digest
 from quant_rsi.intraday.risk import RiskLimits, RiskState, evaluate
 from quant_rsi.intraday.schedule import ForwardSessionSchedule
 from quant_rsi.intraday.simulator import fill_price
@@ -61,6 +62,7 @@ class PaperPlan(StrictModel):
     purpose: Literal["observational_baseline_only", "released_to_paper"]
     snapshot_ref: str = Field(pattern=r"^[0-9a-f]{64}$")
     model_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    signal_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     leaves: tuple[str, ...]
     context_missing_tolerance: int = Field(ge=0, le=12)
     timing: ExecutionTiming
@@ -72,6 +74,13 @@ class PaperPlan(StrictModel):
     schedule: ForwardSessionSchedule
     expires_at: AwareDatetime
     max_lag_seconds: int = Field(gt=0, le=3600)
+
+    @model_validator(mode="after")
+    def sealed_signal(self) -> Self:
+        # `fit` prints the learned policy with this digest; an edited copy is refused.
+        if signal_digest(self.signal) != self.signal_sha256:
+            raise ValueError("signal does not match signal_sha256; copy both from `fit`")
+        return self
 
 
 # Journal ---------------------------------------------------------------------------------------
@@ -720,10 +729,17 @@ class PaperRunner:
             if decision.columns["status"][t] != VALID:
                 continue  # quantities come only from a valid decision-bar close
             close = Decimal(repr(round(float(decision.columns["close"][t]), 6)))
-            budget = self.session_start_equity * Decimal(signal.notional_fraction)
-            lots = (budget / close / signal.lot_size).to_integral_value(rounding=ROUND_FLOOR)
-            quantity = int(lots) * signal.lot_size
-            if quantity > 0:
+            quantity = entry_quantity(
+                signal, self.plan.costs, score, close, self.session_start_equity
+            )
+            if quantity is None:
+                self.journal.append(
+                    self.episode,
+                    "entry_declined",
+                    now,
+                    {"instrument": target, "bar": t, "score": score, "rule": signal.entry_rule},
+                )
+            elif quantity > 0:
                 self._new_intent(
                     target, "buy", "entry", quantity, close, t, int(self.timing.fill_start[t])
                 )

@@ -17,7 +17,9 @@
     "lot_size": 1,
     "flatten_offset_seconds": 900,
     "halt_missing_bars": 3,
-    "overnight_policy": "flat"
+    "overnight_policy": "flat",
+    "entry_rule": "net_of_cost",
+    "sizing": "fixed_fraction"
   },
   "costs": {
     "policy": "ibkr_fixed_per_share",
@@ -43,5 +45,11 @@
   "min_prediction_coverage": 0.9,
   "context_missing_tolerance": 0,
   "allow_cross_session_lookback": false,
-  "sessions_per_year": 252
+  "sessions_per_year": 252,
+  "policy_search": {
+    "entry_thresholds": [0.0, 0.0005, 0.001, 0.002],
+    "exit_thresholds": [-0.001, -0.0005, 0.0],
+    "calibration_sessions": 25,
+    "min_calibration_trades": 10
+  }
 }

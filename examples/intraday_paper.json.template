@@ -4,6 +4,7 @@
   "purpose": "observational_baseline_only",
   "snapshot_ref": "SNAPSHOT_SHA256",
   "model_sha256": "MODEL_SHA256",
+  "signal_sha256": "SIGNAL_SHA256",
   "leaves": [
     "ret_1",
     "ret_3",
@@ -40,7 +41,9 @@
     "lot_size": 1,
     "flatten_offset_seconds": 900,
     "halt_missing_bars": 3,
-    "overnight_policy": "flat"
+    "overnight_policy": "flat",
+    "entry_rule": "net_of_cost",
+    "sizing": "fixed_fraction"
   },
   "costs": {
     "policy": "ibkr_fixed_per_share",

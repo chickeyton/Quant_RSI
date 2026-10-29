@@ -14,6 +14,7 @@ from quant_rsi.intraday.__main__ import main
 from quant_rsi.intraday.contracts import IntradayDevelopmentPlan
 from quant_rsi.intraday.live import run_session
 from quant_rsi.intraday.paper import EpisodeJournal, LiveFeed, PaperPlan, PaperRunner
+from quant_rsi.intraday.policy import signal_digest
 from quant_rsi.intraday.profile import IntradayWorkflowConfig
 from quant_rsi.intraday.schedule import anchor_for
 
@@ -116,6 +117,7 @@ def test_run_session_with_silent_feed_closes_session_and_reconciles(tmp_path):
             "purpose": "observational_baseline_only",
             "snapshot_ref": ref,
             "model_sha256": model.model_digest,
+            "signal_sha256": signal_digest(development.signal),
             "leaves": development.leaves,
             "context_missing_tolerance": 0,
             "timing": development.timing,

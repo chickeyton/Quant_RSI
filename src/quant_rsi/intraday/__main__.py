@@ -120,22 +120,39 @@ def cmd_evaluate(args) -> int:
 
 
 def cmd_fit(args) -> int:
+    from quant_rsi.intraday.calibration import choose_policy
     from quant_rsi.intraday.features import build_features
     from quant_rsi.intraday.model import fit, label_vector
+    from quant_rsi.intraday.policy import signal_digest
     from quant_rsi.intraday.storage import SnapshotStore
 
     snapshot = SnapshotStore(Path(args.store)).load(args.snapshot)
     plan = _plan(args.plan)
     table = build_features(snapshot, plan.leaves, context_tolerance=plan.context_missing_tolerance)
+    targets = label_vector(snapshot, table, plan)
+    # The policy is learned on the snapshot's last sessions before the final model sees them.
+    sessions = snapshot.contract.calendar.sessions
+    choice = choose_policy(snapshot, plan, table, targets, tuple(range(len(sessions))))
     model = fit(
         table.values,
-        label_vector(snapshot, table, plan),
+        targets,
         table.names,
         seed=plan.seed,
         min_rows=plan.min_training_rows,
     )
     Path(args.output).write_text(model.model_text, encoding="utf-8", newline="\n")
-    _print({"model_sha256": model.model_digest, "training_rows": model.training_rows})
+    signal = choice.signal.model_dump(mode="json")
+    if args.policy_output:
+        Path(args.policy_output).write_bytes(canonical(signal))
+    _print(
+        {
+            "model_sha256": model.model_digest,
+            "training_rows": model.training_rows,
+            "signal": signal,
+            "signal_sha256": signal_digest(choice.signal),
+            "policy": choice.report([s.session_id for s in sessions]),
+        }
+    )
     return 0
 
 
@@ -230,7 +247,7 @@ def parser() -> argparse.ArgumentParser:
         for option in options:
             command.add_argument(
                 f"--{option}",
-                required=option != "delayed",
+                required=option not in {"delayed", "policy-output"},
                 action="store_true" if option == "delayed" else None,
             )
         command.set_defaults(func=func)
@@ -239,7 +256,7 @@ def parser() -> argparse.ArgumentParser:
     add("resolve", cmd_resolve, "config", "profile", "output")
     add("collect", cmd_collect, "config", "profile", "bindings", "calendar", "store", "delayed")
     add("evaluate", cmd_evaluate, "store", "snapshot", "plan")
-    add("fit", cmd_fit, "store", "snapshot", "plan", "output")
+    add("fit", cmd_fit, "store", "snapshot", "plan", "output", "policy-output")
     add("paper-register", cmd_paper_register, "config", "store", "paper-plan", "model", "journal")
     add(
         "paper-run",

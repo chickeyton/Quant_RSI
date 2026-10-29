@@ -113,6 +113,12 @@ class SignalPolicy(StrictModel):
     flatten_offset_seconds: int = Field(ge=0, le=7200)
     halt_missing_bars: int = Field(ge=1, le=78)
     overnight_policy: Literal["flat"]
+    # "net_of_cost" adds the estimated round-trip cost to entry_threshold (design 5.7).
+    entry_rule: Literal["fixed_threshold", "net_of_cost"] = "fixed_threshold"
+    # "edge_scaled" sizes by how far the score clears the hurdle, reaching the full
+    # notional_fraction at full_size_edge.
+    sizing: Literal["fixed_fraction", "edge_scaled"] = "fixed_fraction"
+    full_size_edge: float | None = Field(default=None, gt=0, le=1)
 
     @field_validator("notional_fraction")
     @classmethod
@@ -123,6 +129,38 @@ class SignalPolicy(StrictModel):
     def thresholds(self) -> Self:
         if self.exit_threshold > self.entry_threshold:
             raise ValueError("exit threshold must not exceed the entry threshold")
+        if (self.sizing == "edge_scaled") != (self.full_size_edge is not None):
+            raise ValueError("full_size_edge is required by, and only by, edge_scaled sizing")
+        return self
+
+
+MAX_POLICY_CANDIDATES = 64
+
+
+class PolicySearch(StrictModel):
+    """Registered grid of policy parameters, chosen on calibration sessions (design 5.7).
+
+    The horizon is not searched: changing H changes the label, so it is a model change.
+    """
+
+    entry_thresholds: tuple[float, ...] = Field(min_length=1, max_length=8)
+    exit_thresholds: tuple[float, ...] = Field(min_length=1, max_length=8)
+    full_size_edges: tuple[float, ...] = Field(default=(), max_length=8)
+    calibration_sessions: int = Field(ge=5, le=250)
+    min_calibration_trades: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def bounded(self) -> Self:
+        for values in (self.entry_thresholds, self.exit_thresholds, self.full_size_edges):
+            if len(set(values)) != len(values):
+                raise ValueError("policy grid values must be unique")
+        if any(not 0 < edge <= 1 for edge in self.full_size_edges):
+            raise ValueError("full_size_edges must be in (0, 1]")
+        pairs = sum(x <= e for e in self.entry_thresholds for x in self.exit_thresholds)
+        if not pairs:
+            raise ValueError("no exit threshold is at or below any entry threshold")
+        if pairs * max(1, len(self.full_size_edges)) > MAX_POLICY_CANDIDATES:
+            raise ValueError(f"policy grid exceeds {MAX_POLICY_CANDIDATES} candidates")
         return self
 
 
@@ -150,6 +188,9 @@ class IntradayDevelopmentPlan(StrictModel):
     context_missing_tolerance: int = Field(ge=0, le=12)
     allow_cross_session_lookback: Literal[False]
     sessions_per_year: Literal[252]
+    # None keeps `signal` fixed; otherwise `signal` is the fallback when no candidate is
+    # eligible on the calibration sessions.
+    policy_search: PolicySearch | None = None
 
     @field_validator("initial_capital")
     @classmethod
@@ -160,4 +201,17 @@ class IntradayDevelopmentPlan(StrictModel):
     def unique_leaves(self) -> Self:
         if len(set(self.leaves)) != len(self.leaves):
             raise ValueError("duplicate feature leaf")
+        search = self.policy_search
+        if search is None:
+            return self
+        if (self.signal.sizing == "edge_scaled") != bool(search.full_size_edges):
+            raise ValueError("full_size_edges must be searched exactly when sizing is edge_scaled")
+        # The first fold has the fewest training sessions; it must still hold the calibration
+        # sessions, an embargo before them, and at least one inner training session.
+        first_train = self.folds.first_test_session - self.folds.embargo_sessions
+        if first_train - search.calibration_sessions - self.folds.embargo_sessions <= 0:
+            raise ValueError(
+                f"the first fold's {first_train} training sessions cannot hold "
+                f"{search.calibration_sessions} calibration sessions plus the embargo"
+            )
         return self
