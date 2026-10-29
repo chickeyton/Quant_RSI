@@ -89,6 +89,7 @@ they do not yet form the complete outcome-driven research loop.
 | News and financial evidence | Retained KO title indicators can enter opt-in comparisons/discovery; other evidence remains sidecar-only |
 | Active news search and extraction | Proposed in [RFC #28](https://github.com/natureofnature/Quant_RSI/issues/28) |
 | Statistical confirmation and promotion | Incomplete; protected evaluation is engineering-only and retains the incumbent |
+| Intraday bars, model and IBKR paper trading | Standalone, offline-tested: IBKR adapter with a paper-only guard, intraday snapshots, fixed LightGBM development evaluation, replay simulator and paper-account episodes. Not yet wired into the C2/C4/C5 controller or `quant-rsi`; see the [intraday guide](docs/intraday_ibkr.md) |
 | Live trading and general self-modification | Not implemented |
 
 Older guides use project-local labels: **M0** is fixed-model execution, **C2** is
@@ -180,6 +181,7 @@ it is not a declaration that every capability is implemented.
 | Run a five-session baseline or enhanced comparison | [Baseline](docs/forecast_baseline.md), [enhanced workflow](docs/enhanced_forecast_workflow.md) |
 | Run bounded recursive market research | [Recursive market exploration](docs/recursive_market_exploration.md) |
 | Import local data or observe a sealed model | [Local data and observation](docs/local_observer.md) |
+| Collect IBKR intraday bars or run an IBKR paper episode | [Intraday and IBKR guide](docs/intraday_ibkr.md), [design](docs/intraday_ibkr_design.md) |
 | Understand protected engineering evaluation | [Evaluation protocol](docs/c5_protocol.md) |
 | Preserve versions and old experiment environments | [Version control](docs/version_control.md) |
 

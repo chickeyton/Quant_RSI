@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "episode_id": "ko-intraday-p1",
+  "purpose": "observational_baseline_only",
+  "snapshot_ref": "SNAPSHOT_SHA256",
+  "model_sha256": "MODEL_SHA256",
+  "leaves": [
+    "ret_1",
+    "ret_3",
+    "ret_6",
+    "ret_12",
+    "rv_12",
+    "rv_24",
+    "range",
+    "vol_z_20",
+    "vwap_dev",
+    "or_high_dist",
+    "or_low_dist",
+    "minutes_since_open",
+    "gap",
+    "rsi_14",
+    "ctx:XLP:ret_1",
+    "ctx:XLP:ret_6",
+    "ctx:SPY:ret_1",
+    "ctx:SPY:ret_6"
+  ],
+  "context_missing_tolerance": 0,
+  "timing": {
+    "decision_latency_seconds": 10,
+    "order_latency_seconds": 1,
+    "max_fill_delay_seconds": 120
+  },
+  "signal": {
+    "kind": "threshold_long_only",
+    "entry_threshold": 0.0015,
+    "exit_threshold": -0.0005,
+    "horizon_bars": 6,
+    "notional_fraction": "0.2",
+    "max_positions": 1,
+    "lot_size": 1,
+    "flatten_offset_seconds": 900,
+    "halt_missing_bars": 3,
+    "overnight_policy": "flat"
+  },
+  "costs": {
+    "policy": "ibkr_fixed_per_share",
+    "commission_per_share": "0.005",
+    "min_commission": "1",
+    "max_commission_fraction": "0.01",
+    "spread_policy": "mid_plus_half_spread",
+    "assumed_spread_bps": "2",
+    "participation_cap": "0.1",
+    "currency": "USD",
+    "currency_precision": 2
+  },
+  "capital": "100000",
+  "limit_offset_bps": "10",
+  "risk": {
+    "max_gross_notional": "25000",
+    "max_position_notional": "25000",
+    "max_orders_per_minute": 6,
+    "max_daily_loss_fraction": "0.01",
+    "max_consecutive_rejects": 3,
+    "max_clock_skew_seconds": 2.0
+  },
+  "schedule": {
+    "schema_version": 1,
+    "rule": "block_4w_dev_4w_reserved_v1",
+    "anchor_monday": "YYYY-MM-DD",
+    "development_weeks": 4,
+    "reserved_weeks": 4,
+    "embargo_sessions": 1
+  },
+  "expires_at": "YYYY-MM-DDT20:00:00+00:00",
+  "max_lag_seconds": 330
+}

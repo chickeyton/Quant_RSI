@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "plan_type": "intraday_development",
+  "training_mode": "M0",
+  "timing": {
+    "decision_latency_seconds": 10,
+    "order_latency_seconds": 1,
+    "max_fill_delay_seconds": 120
+  },
+  "signal": {
+    "kind": "threshold_long_only",
+    "entry_threshold": 0.0015,
+    "exit_threshold": -0.0005,
+    "horizon_bars": 6,
+    "notional_fraction": "0.2",
+    "max_positions": 1,
+    "lot_size": 1,
+    "flatten_offset_seconds": 900,
+    "halt_missing_bars": 3,
+    "overnight_policy": "flat"
+  },
+  "costs": {
+    "policy": "ibkr_fixed_per_share",
+    "commission_per_share": "0.005",
+    "min_commission": "1",
+    "max_commission_fraction": "0.01",
+    "spread_policy": "mid_plus_half_spread",
+    "assumed_spread_bps": "2",
+    "participation_cap": "0.1",
+    "currency": "USD",
+    "currency_precision": 2
+  },
+  "leaves": [
+    "ret_1", "ret_3", "ret_6", "ret_12", "rv_12", "rv_24", "range", "vol_z_20",
+    "vwap_dev", "or_high_dist", "or_low_dist", "minutes_since_open", "gap", "rsi_14",
+    "ctx:XLP:ret_1", "ctx:XLP:ret_6", "ctx:SPY:ret_1", "ctx:SPY:ret_6"
+  ],
+  "folds": {"first_test_session": 150, "test_sessions": 25, "folds": 3, "embargo_sessions": 1},
+  "seed": 7,
+  "initial_capital": "100000",
+  "min_training_rows": 500,
+  "min_trades_per_fold": 20,
+  "min_prediction_coverage": 0.9,
+  "context_missing_tolerance": 0,
+  "allow_cross_session_lookback": false,
+  "sessions_per_year": 252
+}
