@@ -17,7 +17,8 @@ quant-rsi research-demo KO
 See the [simulated research loop](docs/simulated_research_loop.md) to inspect its
 inputs and outputs. Use `--llm codex` with existing Codex CLI login, or
 `--llm api --llm-model MODEL_ID` with `OPENAI_API_KEY`, to replace just the
-hypothesis step. News, prices, predictions and observations remain simulated.
+hypothesis step. Add `--news issuer-rss` for KO's registered official RSS feed.
+Related stocks, prices, predictions and observations remain simulated.
 The existing bounded research engine remains available for real
 model experiments, budget accounting, strategy reports and replay.
 
@@ -72,7 +73,7 @@ The simulated product loop has one entry point:
 
 ```mermaid
 flowchart TD
-    A["Stock symbol"] --> B["Simulated related stocks and news"]
+    A["Stock symbol"] --> B["Related stocks: simulated; news: simulated / issuer RSS"]
     B --> C["Actual factor catalog definitions"]
     C --> D["LLM: choose factors (simulated / Codex / API)"]
     D --> E["Simulated model: first prediction"]
@@ -83,10 +84,10 @@ flowchart TD
 ```
 
 Factor selection actually changes the inputs of the next simulated prediction.
-The second prediction has no observed outcome yet. The numerical features,
-headlines, observations and model predictions remain simulated. Optional live
-LLM calls only supply hypotheses and factor selections; reading a real catalog
-or using a real LLM does not make these results market evidence.
+The second prediction has no observed outcome yet. Numerical contributions,
+observations and model predictions remain simulated. Optional issuer RSS supplies
+real titles/summaries; live LLM calls supply hypotheses and factor selections.
+Neither makes the simulated predictions evidence of market performance.
 
 For registered inputs and real LightGBM workers, use the separate
 [bounded research workflow](docs/research_workflow.md). It connects discovery,
@@ -100,7 +101,8 @@ at a time.
 | Capability | Status and boundary |
 | --- | --- |
 | Simulated product loop | One stock-symbol command shows context, catalog-based factor selection, prediction, feedback, revised selection and a second prediction; each simulated service can be replaced independently |
-| Live LLM hypotheses | Optional Codex CLI or OpenAI Responses API makes two independent calls with explicit feedback; all other demo services remain simulated |
+| Live LLM hypotheses | Optional Codex CLI or OpenAI Responses API makes two independent calls with explicit feedback; model predictions and observations remain simulated |
+| Live news in the product loop | Optional registered KO issuer RSS supplies bounded titles/summaries and source timestamps to both hypothesis calls; no general search, article fetching or peer news collection |
 | Bounded research workflow | One profile runs bounded discovery, costed per-fold strategy/buy-and-hold reports and linked forecast/paper observation; feedback uses development forecast MAE only |
 | Five-session price forecasting | Available for explicitly supported sources/markets; includes collection, fixed-model research, model sealing and replay |
 | Prospective forecast observation | Offline registration and append-only outcome settlement from observed market receipts; real prospective accumulation and outcome-driven policy updates remain outstanding |
@@ -149,9 +151,19 @@ To use your existing Codex CLI login for the two hypothesis calls:
 quant-rsi research-demo KO --llm codex
 ```
 
+To also supply real KO issuer news, use:
+
+```bash
+quant-rsi research-demo KO --news issuer-rss --news-limit 5 --llm codex
+```
+
 See the [demo guide](docs/simulated_research_loop.md#use-a-real-llm-for-hypotheses)
 for Codex prerequisites, API credentials/model selection and per-call timeout.
-Errors stop the run without silently falling back to simulated hypotheses.
+The [news section](docs/simulated_research_loop.md#use-real-issuer-news) explains
+coverage and limits. Errors stop the run without silently substituting simulated
+hypotheses or news. If testing an unmerged PR, follow the
+[dedicated worktree instructions](docs/simulated_research_loop.md#test-an-unmerged-feature)
+to run the new code without switching your existing checkout.
 
 When ready to run real model workers, the bounded engine has a separate example:
 
@@ -217,8 +229,8 @@ arbitrary generated code. Detailed contracts are in the
 
 1. Use the optional live LLM hypothesis step to inspect selection and feedback
    behavior while keeping the rest of the loop runnable with simulated services.
-2. Connect news tools, executable factor values and models individually, using
-   the same visible inputs and outputs to inspect each change.
+2. Use the bounded issuer RSS adapter, then connect broader news tools,
+   executable factor values and models individually, inspecting each change.
 3. Compare the resulting research methods under frozen tasks and budgets, using
    the native engine alongside compatible mature engines; measure useful results
    and the effort required to test a hypothesis.

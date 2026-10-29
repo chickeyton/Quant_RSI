@@ -44,6 +44,8 @@ def main(argv: list[str] | None = None) -> int:
     demo.add_argument("--llm", choices=("simulated", "codex", "api"), default="simulated")
     demo.add_argument("--llm-model", help="model ID; required for API, optional for Codex")
     demo.add_argument("--llm-timeout", type=float, default=180, help="seconds per LLM call")
+    demo.add_argument("--news", choices=("simulated", "issuer-rss"), default="simulated")
+    demo.add_argument("--news-limit", type=int, default=5, help="issuer RSS items to use (1-20)")
     workflow = commands.add_parser("research-workflow", help="one frozen research/account profile")
     workflow_commands = workflow.add_subparsers(dest="workflow_command", required=True)
     for name in ("prepare", "run"):
@@ -274,7 +276,15 @@ def main(argv: list[str] | None = None) -> int:
                 render_demo,
                 run_demo,
                 simulated_hypothesis,
+                simulated_news,
             )
+
+            news = simulated_news
+            if args.news == "issuer-rss":
+                from quant_rsi.research.demo_news import issuer_news
+
+                def news(context):
+                    return issuer_news(context, limit=args.news_limit)
 
             hypothesize = simulated_hypothesis
             if args.llm != "simulated":
@@ -282,7 +292,10 @@ def main(argv: list[str] | None = None) -> int:
 
                 hypothesize = LLMHypothesizer(args.llm, args.llm_model, args.llm_timeout)
             result = run_demo(
-                args.symbol, catalog=lambda: load_catalog(args.catalog), hypothesize=hypothesize
+                args.symbol,
+                catalog=lambda: load_catalog(args.catalog),
+                hypothesize=hypothesize,
+                news=news,
             )
             print(json.dumps(result, indent=2) if args.json else render_demo(result))
             return 0

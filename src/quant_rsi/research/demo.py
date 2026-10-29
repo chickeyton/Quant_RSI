@@ -182,14 +182,18 @@ def run_demo(
         hypothesis.get("provider") in {"codex_cli", "openai_api"}
         for hypothesis in (initial, revised)
     )
+    live_news = context["news"].get("provider") == "issuer_rss"
+    notice = "Product wiring demo. News, LLM, prices and predictions are simulated by default."
+    if live_llm or live_news:
+        notice = (
+            f"Product wiring demo with {'real' if live_llm else 'simulated'} LLM hypotheses "
+            f"and {'real issuer RSS' if live_news else 'simulated'} news. "
+            "Related stocks, prices, predictions and observations are simulated; "
+            "improvement is not evaluated."
+        )
     return {
-        "mode": "mixed" if live_llm else "simulation",
-        "notice": (
-            "Product wiring demo with real LLM hypotheses. Related stocks, news, prices, "
-            "predictions and observations are simulated; improvement is not evaluated."
-            if live_llm
-            else "Product wiring demo. News, LLM, prices and predictions are simulated by default."
-        ),
+        "mode": "mixed" if live_llm or live_news else "simulation",
+        "notice": notice,
         "target": symbol,
         "factor_revisions": 1,
         "trace": trace,
