@@ -165,3 +165,10 @@ account-return-driven research policy or established predictive advantage here.
 The next decision should use actual usability, validation cost and matched-budget
 comparisons with simple baselines and compatible mature engines. Negative returns
 and insufficient evidence remain legitimate outcomes.
+
+See the [ordinary strategy-change measurement](workflow_change_cost.md) for a
+same-input threshold change, its exact operating steps, all fold results and the
+remaining cost of refitting unchanged models.
+The [retained KO account diagnostic](retained_market_account_diagnostic.md) records
+a real-data limitation: unresolved dividend notices currently prevent a usable
+costed return comparison, despite the successful synthetic workflow.
