@@ -173,8 +173,13 @@ def _step(state, data, snapshot, rules, index, at, basis):
 def _metrics(state, rules):
     rows = state["valuations"]
     complete = bool(rows) and all(row["status"] == "complete" for row in rows)
-    complete = complete and not any(
-        reason.startswith("processed_evidence_corrected:") for reason in state["suspended_reasons"]
+    complete = (
+        complete
+        and not state["action_instruments"]
+        and not any(
+            reason.startswith("processed_evidence_corrected:")
+            for reason in state["suspended_reasons"]
+        )
     )
     initial = Decimal(rules.initial_cash)
     exposures = [row.get("exposure_fraction") for row in rows[1:]]
@@ -402,6 +407,10 @@ def advance_paper_strategy(
         state["observed_at"] = observed_at
         state["last_snapshot_ref"] = digest(canonical(snapshot))
         _corrected(state, data, snapshot, observed_at)
+        for name, value in state["accounts"].items():
+            state["accounts"][name] = _notices(
+                value, data, snapshot, observed_at, "observed_receipts"
+            )
         if state["status"] == "awaiting_submission_confirmation":
             for name, value in state["accounts"].items():
                 ids = [

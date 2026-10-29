@@ -353,3 +353,41 @@ def test_paper_missing_close_cannot_disappear_after_a_later_complete_mark():
     assert state["accounts"]["strategy"]["valuations"][2]["nav"] is None
     assert state["accounts"]["strategy"]["valuations"][-1]["nav"] == "991.00"
     assert state["metrics"]["strategy"]["net_return"] is None
+
+
+def test_late_action_after_completed_paper_report_preserves_entries_but_blocks_metrics():
+    data = market()
+    row, state = initialize_paper(data)
+    state = advance_paper_strategy(
+        data, row, rules(), previous=state, observed_at=utc_text(data.decision_at(5))
+    )
+    before = deepcopy(state["accounts"]["strategy"])
+    event = dict(
+        event_id="late-action",
+        revision=0,
+        kind="CORPORATE_ACTION_NOTICE",
+        instrument="A",
+        session_id=None,
+        event_at=utc_text(data.decision_at(2)),
+        source_available_at=utc_text(data.decision_at(2)),
+        price=None,
+        status=None,
+        action="split",
+        quality="valid",
+    )
+    data.snapshot["events"].append(
+        dict(
+            event=event,
+            payload_ref=digest(canonical(event)),
+            first_seen_at=utc_text(data.decision_at(6)),
+            receipt_seq=1,
+        )
+    )
+    revised = advance_paper_strategy(
+        data, row, rules(), previous=state, observed_at=utc_text(data.decision_at(6))
+    )
+    assert revised["accounts"]["strategy"]["fills"] == before["fills"]
+    assert revised["accounts"]["strategy"]["valuations"] == before["valuations"]
+    assert revised["metrics"]["strategy"]["status"] == "insufficient_evidence"
+    assert revised["metrics"]["strategy"]["net_return"] is None
+    assert state["metrics"]["strategy"]["net_return"] == "-0.009"
