@@ -37,6 +37,10 @@ def main(argv: list[str] | None = None) -> int:
         description="Bounded quant research and development observations"
     )
     commands = parser.add_subparsers(dest="command", required=True)
+    demo = commands.add_parser("research-demo", help="simulate one complete stock research loop")
+    demo.add_argument("symbol", nargs="?", default="KO")
+    demo.add_argument("--catalog", type=Path, default=Path("instruments/shared/equities.json"))
+    demo.add_argument("--json", action="store_true", help="emit the complete trace as JSON")
     workflow = commands.add_parser("research-workflow", help="one frozen research/account profile")
     workflow_commands = workflow.add_subparsers(dest="workflow_command", required=True)
     for name in ("prepare", "run"):
@@ -261,6 +265,12 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--steps", type=int, default=1)
     args = parser.parse_args(argv)
     try:
+        if args.command == "research-demo":
+            from quant_rsi.research.demo import load_catalog, render_demo, run_demo
+
+            result = run_demo(args.symbol, catalog=lambda: load_catalog(args.catalog))
+            print(json.dumps(result, indent=2) if args.json else render_demo(result))
+            return 0
         if args.command == "research-workflow":
             from quant_rsi.research import workflow
 
