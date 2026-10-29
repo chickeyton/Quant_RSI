@@ -67,20 +67,22 @@ flowchart TD
     E -->|"bounded search feedback"| C
     E --> F["Seal model and issue forecast"]
     E -.-> G["Planned: calibrated independent confirmation"]
-    F -.-> H["Planned: integrated outcome-driven research loop"]
+    F --> H["Register issuance and settle observed five-session outcomes"]
     H -.-> A
 ```
 
 Solid arrows show existing paths; dashed arrows show integrations still to build.
 Forecast publication does not imply independent confirmation or production
-promotion. Existing observation and recovery components support these goals, but
-they do not yet form the complete outcome-driven research loop.
+promotion. The [forecast observation ledger](docs/forecast_observations.md) links
+confirmed issuance to later market receipts and preserves outcome revisions.
+Feeding those outcomes into subsequent research decisions remains to be built.
 
 ## Current capabilities
 
 | Capability | Status and boundary |
 | --- | --- |
 | Five-session price forecasting | Available for explicitly supported sources/markets; includes collection, fixed-model research, model sealing and replay |
+| Prospective forecast observation | Offline registration and append-only outcome settlement from observed market receipts; real prospective accumulation and outcome-driven policy updates remain outstanding |
 | Enhanced forecast comparison | Available: three predefined price/context recipes, frozen folds, naive controls and a separate publication fit |
 | Bounded factor research | Available: momentum/mean-return neighbor search and limited, registered research-program changes |
 | Shared and instrument-specific factors | Numeric bindings can enter bounded discovery; general text definitions remain specifications |
@@ -159,8 +161,9 @@ arbitrary generated code. Detailed contracts are in the
    typed graphs and feedback-dependent research-policy changes.
 2. Extend [bounded issuer RSS observations](docs/news_collection.md) toward registered
    provider search, richer extraction and prospective evidence with honest coverage.
-3. Evaluate research changes under matched budgets, then connect independent
-   validation and prospective outcome recording to subsequent research decisions.
+3. Evaluate research changes under matched budgets, accumulate prospective outcomes
+   with the [observation ledger](docs/forecast_observations.md), then connect
+   independent validation and those outcomes to subsequent research decisions.
 
 Track the [architecture RFC #24](https://github.com/natureofnature/Quant_RSI/issues/24),
 [factor-tree issue #8](https://github.com/natureofnature/Quant_RSI/issues/8),
@@ -181,6 +184,7 @@ it is not a declaration that every capability is implemented.
 | Run a five-session baseline or enhanced comparison | [Baseline](docs/forecast_baseline.md), [enhanced workflow](docs/enhanced_forecast_workflow.md) |
 | Run bounded recursive market research | [Recursive market exploration](docs/recursive_market_exploration.md) |
 | Import local data or observe a sealed model | [Local data and observation](docs/local_observer.md) |
+| Register a published forecast and settle its observed outcome | [Forecast observations](docs/forecast_observations.md) |
 | Understand protected engineering evaluation | [Evaluation protocol](docs/c5_protocol.md) |
 | Preserve versions and old experiment environments | [Version control](docs/version_control.md) |
 
