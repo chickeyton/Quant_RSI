@@ -35,11 +35,13 @@ arm, with failures retained and no new allowance on replay.
 | Account decisions changed | All eight historical fold/recipe decisions, from long to cash |
 | Fit attempts | Baseline 10; candidate 10; replay added zero |
 | Failed fits | Zero in both arms; no attempts omitted |
-| Operator steps | 10: generate once, derive candidate once, four CLI operations per arm |
+| Documented workflow operations | 10: generate once, derive candidate once, four CLI operations per arm |
 | Hands-on human time | Not measured; command wall time is not a substitute |
 
-The operator count excludes environment setup and the measurement wrapper. It
-does not count automated subprocesses as separate human actions. The existing
+This is a logical workflow count, not a measured count of human interactions.
+The actual wrapper invoked nine external commands and derived the candidate
+configuration internally. Environment setup and worker subprocesses are excluded;
+actual manual interactions were not measured. The existing
 `status` output is verbose JSON; the Markdown `report` is the readable view.
 
 | Operation | Baseline | Changed threshold |
