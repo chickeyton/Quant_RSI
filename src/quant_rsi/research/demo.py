@@ -61,7 +61,14 @@ def simulated_hypothesis(context, library, *, previous=None, feedback=None):
         available = [item["factor_id"] for item in library["definitions"]]
         factors = available[:1] if previous is None else available[1:]
         reason = "Try a numeric recipe, then change the numeric selection after model feedback."
+    proposal = {}
+    if context.get("allow_factor_proposals"):
+        op = "qlib_ma_v1" if previous else "momentum"
+        factors = [f"research.{op}_10"]
+        reason = "Simulated researcher proposes a bounded recipe, then revises after feedback."
+        proposal = {"proposed_factors": [{"op": op, "window": 10, "description": reason}]}
     return {
+        **proposal,
         "provider": "simulated_llm",
         "hypothesis": reason,
         "evidence_news_ids": [item["id"]],
@@ -137,6 +144,7 @@ def run_demo(
     observe=simulated_observe,
     summarize=simulated_summary,
     price_context=None,
+    on_stage=None,
 ):
     """One factor revision, no network, fits, workspace or persistence by default.
 
@@ -151,6 +159,8 @@ def run_demo(
 
     def record(stage, value):
         trace.append({"stage": stage, "output": deepcopy(value)})
+        if on_stage is not None:
+            on_stage(deepcopy(trace[-1]))
         return value
 
     record("target", {"provider": "simulated_price_context", **context})
@@ -158,6 +168,10 @@ def run_demo(
     context["news"] = record("news", news(deepcopy(context)))
     library = record("factor_library", catalog())
     initial = record("initial_hypothesis", hypothesize(deepcopy(context), deepcopy(library)))
+    if context.get("allow_factor_proposals"):
+        from quant_rsi.research.demo_proposals import extend_library
+
+        library = record("initial_factor_library", extend_library(library, initial))
     factors = record("initial_factors", select_factors(library, initial))
     first = record("first_prediction", predict(deepcopy(context), factors, deepcopy(initial)))
     observed = observe(deepcopy(context), deepcopy(first))
@@ -179,6 +193,8 @@ def run_demo(
             feedback=deepcopy(feedback),
         ),
     )
+    if context.get("allow_factor_proposals"):
+        library = record("revised_factor_library", extend_library(library, revised))
     factors = record("revised_factors", select_factors(library, revised))
     second = record("second_prediction", predict(deepcopy(context), factors, deepcopy(revised)))
     summary = record(

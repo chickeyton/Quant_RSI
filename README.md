@@ -1,34 +1,35 @@
 # Quant RSI
 
-**A stock-research loop to run end to end, then improve one component at a time.**
+**Run one stock research study: context, factor proposals, models, strategy comparison and a report.**
 
-Start with a stock symbol and follow context gathering, factor selection,
-prediction, observation, feedback and a revised prediction. The first product
-loop uses the repository's actual factor catalog definitions and simulated
-services and numbers, so the whole interaction is visible before connecting
-external tools or training a model.
-
-After [installation](#installation-and-usage), run:
+After [installation](#installation-and-usage), run from the repository root:
 
 ```bash
-quant-rsi research-demo KO
+quant-rsi research-study KO --output /tmp/ko-study
 ```
 
-See the [simulated research loop](docs/simulated_research_loop.md) to inspect its
-inputs and outputs. Use `--llm codex` with existing Codex CLI login, or
-`--llm api --llm-model MODEL_ID` with `OPENAI_API_KEY`, to replace just the
-hypothesis step. Add `--news issuer-rss` for KO's registered official RSS feed.
-Add `--model lightgbm` to compute numeric factors and fit real LightGBM models.
-Prices are synthetic by default; `--prices daily --prices-dir PATH` uses collected
-daily prices. Add `--related profile` for configured, source-backed company
-relationships; related stocks are simulated by default.
-The existing bounded research engine remains available for real
-model experiments, budget accounting, strategy reports and replay.
+This connects configured company relationships, issuer news, daily prices, two
+Codex hypothesis calls and two real LightGBM fits. Open `/tmp/ko-study/report.html`
+for prediction baselines, initial/revised strategies versus buy-and-hold, costs,
+risk and the latest forecast. Use a new output path for each study.
 
-RSI means **recursive self-improvement** here. The long-term goal is to test
-whether feedback improves factors and research strategies. The simulated loop
-demonstrates how feedback changes the next attempt; it does not establish
-predictive advantage.
+To try the same report offline, with real model fits on synthetic inputs:
+
+```bash
+quant-rsi research-study KO --output /tmp/ko-study-offline \
+  --llm simulated --related simulated --news simulated --prices synthetic
+```
+
+The [connected study guide](docs/connected_research_study.md) explains prerequisites,
+options, artifacts and interpretation. Feedback revises bounded numeric recipes;
+both attempts use the same development observations, so a better second result
+is not independent evidence of improvement. The latest forecast has no observed
+outcome. RSI means **recursive self-improvement** here; testing whether research
+feedback improves independent results remains the longer-term goal.
+
+The smaller `research-demo` entry point retains its existing defaults and
+[replaceable-service guide](docs/simulated_research_loop.md). The separate bounded
+engine retains its budget accounting, durable evidence and recovery capabilities.
 
 [Quick start](#installation-and-usage) · [Capabilities](#current-capabilities) ·
 [Guides](#documentation) · [Roadmap](#roadmap) · [Contributing](#development-and-validation)
@@ -72,27 +73,23 @@ See [factor ownership and types](docs/factor_layers.md).
 
 ## Research workflow
 
-The simulated product loop has one entry point:
+The connected study follows one visible path:
 
 ```mermaid
 flowchart TD
-    A["Stock symbol"] --> B["Relationships: simulated / profile; news: simulated / issuer RSS"]
-    B --> C["Actual factor catalog definitions"]
-    C --> D["LLM: choose factors (simulated / Codex / API)"]
-    D --> E["Model: simulated / LightGBM; prices: synthetic / daily"]
-    E --> F["Development observation and feedback"]
-    F --> G["LLM: revise factor selection"]
-    G --> H["Model: revised prediction"]
-    H --> I["Summary of the full trace"]
+    A["Stock + relationship/news/price context"] --> B["LLM proposes bounded numeric recipes"]
+    B --> C["LightGBM fit + development forecasts"]
+    C --> D["Prediction baselines + costed strategy / buy-and-hold"]
+    D --> E["Feedback to LLM: revise recipes"]
+    E --> F["Second fit on the same training and development windows"]
+    F --> G["HTML report + full trace + unobserved latest forecast"]
 ```
 
-Factor selection changes the inputs of the next prediction. The default model
-uses illustrative contributions; optional LightGBM computes numeric features and
-fits on synthetic or collected daily prices. Its second fit reuses the same origin after seeing
-feedback, so it is a development reestimate, not independent validation. Optional
-issuer RSS and live LLM supply real context and hypotheses. None of these demo
-results establishes predictive advantage. Daily mode also reports a separate
-five-session prediction from the latest stored completed bar, with no observed outcome.
+The study defaults to 20 matured five-session forecasts, with training labels
+strictly before the first evaluation origin. The revision sees those results,
+so its comparison remains development analysis. Current news informs research
+choices and is not backfilled as historical features. Strategy orders execute at
+the next open in a hypothetical account; this is not live order submission.
 
 For registered inputs and real LightGBM workers, use the separate
 [bounded research workflow](docs/research_workflow.md). It connects discovery,
@@ -105,6 +102,7 @@ at a time.
 
 | Capability | Status and boundary |
 | --- | --- |
+| Connected research study | One command produces a trace and HTML/Markdown report with bounded recipe proposals, two model fits, prediction baselines and costed strategy comparisons; development feedback is reused |
 | Simulated product loop | One stock-symbol command shows context, catalog-based factor selection, prediction, feedback, revised selection and a second prediction; each simulated service can be replaced independently |
 | Live LLM hypotheses | Optional Codex CLI or OpenAI Responses API makes two independent calls with explicit feedback; current news is research context, not historical training data |
 | Company relationships | Optional KO profile lists source-backed CCEP bottling and MNST distribution links; configured relationships, not automatic discovery or statistical correlations |
@@ -145,57 +143,25 @@ python -m pip install -r requirements-dev.lock
 python -m pip install --no-deps -e .
 ```
 
-Start with the complete simulated product loop:
+Run a connected study using your existing Codex CLI login and public data:
 
 ```bash
-quant-rsi research-demo KO
-quant-rsi research-demo KO --json
+quant-rsi research-study KO --output /tmp/ko-study
 ```
 
-The default needs no data collection, API key, model fit or research workspace.
-To use your existing Codex CLI login for the two hypothesis calls:
+For an offline study with the same model/report path:
 
 ```bash
-quant-rsi research-demo KO --llm codex
+quant-rsi research-study KO --output /tmp/ko-study-offline \
+  --llm simulated --related simulated --news simulated --prices synthetic
 ```
 
-To also supply real KO issuer news, use:
-
-```bash
-quant-rsi research-demo KO --related profile --news issuer-rss --news-limit 5 --llm codex
-```
-
-The [relationship guide](docs/simulated_research_loop.md#use-configured-company-relationships)
-explains the source-backed KO links and reports missing related-company news coverage.
-
-To replace the model stub while keeping the other services offline:
-
-```bash
-quant-rsi research-demo KO --model lightgbm
-```
-
-The [model section](docs/simulated_research_loop.md#fit-lightgbm-on-synthetic-prices)
-explains the synthetic data, executable factor subset and feedback reuse. The
-same flag also works with `--news issuer-rss --llm codex`.
-
-To use actual KO daily prices, keep the evidence directory outside your checkout:
-
-```bash
-quant-rsi research-demo KO --model lightgbm --prices daily \
-  --prices-dir "$HOME/quant-rsi-data/KO-demo" --news issuer-rss --llm codex
-```
-
-The [daily-price guide](docs/simulated_research_loop.md#use-collected-daily-prices)
-explains collection versus cache reuse, price conventions and the separate latest
-forecast. An existing directory is verified and reused without a fresh download.
-
-See the [demo guide](docs/simulated_research_loop.md#use-a-real-llm-for-hypotheses)
-for Codex prerequisites, API credentials/model selection and per-call timeout.
-The [news section](docs/simulated_research_loop.md#use-real-issuer-news) explains
-coverage and limits. Errors stop the run without silently substituting simulated
-hypotheses or news. If testing an unmerged PR, follow the
-[dedicated worktree instructions](docs/simulated_research_loop.md#test-an-unmerged-feature)
-to run the new code without switching your existing checkout.
+See the [study guide](docs/connected_research_study.md) for cached prices, API mode,
+account assumptions and report files. The output directory must be new and outside
+the checkout. Failures retain completed stage traces without silently substituting
+simulated services. To inspect the smaller original interaction, run
+`quant-rsi research-demo KO`; its flags and independent worktree setup remain in
+[the demo guide](docs/simulated_research_loop.md).
 
 When ready to run real model workers, the bounded engine has a separate example:
 
@@ -280,6 +246,7 @@ it is not a declaration that every capability is implemented.
 
 | Start here when you want to… | Guide |
 | --- | --- |
+| Run a complete study and inspect prediction/strategy reports | [Connected research study](docs/connected_research_study.md) |
 | Run the stock-symbol product loop and replace simulated services | [Simulated research loop](docs/simulated_research_loop.md) |
 | Run one profile through research, strategy comparison and observation | [Minimal research workflow](docs/research_workflow.md) |
 | Run detailed commands or recover an experiment | [Experiment workflows and recovery](docs/experiment_workflows.md) |

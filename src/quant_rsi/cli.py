@@ -37,19 +37,48 @@ def main(argv: list[str] | None = None) -> int:
         description="Bounded quant research and development observations"
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    demo = commands.add_parser("research-demo", help="simulate one complete stock research loop")
-    demo.add_argument("symbol", nargs="?", default="KO")
-    demo.add_argument("--catalog", type=Path, default=Path("instruments/shared/equities.json"))
-    demo.add_argument("--json", action="store_true", help="emit the complete trace as JSON")
-    demo.add_argument("--llm", choices=("simulated", "codex", "api"), default="simulated")
-    demo.add_argument("--llm-model", help="model ID; required for API, optional for Codex")
-    demo.add_argument("--llm-timeout", type=float, default=180, help="seconds per LLM call")
-    demo.add_argument("--related", choices=("simulated", "profile"), default="simulated")
-    demo.add_argument("--news", choices=("simulated", "issuer-rss"), default="simulated")
-    demo.add_argument("--news-limit", type=int, default=5, help="RSS items per issuer (1-20)")
-    demo.add_argument("--model", choices=("simulated", "lightgbm"), default="simulated")
-    demo.add_argument("--prices", choices=("synthetic", "daily"), default="synthetic")
-    demo.add_argument("--prices-dir", type=Path, help="retained daily collection directory")
+    for name in ("research-demo", "research-study"):
+        study = name == "research-study"
+        demo = commands.add_parser(
+            name,
+            help="connected research report"
+            if study
+            else "simulate one complete stock research loop",
+        )
+        demo.add_argument("symbol", nargs="?", default="KO")
+        demo.add_argument("--catalog", type=Path, default=Path("instruments/shared/equities.json"))
+        demo.add_argument("--json", action="store_true", help="emit the complete trace as JSON")
+        demo.add_argument(
+            "--llm",
+            choices=("simulated", "codex", "api"),
+            default="codex" if study else "simulated",
+        )
+        demo.add_argument("--llm-model", help="model ID; required for API, optional for Codex")
+        demo.add_argument("--llm-timeout", type=float, default=180, help="seconds per LLM call")
+        demo.add_argument(
+            "--related",
+            choices=("simulated", "profile"),
+            default="profile" if study else "simulated",
+        )
+        demo.add_argument(
+            "--news",
+            choices=("simulated", "issuer-rss"),
+            default="issuer-rss" if study else "simulated",
+        )
+        demo.add_argument("--news-limit", type=int, default=5, help="RSS items per issuer (1-20)")
+        demo.add_argument(
+            "--prices", choices=("synthetic", "daily"), default="daily" if study else "synthetic"
+        )
+        demo.add_argument("--prices-dir", type=Path, help="retained daily collection directory")
+        if study:
+            demo.add_argument("--output", type=Path, required=True, help="new report directory")
+            demo.add_argument("--evaluation-sessions", type=int, default=20, choices=range(2, 21))
+            demo.add_argument("--initial-cash", default="10000")
+            demo.add_argument("--commission-bps", default="5")
+            demo.add_argument("--slippage-bps", default="5")
+            demo.add_argument("--threshold", type=float, default=0.0)
+        else:
+            demo.add_argument("--model", choices=("simulated", "lightgbm"), default="simulated")
     workflow = commands.add_parser("research-workflow", help="one frozen research/account profile")
     workflow_commands = workflow.add_subparsers(dest="workflow_command", required=True)
     for name in ("prepare", "run"):
@@ -274,6 +303,17 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--steps", type=int, default=1)
     args = parser.parse_args(argv)
     try:
+        if args.command == "research-study":
+            from quant_rsi.research.study import run_study
+
+            result = run_study(args)
+            print(
+                json.dumps(result, indent=2, allow_nan=False)
+                if args.json
+                else f"Research completed: {args.output.resolve() / 'report.html'}\n"
+                + result["study"]["conclusion"]
+            )
+            return 0
         if args.command == "research-demo":
             from quant_rsi.research.demo import (
                 load_catalog,

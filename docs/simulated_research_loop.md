@@ -1,5 +1,9 @@
 # Run the simulated stock-research loop
 
+For one command that saves prediction, strategy and baseline reports, start with
+the [connected research study](connected_research_study.md). This guide covers
+the smaller `research-demo` entry point and its replaceable services.
+
 The first product loop has one entry point. It lets you follow a stock from
 context gathering to a prediction, observe a simulated result, change the chosen
 factors using feedback and produce the next prediction. Start with the complete

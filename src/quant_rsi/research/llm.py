@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from quant_rsi.research.demo import select_factors
+from quant_rsi.research.demo_proposals import FactorProposal, extend_library
 
 
 class Hypothesis(BaseModel):
@@ -23,6 +24,10 @@ class Hypothesis(BaseModel):
     factor_ids: list[str] = Field(min_length=1)
     evidence_news_ids: list[str] = Field(min_length=1)
     event_signal: float = Field(ge=-1, le=1, allow_inf_nan=False)
+
+
+class StudyHypothesis(Hypothesis):
+    proposed_factors: list[FactorProposal] = Field(min_length=1, max_length=3)
 
 
 @dataclass(frozen=True)
@@ -42,10 +47,13 @@ class LLMHypothesizer:
             raise ValueError("API mode requires --llm-model")
 
     def __call__(self, context, library, *, previous=None, feedback=None):
-        schema = Hypothesis.model_json_schema()
-        schema["properties"]["factor_ids"]["items"]["enum"] = [
-            item["factor_id"] for item in library["definitions"]
-        ]
+        study = context.get("allow_factor_proposals", False)
+        response_type = StudyHypothesis if study else Hypothesis
+        schema = response_type.model_json_schema()
+        if not study:
+            schema["properties"]["factor_ids"]["items"]["enum"] = [
+                item["factor_id"] for item in library["definitions"]
+            ]
         news_ids = [item["id"] for item in context["news"]["items"]]
         schema["properties"]["evidence_news_ids"]["items"]["enum"] = news_ids
         prompt = (
@@ -60,7 +68,7 @@ class LLMHypothesizer:
             "not measured return correlations or causal price effects. "
             "Respect each news item's symbol and the disclosed coverage gaps; do not invent "
             "missing peer news or attribute it to the target. "
-            "Use only supplied news IDs and catalog factor IDs. "
+            "Use only supplied news IDs. Follow the factor selection rules below. "
             "Explain a stock-specific hypothesis and why the selected factors are relevant. "
             "event_signal is an illustrative signed "
             "news signal between -1 and 1, not a calibrated feature. "
@@ -74,8 +82,23 @@ class LLMHypothesizer:
             "not independent validation. "
             "A separate latest_forecast, if supplied, is unobserved; do not confuse it with "
             "the historical prediction error. "
-            "Otherwise predictions use fixed simulated contributions."
-            "\nINPUT_JSON:\n"
+            "Otherwise predictions use fixed simulated contributions. "
+            + (
+                "Propose one to three executable numeric price recipes using only the allowed "
+                "operators and windows (1..30); no Python, formulas or extra operators. "
+                "Each proposal has op, window, description; its ID is research.<op>_<window>, "
+                "for example research.momentum_10. Select at least one proposal in factor_ids; "
+                "other selected IDs must exist in the supplied catalog. "
+                "Explain how supplied news motivates this recipe and what it cannot measure. "
+                "momentum is close/lag(close)-1; mean_return averages daily simple returns; "
+                "qlib_roc_v1 is lag(close)/close; qlib_ma_v1 is rolling_mean(close)/close. "
+                "Revision may deactivate earlier factors by omitting their IDs. "
+                "Development metrics and strategy diagnostics reuse selected retrospective data, "
+                "not independent evidence. Current news is not a historical feature. "
+                if study
+                else "Use only supplied catalog factor IDs. "
+            )
+            + "\nINPUT_JSON:\n"
             + json.dumps(
                 {
                     "context": context,
@@ -88,10 +111,10 @@ class LLMHypothesizer:
         )
         raw = self._codex(prompt, schema) if self.mode == "codex" else self._api(prompt, schema)
         try:
-            result = Hypothesis.model_validate_json(raw).model_dump()
+            result = response_type.model_validate_json(raw).model_dump()
         except ValidationError:
             raise ValueError("LLM returned an invalid hypothesis JSON object") from None
-        select_factors(library, result)
+        select_factors(extend_library(library, result) if study else library, result)
         if not set(result["evidence_news_ids"]).issubset(news_ids):
             raise ValueError("LLM cited news outside the supplied context")
         if previous and set(result["factor_ids"]) == set(previous["factor_ids"]):
