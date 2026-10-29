@@ -57,6 +57,10 @@ def simulated_hypothesis(context, library, *, previous=None, feedback=None):
     else:
         factors = ["equity.price_momentum_5", "equity.price_mean_return_5"]
         reason = "The first prediction was not too high; add a second price factor."
+    if context.get("model_mode") == "lightgbm":
+        available = [item["factor_id"] for item in library["definitions"]]
+        factors = available[:1] if previous is None else available[1:]
+        reason = "Try a numeric recipe, then change the numeric selection after model feedback."
     return {
         "provider": "simulated_llm",
         "hypothesis": reason,
@@ -132,6 +136,7 @@ def run_demo(
     predict=simulated_predict,
     observe=simulated_observe,
     summarize=simulated_summary,
+    price_context=None,
 ):
     """One factor revision, no network, fits, workspace or persistence by default.
 
@@ -140,13 +145,15 @@ def run_demo(
     """
     symbol = TypeAdapter(InstrumentId).validate_python(symbol.strip().upper())
     context = {"symbol": symbol, "reference_price": 100.0}
+    if price_context is not None:
+        context.update(price_context(symbol))
     trace = []
 
     def record(stage, value):
         trace.append({"stage": stage, "output": deepcopy(value)})
         return value
 
-    record("target", {**context, "provider": "simulated_price_context"})
+    record("target", {"provider": "simulated_price_context", **context})
     context["related"] = record("related_stocks", related(symbol))
     context["news"] = record("news", news(deepcopy(context)))
     library = record("factor_library", catalog())
@@ -183,6 +190,7 @@ def run_demo(
         for hypothesis in (initial, revised)
     )
     live_news = context["news"].get("provider") == "issuer_rss"
+    trained_model = first.get("provider") == "lightgbm"
     notice = "Product wiring demo. News, LLM, prices and predictions are simulated by default."
     if live_llm or live_news:
         notice = (
@@ -191,8 +199,15 @@ def run_demo(
             "Related stocks, prices, predictions and observations are simulated; "
             "improvement is not evaluated."
         )
+    if trained_model:
+        notice = (
+            f"Real LightGBM training with {'real' if live_llm else 'simulated'} LLM hypotheses "
+            f"and {'real issuer RSS' if live_news else 'simulated'} news. Prices, related stocks "
+            "and observed outcomes are synthetic. Both estimates use the same development origin; "
+            "the revision reuses disclosed feedback. No independent improvement or market forecast."
+        )
     return {
-        "mode": "mixed" if live_llm or live_news else "simulation",
+        "mode": "mixed" if live_llm or live_news or trained_model else "simulation",
         "notice": notice,
         "target": symbol,
         "factor_revisions": 1,

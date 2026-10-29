@@ -18,7 +18,8 @@ See the [simulated research loop](docs/simulated_research_loop.md) to inspect it
 inputs and outputs. Use `--llm codex` with existing Codex CLI login, or
 `--llm api --llm-model MODEL_ID` with `OPENAI_API_KEY`, to replace just the
 hypothesis step. Add `--news issuer-rss` for KO's registered official RSS feed.
-Related stocks, prices, predictions and observations remain simulated.
+Add `--model lightgbm` to compute numeric factors and fit real LightGBM models on
+fixed synthetic prices. Related stocks and market outcomes remain synthetic.
 The existing bounded research engine remains available for real
 model experiments, budget accounting, strategy reports and replay.
 
@@ -76,18 +77,19 @@ flowchart TD
     A["Stock symbol"] --> B["Related stocks: simulated; news: simulated / issuer RSS"]
     B --> C["Actual factor catalog definitions"]
     C --> D["LLM: choose factors (simulated / Codex / API)"]
-    D --> E["Simulated model: first prediction"]
+    D --> E["Model: simulated / LightGBM on synthetic prices"]
     E --> F["Simulated observation and feedback"]
     F --> G["LLM: revise factor selection"]
-    G --> H["Simulated model: next prediction"]
+    G --> H["Model: revised prediction"]
     H --> I["Summary of the full trace"]
 ```
 
-Factor selection actually changes the inputs of the next simulated prediction.
-The second prediction has no observed outcome yet. Numerical contributions,
-observations and model predictions remain simulated. Optional issuer RSS supplies
-real titles/summaries; live LLM calls supply hypotheses and factor selections.
-Neither makes the simulated predictions evidence of market performance.
+Factor selection changes the inputs of the next prediction. The default model
+uses illustrative contributions; optional LightGBM computes numeric features and
+fits on synthetic prices. Its second fit reuses the same origin after seeing
+feedback, so it is a development reestimate, not independent validation. Optional
+issuer RSS and live LLM supply real context and hypotheses. None of these demo
+results establishes predictive performance on market data.
 
 For registered inputs and real LightGBM workers, use the separate
 [bounded research workflow](docs/research_workflow.md). It connects discovery,
@@ -101,8 +103,9 @@ at a time.
 | Capability | Status and boundary |
 | --- | --- |
 | Simulated product loop | One stock-symbol command shows context, catalog-based factor selection, prediction, feedback, revised selection and a second prediction; each simulated service can be replaced independently |
-| Live LLM hypotheses | Optional Codex CLI or OpenAI Responses API makes two independent calls with explicit feedback; model predictions and observations remain simulated |
+| Live LLM hypotheses | Optional Codex CLI or OpenAI Responses API makes two independent calls with explicit feedback; price data and outcomes remain synthetic |
 | Live news in the product loop | Optional registered KO issuer RSS supplies bounded titles/summaries and source timestamps to both hypothesis calls; no general search, article fetching or peer news collection |
+| LightGBM in the product loop | Optional real numeric feature calculation and two LightGBM fits on fixed synthetic prices; feedback informs a development reestimate at the same origin, with no independent improvement claim |
 | Bounded research workflow | One profile runs bounded discovery, costed per-fold strategy/buy-and-hold reports and linked forecast/paper observation; feedback uses development forecast MAE only |
 | Five-session price forecasting | Available for explicitly supported sources/markets; includes collection, fixed-model research, model sealing and replay |
 | Prospective forecast observation | Offline registration and append-only outcome settlement from observed market receipts; real prospective accumulation and outcome-driven policy updates remain outstanding |
@@ -156,6 +159,16 @@ To also supply real KO issuer news, use:
 ```bash
 quant-rsi research-demo KO --news issuer-rss --news-limit 5 --llm codex
 ```
+
+To replace the model stub while keeping the other services offline:
+
+```bash
+quant-rsi research-demo KO --model lightgbm
+```
+
+The [model section](docs/simulated_research_loop.md#fit-lightgbm-on-synthetic-prices)
+explains the synthetic data, executable factor subset and feedback reuse. The
+same flag also works with `--news issuer-rss --llm codex`.
 
 See the [demo guide](docs/simulated_research_loop.md#use-a-real-llm-for-hypotheses)
 for Codex prerequisites, API credentials/model selection and per-call timeout.
@@ -229,8 +242,8 @@ arbitrary generated code. Detailed contracts are in the
 
 1. Use the optional live LLM hypothesis step to inspect selection and feedback
    behavior while keeping the rest of the loop runnable with simulated services.
-2. Use the bounded issuer RSS adapter, then connect broader news tools,
-   executable factor values and models individually, inspecting each change.
+2. Use issuer RSS and LightGBM on synthetic prices, then replace remaining
+   simulated data and services individually, inspecting each change.
 3. Compare the resulting research methods under frozen tasks and budgets, using
    the native engine alongside compatible mature engines; measure useful results
    and the effort required to test a hypothesis.

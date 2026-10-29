@@ -63,7 +63,11 @@ class LLMHypothesizer:
             "explain the prediction error and propose a different nonempty SET of factor IDs "
             "for one exploratory revision. Do not merely reorder IDs. Do not claim improvement "
             "or treat preset observations as real market evidence. "
-            "All predictions remain simulated."
+            "Follow context.model_mode and context.model_note when supplied. "
+            "The lightgbm mode fits real models on synthetic prices; both estimates share a "
+            "development origin. The revision uses disclosed feedback, "
+            "not independent validation. "
+            "Otherwise predictions use fixed simulated contributions."
             "\nINPUT_JSON:\n"
             + json.dumps(
                 {
