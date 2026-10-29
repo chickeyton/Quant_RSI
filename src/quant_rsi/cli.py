@@ -37,6 +37,16 @@ def main(argv: list[str] | None = None) -> int:
         description="Bounded quant research and development observations"
     )
     commands = parser.add_subparsers(dest="command", required=True)
+    observation = commands.add_parser(
+        "forecast-observe", help="record outcomes of committed five-session forecasts; no fits"
+    )
+    observation_commands = observation.add_subparsers(dest="observation_command", required=True)
+    for name in ("register", "settle", "status", "replay"):
+        command = observation_commands.add_parser(name)
+        command.add_argument("experiment_id")
+        if name == "settle":
+            command.add_argument("--snapshot-ref", required=True)
+            command.add_argument("--request-id", required=True)
     collection = commands.add_parser(
         "news-collect", help="bounded prospective issuer RSS observations"
     )
@@ -236,6 +246,21 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--steps", type=int, default=1)
     args = parser.parse_args(argv)
     try:
+        if args.command == "forecast-observe":
+            from quant_rsi.forecast import forecast_settlement
+
+            if args.observation_command == "register":
+                report = forecast_settlement.register(args.experiment_id)
+            elif args.observation_command == "settle":
+                report = forecast_settlement.settle(
+                    args.experiment_id, args.snapshot_ref, request_id=args.request_id
+                )
+            else:
+                report = forecast_settlement.inspect(
+                    args.experiment_id, replay=args.observation_command == "replay"
+                )
+            print(json.dumps(report, indent=2, allow_nan=False))
+            return 0
         if args.command == "news-collect":
             from quant_rsi.market import news_collection
 
