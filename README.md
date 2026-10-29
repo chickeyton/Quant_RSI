@@ -254,6 +254,7 @@ it is not a declaration that every capability is implemented.
 | Run bounded discovery and manage event instances | [Factor discovery](docs/factor_discovery.md) |
 | Understand shared factors and single-stock bindings | [Factor layers](docs/factor_layers.md) |
 | Use the first source-pinned candidate adapters | [Candidate factor runtime](docs/candidate_factor_runtime.md) |
+| Compare native price formulas with actual pinned Qlib operators | [Optional Qlib operator comparison](docs/qlib_operator_comparison.md) |
 | Inspect a company-specific factor tree | [CALM worked example](docs/calm_factor_discovery_example.md) |
 | Run a five-session baseline or enhanced comparison | [Baseline](docs/forecast_baseline.md), [enhanced workflow](docs/enhanced_forecast_workflow.md) |
 | Run bounded recursive market research | [Recursive market exploration](docs/recursive_market_exploration.md) |
