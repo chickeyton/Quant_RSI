@@ -23,7 +23,9 @@ The recipes retain the exact upstream revision
 [Qlib Alpha158DL.get_feature_config](https://github.com/microsoft/qlib/blob/54355232463878d2eebb91fe0ee5fa7fa1f5976c/qlib/contrib/data/loader.py#L73-L310).
 The survey retains its [third-party notices](../experimental/candidate_factors/THIRD_PARTY_NOTICES.md)
 and [MIT license](../experimental/candidate_factors/licenses/qlib/LICENSE).
-These are local implementations of those two formulas; no Qlib code is executed.
+These are local implementations of those two formulas; the production path does
+not execute Qlib. An optional [upstream operator comparison](qlib_operator_comparison.md)
+executes pinned Qlib code separately on deterministic fixtures.
 
 Unlike an upstream operator that might emit partial-window results, these adapters
 require every finite, strictly positive close in the registered full window. A
@@ -79,8 +81,10 @@ Tests cover independent arithmetic, exact warmup boundaries, source pinning,
 legacy serialization, invalid/missing/late inputs, future-data mutations and
 actual B0/D1 LightGBM execution for each adapter, including interrupted/resumed
 fit budgets and sealed replay. They are deterministic offline engineering tests.
-Full upstream-runtime conformance remains **not run**; predictive usefulness is
-**not assessed**. Neither passing fixtures nor admission into discovery establishes
+The optional [Qlib operator comparison](qlib_operator_comparison.md) verifies a
+small set of actual upstream numeric results after explicit eligibility alignment.
+Full Qlib research-workflow conformance is **not assessed**; predictive usefulness
+is **not assessed**. Neither passing fixtures nor admission into discovery establishes
 alpha, profitability or independent confirmation.
 
 The other 30 survey candidates remain specifications. OHLCV, cross-sectional,
