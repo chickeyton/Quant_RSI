@@ -38,9 +38,10 @@ the command line. If only one module is selected, only one process is needed.
 There is no cross-run fixture cache or duration-based scheduling. Shards can be
 imbalanced; compare measured CPU/setup work as well as wall time.
 
-CI runs the complete suite through the same command with one process. It retains
-JSON metadata, JUnit results and logs for 14 days, including on test failure, and
-does not upload temporary experiment workspaces. CI queue, installation, lint,
+CI runs the complete suite through the same command with `--shards 2`, keeping
+each module in one process. This aims to reduce wall time, not total CPU work.
+It retains JSON metadata, JUnit results and logs for 14 days, including on test
+failure, and does not upload temporary experiment workspaces. CI queue, installation, lint,
 test and artifact-upload durations remain separate job steps. The branch/head
 and merge-test revision can differ; report the revision in the profile.
 
