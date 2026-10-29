@@ -81,7 +81,7 @@ def _signal(row, index, data, threshold, *, paper=False):
     for field in ("model_ref", "result_ref", "feature_as_of"):
         if not row.get(field):
             raise ValueError("prediction is missing " + field)
-    if timestamp(row["feature_as_of"]) > data.decision_at(index):
+    if not paper and timestamp(row["feature_as_of"]) > data.decision_at(index):
         raise ValueError("prediction uses information after its origin decision cutoff")
     if paper and timestamp(row["feature_as_of"]) > timestamp(row["available_at"]):
         raise ValueError("paper prediction precedes its feature information cutoff")

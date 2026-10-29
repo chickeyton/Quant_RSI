@@ -391,3 +391,16 @@ def test_late_action_after_completed_paper_report_preserves_entries_but_blocks_m
     assert revised["metrics"]["strategy"]["status"] == "insufficient_evidence"
     assert revised["metrics"]["strategy"]["net_return"] is None
     assert state["metrics"]["strategy"]["net_return"] == "-0.009"
+
+
+def test_paper_publication_can_use_a_later_frozen_cutoff_before_next_open():
+    data = market()
+    row = prediction(data)
+    actual = utc_text(data.contract.calendar.sessions[0].close_at + timedelta(hours=1))
+    row.update(feature_as_of=actual, available_at=actual, confirmation_at=actual)
+    state = advance_paper_strategy(data, row, rules(), observed_at=actual)
+    assert state["status"] == "awaiting_submission_confirmation"
+    assert state["accounts"]["strategy"]["orders"][0]["prediction_finished_at"] == actual
+    row["feature_as_of"] = utc_text(data.decision_at(1))
+    with pytest.raises(ValueError, match="precedes its feature"):
+        advance_paper_strategy(data, row, rules(), observed_at=actual)
