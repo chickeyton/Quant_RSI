@@ -197,6 +197,107 @@ def test_holiday_and_half_day_future_sessions(tmp_path, monkeypatch):
     assert future[0]["open_at"] == "2026-11-23T09:30:00-05:00"
 
 
+def saturday_new_year_calendar():
+    # Published NYSE 2027/2028 rows; only New Year's Day 2028 is not observed.
+    dates = [
+        ("New Year’s Day", "2027-01-01", None),
+        ("Martin Luther King, Jr. Day", "2027-01-18", "2028-01-17"),
+        ("Washington's Birthday", "2027-02-15", "2028-02-21"),
+        ("Good Friday", "2027-03-26", "2028-04-14"),
+        ("Memorial Day", "2027-05-31", "2028-05-29"),
+        ("Juneteenth", "2027-06-18", "2028-06-19"),
+        ("Independence Day", "2027-07-05", "2028-07-04"),
+        ("Labor Day", "2027-09-06", "2028-09-04"),
+        ("Thanksgiving Day", "2027-11-25", "2028-11-23"),
+        ("Christmas Day", "2027-12-24", "2028-12-25"),
+    ]
+    rows = "".join(
+        f"<tr><td>{name}</td>"
+        + "".join(
+            f"<td>{date.fromisoformat(day).strftime('%A, %B %d') if day else '—*'}</td>"
+            for day in (first, second)
+        )
+        + "</tr>"
+        for name, first, second in dates
+    )
+    return (
+        "All NYSE markets observe the following holidays. "
+        "Core Trading Session: 9:30 a.m. to 4:00 p.m. ET"
+        "<table><tr><th>Holiday</th><th>2027</th><th>2028</th></tr>"
+        + rows
+        + "</table><p>* Because the holiday falls on Saturday, January 1, 2028, "
+        "no New Year’s Day holiday is observed.</p>"
+        "<p>Each market will close early at 1:00 p.m. on Monday, July 3, 2028, "
+        "Friday, November 26, 2027, and Friday, November 24, 2028.</p>"
+    )
+
+
+def test_explicit_nonobserved_new_year_preserves_calendar_coverage():
+    holidays, early = daily_data._calendar(saturday_new_year_calendar().encode())
+    assert len(holidays[2027]) == 10
+    assert len(holidays[2028]) == 9
+    assert daily_data._session(date(2027, 12, 31), holidays, early) is not None
+    assert daily_data._session(date(2028, 1, 1), holidays, early) is None
+    assert daily_data._session(date(2028, 1, 3), holidays, early) is not None
+    assert daily_data._session(date(2028, 7, 3), holidays, early)["close_at"].endswith(
+        "13:00:00-04:00"
+    )
+
+
+@pytest.mark.parametrize(
+    "old,new",
+    [
+        ("no New Year’s Day holiday is observed.", ""),
+        ("Saturday, January 1, 2028", "Saturday, January 1, 2027"),
+        ("<td>New Year’s Day</td>", "<td>Other holiday</td>"),
+        ("—*", "—"),
+        ("Monday, January 17", "Monday, February 21"),
+    ],
+)
+def test_nonobserved_holiday_requires_exact_evidence_and_other_dates(old, new):
+    body = saturday_new_year_calendar().replace(old, new).encode()
+    with pytest.raises(ValueError):
+        daily_data._calendar(body)
+
+
+@pytest.mark.parametrize(
+    "last,received,problem,error",
+    [
+        ("2026-10-23", "2026-10-24T12:00:00+00:00", None, None),
+        ("2026-05-01", "2026-05-02T12:00:00+00:00", None, "Need 120 complete"),
+        ("2026-10-23", "2026-10-24T12:00:00+00:00", "gap", "Missing completed"),
+        ("2026-12-31", "2026-12-31T22:00:00+00:00", None, "does not cover 2027"),
+    ],
+)
+def test_leading_uncovered_bars_do_not_replace_required_covered_window(
+    last, received, problem, error
+):
+    data = chart(last)["chart"]["result"][0]
+    stamps = data["timestamp"]
+    quotes = data["indicators"]["quote"][0]
+    # The source's older prefix is not assigned guessed exchange-session metadata.
+    stamps.insert(0, int(datetime(2025, 12, 31, 9, 30, tzinfo=EASTERN).timestamp()))
+    for values in quotes.values():
+        values.insert(0, None)
+    if problem == "gap":
+        stamps.pop(-10)
+        for values in quotes.values():
+            values.pop(-10)
+    holidays, early = daily_data._calendar(CALENDAR)
+    if error:
+        with pytest.raises(ValueError, match=error):
+            daily_data._complete_bars(
+                stamps, quotes, holidays, early, datetime.fromisoformat(received)
+            )
+    else:
+        bars, future = daily_data._complete_bars(
+            stamps, quotes, holidays, early, datetime.fromisoformat(received)
+        )
+        assert len(bars) == 120 and len(future) == 5
+        assert bars[-1][0]["session_id"] == last
+        assert all(bar[0]["session_id"].startswith("2026-") for bar in bars)
+
+
 @pytest.mark.parametrize("minute,origin", [(10, "2026-11-25"), (16, "2026-11-27")])
 def test_half_day_completion_buffer(tmp_path, monkeypatch, minute, origin):
     install(monkeypatch, chart("2026-11-27"), now=f"2026-11-27T18:{minute}:00+00:00")

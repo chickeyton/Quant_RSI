@@ -47,6 +47,8 @@ def main(argv: list[str] | None = None) -> int:
     demo.add_argument("--news", choices=("simulated", "issuer-rss"), default="simulated")
     demo.add_argument("--news-limit", type=int, default=5, help="issuer RSS items to use (1-20)")
     demo.add_argument("--model", choices=("simulated", "lightgbm"), default="simulated")
+    demo.add_argument("--prices", choices=("synthetic", "daily"), default="synthetic")
+    demo.add_argument("--prices-dir", type=Path, help="retained daily collection directory")
     workflow = commands.add_parser("research-workflow", help="one frozen research/account profile")
     workflow_commands = workflow.add_subparsers(dest="workflow_command", required=True)
     for name in ("prepare", "run"):
@@ -289,10 +291,19 @@ def main(argv: list[str] | None = None) -> int:
 
             hypothesize = simulated_hypothesis
             providers = {"catalog": lambda: load_catalog(args.catalog)}
+            if args.prices == "daily" and (args.model != "lightgbm" or args.prices_dir is None):
+                raise ValueError("--prices daily requires --model lightgbm and --prices-dir")
+            if args.prices == "synthetic" and args.prices_dir is not None:
+                raise ValueError("--prices-dir requires --prices daily")
             if args.model == "lightgbm":
-                from quant_rsi.research.demo_model import SyntheticLightGBMDemo
+                from quant_rsi.research.demo_model import LightGBMDemo
 
-                model = SyntheticLightGBMDemo(load_catalog(args.catalog))
+                prices = None
+                if args.prices == "daily":
+                    from quant_rsi.research.demo_prices import load_daily_prices
+
+                    prices = load_daily_prices(args.symbol.strip().upper(), args.prices_dir)
+                model = LightGBMDemo(load_catalog(args.catalog), prices=prices)
                 providers = {
                     "catalog": lambda: model.library,
                     "price_context": model.context,
