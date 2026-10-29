@@ -6,6 +6,7 @@ from pydantic import Field, model_validator
 
 from quant_rsi.core.contracts_base import StrictModel
 from quant_rsi.core.schemas import FactorSpec
+from quant_rsi.factors.price_adapters import CandidatePriceRecipe
 
 Name = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
 FactorId = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$", max_length=160)]
@@ -22,7 +23,7 @@ class FactorDefinition(StrictModel):
 class NumericFactorDefinition(FactorDefinition):
     kind: Literal["numeric"]
     input_kind: Literal["positive_price_series"]
-    recipe: FactorSpec
+    recipe: FactorSpec | CandidatePriceRecipe
 
 
 class TextFactorDefinition(FactorDefinition):

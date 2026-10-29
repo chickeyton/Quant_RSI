@@ -85,6 +85,7 @@ they do not yet form the complete outcome-driven research loop.
 | Bounded factor research | Available: momentum/mean-return neighbor search and limited, registered research-program changes |
 | Shared and instrument-specific factors | Numeric bindings can enter bounded discovery; general text definitions remain specifications |
 | Automatic factor discovery | Finite multi-leaf compositions, feedback-dependent exploration and common multi-fold comparisons; no general proposer-program evolution |
+| Candidate factor execution | Opt-in [Qlib ROC and MA close-price adapters](docs/candidate_factor_runtime.md) feed bounded discovery; the remaining survey candidates are not executable |
 | Dynamic event factors | Registered title instances, observed lifecycle transitions, decay and archival; KO RSS observations can enter this path |
 | Multi-branch factor discovery | CALM is a worked specification; its factor tree is not executable |
 | News and financial evidence | Retained KO title indicators can enter opt-in comparisons/discovery; other evidence remains sidecar-only |
@@ -177,6 +178,7 @@ it is not a declaration that every capability is implemented.
 | Run detailed commands or recover an experiment | [Experiment workflows and recovery](docs/experiment_workflows.md) |
 | Run bounded discovery and manage event instances | [Factor discovery](docs/factor_discovery.md) |
 | Understand shared factors and single-stock bindings | [Factor layers](docs/factor_layers.md) |
+| Use the first source-pinned candidate adapters | [Candidate factor runtime](docs/candidate_factor_runtime.md) |
 | Inspect a company-specific factor tree | [CALM worked example](docs/calm_factor_discovery_example.md) |
 | Run a five-session baseline or enhanced comparison | [Baseline](docs/forecast_baseline.md), [enhanced workflow](docs/enhanced_forecast_workflow.md) |
 | Run bounded recursive market research | [Recursive market exploration](docs/recursive_market_exploration.md) |

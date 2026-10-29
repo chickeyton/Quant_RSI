@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "kind": "shared_factor_catalog",
+  "catalog_id": "candidate_prices",
+  "definitions": [
+    {
+      "factor_id": "equity.qlib_roc_5_v1",
+      "description": "Five-session lagged close divided by current close (Qlib inverse price ratio, not conventional rate of change).",
+      "kind": "numeric",
+      "input_kind": "positive_price_series",
+      "recipe": {
+        "op": "qlib_roc_v1",
+        "window": 5,
+        "upstream_revision": "54355232463878d2eebb91fe0ee5fa7fa1f5976c"
+      }
+    },
+    {
+      "factor_id": "equity.qlib_ma_5_v1",
+      "description": "Five-observation trailing mean close divided by current close; full window required.",
+      "kind": "numeric",
+      "input_kind": "positive_price_series",
+      "recipe": {
+        "op": "qlib_ma_v1",
+        "window": 5,
+        "upstream_revision": "54355232463878d2eebb91fe0ee5fa7fa1f5976c"
+      }
+    }
+  ]
+}
