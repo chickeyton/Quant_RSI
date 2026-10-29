@@ -178,10 +178,17 @@ def run_demo(
         "summary",
         summarize(deepcopy(context), deepcopy(first), deepcopy(second), deepcopy(feedback)),
     )
+    live_llm = any(
+        hypothesis.get("provider") in {"codex_cli", "openai_api"}
+        for hypothesis in (initial, revised)
+    )
     return {
-        "mode": "simulation",
+        "mode": "mixed" if live_llm else "simulation",
         "notice": (
-            "Product wiring demo. News, LLM, prices and predictions are simulated by default."
+            "Product wiring demo with real LLM hypotheses. Related stocks, news, prices, "
+            "predictions and observations are simulated; improvement is not evaluated."
+            if live_llm
+            else "Product wiring demo. News, LLM, prices and predictions are simulated by default."
         ),
         "target": symbol,
         "factor_revisions": 1,
@@ -191,7 +198,8 @@ def run_demo(
 
 
 def render_demo(result):
-    lines = [f"# SIMULATION: {result['target']} research loop", "", result["notice"], ""]
+    label = "MIXED / SIMULATION" if result["mode"] == "mixed" else "SIMULATION"
+    lines = [f"# {label}: {result['target']} research loop", "", result["notice"], ""]
     for index, event in enumerate(result["trace"], 1):
         lines.extend(
             [

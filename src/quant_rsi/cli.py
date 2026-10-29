@@ -41,6 +41,9 @@ def main(argv: list[str] | None = None) -> int:
     demo.add_argument("symbol", nargs="?", default="KO")
     demo.add_argument("--catalog", type=Path, default=Path("instruments/shared/equities.json"))
     demo.add_argument("--json", action="store_true", help="emit the complete trace as JSON")
+    demo.add_argument("--llm", choices=("simulated", "codex", "api"), default="simulated")
+    demo.add_argument("--llm-model", help="model ID; required for API, optional for Codex")
+    demo.add_argument("--llm-timeout", type=float, default=180, help="seconds per LLM call")
     workflow = commands.add_parser("research-workflow", help="one frozen research/account profile")
     workflow_commands = workflow.add_subparsers(dest="workflow_command", required=True)
     for name in ("prepare", "run"):
@@ -266,9 +269,21 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "research-demo":
-            from quant_rsi.research.demo import load_catalog, render_demo, run_demo
+            from quant_rsi.research.demo import (
+                load_catalog,
+                render_demo,
+                run_demo,
+                simulated_hypothesis,
+            )
 
-            result = run_demo(args.symbol, catalog=lambda: load_catalog(args.catalog))
+            hypothesize = simulated_hypothesis
+            if args.llm != "simulated":
+                from quant_rsi.research.llm import LLMHypothesizer
+
+                hypothesize = LLMHypothesizer(args.llm, args.llm_model, args.llm_timeout)
+            result = run_demo(
+                args.symbol, catalog=lambda: load_catalog(args.catalog), hypothesize=hypothesize
+            )
             print(json.dumps(result, indent=2) if args.json else render_demo(result))
             return 0
         if args.command == "research-workflow":
