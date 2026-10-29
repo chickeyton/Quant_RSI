@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "kind": "IntradayWorkflowConfig",
+  "target": {"symbol": "SPY", "primary_exchange": "ARCA", "currency": "USD"},
+  "context": [
+    {"symbol": "QQQ", "primary_exchange": "NASDAQ", "currency": "USD"},
+    {"symbol": "IWM", "primary_exchange": "ARCA", "currency": "USD"}
+  ],
+  "source": "ibkr_tws_api",
+  "bar_seconds": 300,
+  "execution_bar_seconds": 60,
+  "horizon_bars": 6,
+  "history_sessions": 250,
+  "availability_buffer_seconds": 5,
+  "decision_latency_seconds": 10,
+  "order_latency_seconds": 1,
+  "max_fill_delay_seconds": 120,
+  "halt_missing_bars": 3,
+  "flatten_offset_seconds": 900,
+  "forward_schedule": "block_4w_dev_4w_reserved_v1",
+  "overnight_policy": "flat",
+  "quote_fields": "trades_and_bid_ask",
+  "historical_availability": "explicit_assumption"
+}

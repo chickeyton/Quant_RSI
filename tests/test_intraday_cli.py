@@ -21,13 +21,19 @@ from quant_rsi.intraday.schedule import anchor_for
 ROOT = Path(__file__).parents[1]
 
 
-def test_checked_in_examples_validate():
-    IntradayWorkflowConfig.model_validate_json(
-        (ROOT / "instruments/US/KO/intraday.json").read_bytes()
-    )
-    IntradayDevelopmentPlan.model_validate_json(
-        (ROOT / "examples/intraday_development.json").read_bytes()
-    )
+@pytest.mark.parametrize(
+    ("profile", "development"),
+    [
+        ("instruments/US/KO/intraday.json", "examples/intraday_development.json"),
+        ("instruments/US/SPY/intraday.json", "examples/intraday_development_spy.json"),
+    ],
+)
+def test_checked_in_examples_validate(profile, development):
+    config = IntradayWorkflowConfig.model_validate_json((ROOT / profile).read_bytes())
+    plan_ = IntradayDevelopmentPlan.model_validate_json((ROOT / development).read_bytes())
+    # Context leaves must name the profile's context instruments, never the target.
+    named = {leaf.split(":")[1] for leaf in plan_.leaves if leaf.startswith("ctx:")}
+    assert named == {item.symbol for item in config.context}
 
 
 def test_profile_requires_latency_to_cover_buffer():

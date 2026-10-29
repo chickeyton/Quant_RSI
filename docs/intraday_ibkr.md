@@ -96,6 +96,18 @@ exceeds the estimated round-trip commission and spread plus `entry_threshold`. W
 `policy_search`, the plan's `signal` is used as written. Declined entries are counted as
 `policy_declined_entries` in evaluation and journaled as `entry_declined` on paper.
 
+Two profiles are checked in, each with a matching development plan:
+
+| Profile | Traded instrument | Context | Development plan |
+| --- | --- | --- | --- |
+| [`instruments/US/KO/intraday.json`](../instruments/US/KO/intraday.json) | KO (NYSE) | XLP, SPY | [`examples/intraday_development.json`](../examples/intraday_development.json) |
+| [`instruments/US/SPY/intraday.json`](../instruments/US/SPY/intraday.json) | SPY (ARCA), for S&P 500 exposure | QQQ, IWM | [`examples/intraday_development_spy.json`](../examples/intraday_development_spy.json) |
+
+The SPY plan assumes a 0.5 bps spread and uses lower entry and exit thresholds than KO,
+because SPY's spread and 30-minute moves are both smaller. These are starting assumptions;
+replace `assumed_spread_bps` with the spread measured from your bid/ask snapshot. The
+`ctx:` leaves in a plan must name the profile's context instruments.
+
 `calendar.json` is an explicit `CalendarSpec`: calendar ID, IANA time zone and every
 session's open and close. The collector never infers sessions, and it refuses sessions that
 have not closed yet. Each raw IBKR response is stored with its request before
