@@ -295,7 +295,8 @@ predictive quality. Start with tests relevant to a change, then run the required
 broader checks; no coverage-percentage threshold is configured. For reproducible
 timings and bounded logs, use `python examples/profile_validation.py --output
 /tmp/quant-rsi-validation` with a fresh directory. Optional `--shards 2` keeps each
-module's shared fixtures in one process. [Validation cost and test tiers](docs/validation_cost.md)
+module's shared fixtures in one process; CI uses this two-process mode.
+[Validation cost and test tiers](docs/validation_cost.md)
 describes focused feedback and final-revision full-suite evidence. CI preserves
 these profiles as artifacts for 14 days.
 

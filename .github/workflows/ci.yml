@@ -47,7 +47,7 @@ jobs:
           ruff format --check src tests examples/profile_validation.py
 
       - name: Run offline regression tests
-        run: python examples/profile_validation.py --output "$RUNNER_TEMP/validation-profile"
+        run: python examples/profile_validation.py --output "$RUNNER_TEMP/validation-profile" --shards 2
 
       - name: Preserve validation timings and failures
         if: always()

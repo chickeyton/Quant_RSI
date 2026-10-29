@@ -21,7 +21,7 @@ Start with tests relevant to the change, then run the required broader checks. C
 For measured runs, `python examples/profile_validation.py --output /tmp/quant-rsi-validation`
 executes the complete suite and saves commands, environment, per-test timings and
 exit codes. Use a fresh output directory. `--shards 2` preserves module fixtures
-when running locally in parallel; focused selectors are development feedback,
+when running in parallel, including CI; focused selectors are development feedback,
 not a substitute for the complete required suite. See [validation cost](docs/validation_cost.md).
 Run the complete suite once on the frozen final revision; record whether its
 evidence is local or CI and whether it is still pending. Re-run after relevant
