@@ -37,6 +37,18 @@ def main(argv: list[str] | None = None) -> int:
         description="Bounded quant research and development observations"
     )
     commands = parser.add_subparsers(dest="command", required=True)
+    collection = commands.add_parser(
+        "news-collect", help="bounded prospective issuer RSS observations"
+    )
+    collection_commands = collection.add_subparsers(dest="collection_command", required=True)
+    collection_commands.add_parser("init").add_argument("plan", type=Path)
+    for name in ("poll", "process", "status", "replay"):
+        command = collection_commands.add_parser(name)
+        command.add_argument("campaign_id")
+        if name in {"poll", "process"}:
+            command.add_argument("--request-id", required=True)
+        if name == "process":
+            command.add_argument("--news-campaign-id", required=True)
     factors = commands.add_parser("factors", help="validate layered factor specifications; no fits")
     factor_commands = factors.add_subparsers(dest="factor_command", required=True)
     factor_validate = factor_commands.add_parser("validate")
@@ -224,6 +236,23 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--steps", type=int, default=1)
     args = parser.parse_args(argv)
     try:
+        if args.command == "news-collect":
+            from quant_rsi.market import news_collection
+
+            if args.collection_command == "init":
+                report = news_collection.initialize(
+                    news_collection.CollectionPlan.model_validate_json(args.plan.read_bytes())
+                )
+            elif args.collection_command == "poll":
+                report = news_collection.poll(args.campaign_id, args.request_id)
+            elif args.collection_command == "process":
+                report = news_collection.process(
+                    args.campaign_id, args.request_id, args.news_campaign_id
+                )
+            else:
+                report = news_collection.inspect(args.campaign_id)
+            print(json.dumps(report, indent=2, allow_nan=False))
+            return 0
         if args.command == "factor-discovery":
             from quant_rsi.factors import discovery
 

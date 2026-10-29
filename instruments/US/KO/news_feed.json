@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "instrument": "KO",
+  "provider_id": "ko_investor_relations_rss",
+  "source_id": "retained_issuer_news",
+  "url": "https://investors.coca-colacompany.com/news-events/press-releases/rss",
+  "allowed_item_hosts": ["investors.coca-colacompany.com"],
+  "capability": "rss_polling",
+  "content_extent": "rss_title_and_summary",
+  "event_template": {
+    "template_id": "issuer.earnings_release_title",
+    "description": "Exact registered issuer earnings-title indicator; no semantic or predictive claim",
+    "ttl_hours": 168
+  }
+}

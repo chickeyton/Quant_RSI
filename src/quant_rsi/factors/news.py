@@ -133,6 +133,37 @@ def extract_title(event, raw, completed_at):
     ).model_dump(mode="json")
 
 
+def retained_evidence_refs(refs, evidence):
+    """Keep registered feed receipts closed over their raw response and source binding."""
+    result, pending = set(), list(refs)
+    while pending:
+        ref = pending.pop()
+        if ref in result:
+            continue
+        if ref not in evidence:
+            raise ValueError("missing transitive feed evidence")
+        result.add(ref)
+        try:
+            value = decode(evidence[ref])
+        except (ValueError, UnicodeError):
+            continue
+        if not isinstance(value, dict):
+            continue
+        kind = value.get("kind")
+        keys = (
+            {
+                "IssuerFeedResponseReceipt": ("raw_ref", "query_ref"),
+                "RegisteredIssuerFeedPoll": ("source_ref",),
+            }.get(kind, ())
+            if isinstance(kind, str)
+            else ()
+        )
+        if any(not isinstance(value.get(key), str) for key in keys):
+            raise ValueError("invalid registered feed evidence reference")
+        pending.extend(value[key] for key in keys)
+    return result
+
+
 def run_news(request, snapshot, evidence, store, root: Path | None = None, *, completed_at=None):
     """Search a registered retained corpus with cumulative campaign reservations.
 
@@ -247,12 +278,18 @@ def run_news(request, snapshot, evidence, store, root: Path | None = None, *, co
             retained_refs = {
                 ref for c in available_coverage for ref in (c.query_ref, c.receipt_ref)
             }
+            retained_refs = retained_evidence_refs(retained_refs, evidence)
             size = sum(len(evidence[ref]) for ref in retained_refs)
             coverage_truncated = size > remaining["bytes"]
             if coverage_truncated:
                 available_coverage, retained_refs, size = [], set(), 0
             for event in candidates:
-                new_refs = {event.payload_ref, event.receipt_ref, event.query_ref} - retained_refs
+                new_refs = (
+                    retained_evidence_refs(
+                        (event.payload_ref, event.receipt_ref, event.query_ref), evidence
+                    )
+                    - retained_refs
+                )
                 nbytes = sum(len(evidence[ref]) for ref in new_refs)
                 if (
                     len(chosen) >= min(remaining["documents"], remaining["extractions"])

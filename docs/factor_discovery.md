@@ -60,6 +60,10 @@ An instance outputs a dimensionless indicator while admitted. Its registered TTL
 
 For retained KO headlines, automatic template instantiation and correction handling is available after `run_news`:
 
+The [prospective RSS collection workflow](news_collection.md) can now supply registered
+retained headlines and call this observer directly. Its source coverage remains partial;
+it does not backfill historical observed evidence or authorize new fits.
+
 ```python
 from quant_rsi.factors.event_observer import observe
 from quant_rsi.factors.lifecycle import EventTemplate, snapshot, attach_instance

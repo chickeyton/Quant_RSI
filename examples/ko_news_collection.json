@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "campaign_id": "ko-news-observed-001",
+  "instrument": "KO",
+  "start_at": "2026-10-28T00:00:00Z",
+  "max_requests": 8,
+  "response_bytes": 262144,
+  "items_per_response": 128
+}
