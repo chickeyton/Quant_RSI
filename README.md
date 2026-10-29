@@ -1,17 +1,28 @@
 # Quant RSI
 
-**A framework for reproducible factor research and forecasting experiments.**
+**A stock-research loop to run end to end, then improve one component at a time.**
 
-Quant RSI separates a shared research engine, reusable factor definitions and
-instrument-specific configuration. It preserves data evidence, experiment budgets
-and results so that research can be inspected, resumed and replayed.
+Start with a stock symbol and follow context gathering, factor selection,
+prediction, observation, feedback and a revised prediction. The first product
+loop uses the repository's actual factor catalog definitions and simulated
+services and numbers, so the whole interaction is visible before connecting
+external tools or training a model.
 
-RSI means **recursive self-improvement** here. The long-term goal is to test whether
-feedback can improve factors and research strategies under a fixed budget. Today,
-the system connects bounded factor searches, fixed-model forecasts and costed
-strategy reports in a [minimal research loop](docs/research_workflow.md). General
-factor-tree execution, live news discovery and complete recursive self-improvement are still
-under development. Predictive advantage has not been established.
+After [installation](#installation-and-usage), run:
+
+```bash
+quant-rsi research-demo KO
+```
+
+See the [simulated research loop](docs/simulated_research_loop.md) to inspect its
+inputs and outputs and replace the simulated LLM, news, model or other steps
+individually. The existing bounded research engine remains available for real
+model experiments, budget accounting, strategy reports and replay.
+
+RSI means **recursive self-improvement** here. The long-term goal is to test
+whether feedback improves factors and research strategies. The simulated loop
+demonstrates how feedback changes the next attempt; it does not establish
+predictive advantage.
 
 [Quick start](#installation-and-usage) · [Capabilities](#current-capabilities) ·
 [Guides](#documentation) · [Roadmap](#roadmap) · [Contributing](#development-and-validation)
@@ -55,38 +66,38 @@ See [factor ownership and types](docs/factor_layers.md).
 
 ## Research workflow
 
-One frozen profile now connects registered inputs, bounded factor discovery,
-forecast comparisons and costed long/cash versus buy-and-hold reports. Development
-forecast error drives the next candidate; trading outcomes do not drive it.
+The simulated product loop has one entry point:
 
 ```mermaid
 flowchart TD
-    A["Research task and budget"] --> B["Data and source evidence"]
-    B --> C["Existing fixed price features"]
-    B --> D["Opt-in: retained-title indicators and bounded expressions"]
-    C --> E["Training and development evaluation"]
-    D --> E
-    E -->|"bounded search feedback"| C
-    E --> S["Costed per-fold strategy / buy-and-hold accounts"]
-    E --> F["Seal model and issue forecast"]
-    E -.-> G["Planned: calibrated independent confirmation"]
-    F --> H["Registered forecast outcome and paper-account observation"]
-    H -.->|"planned: outcome-driven research"| A
+    A["Stock symbol"] --> B["Simulated related stocks and news"]
+    B --> C["Actual factor catalog definitions"]
+    C --> D["Simulated LLM: choose factors"]
+    D --> E["Simulated model: first prediction"]
+    E --> F["Simulated observation and feedback"]
+    F --> G["Simulated LLM: revise factor selection"]
+    G --> H["Simulated model: next prediction"]
+    H --> I["Summary of the full trace"]
 ```
 
-Solid arrows show existing paths; dashed arrows show integrations still to build.
-Forecast publication does not imply independent confirmation or production
-promotion. The [forecast observation ledger](docs/forecast_observations.md) links
-confirmed issuance to later market receipts and preserves outcome revisions.
-The [integrated workflow](docs/research_workflow.md) also connects timely paper
-submission to subsequent receipts, fills and valuation. Real elapsed prospective
-evidence and feeding those outcomes into research decisions remain outstanding.
+Factor selection actually changes the inputs of the next simulated prediction.
+The second prediction has no observed outcome yet. The numerical features,
+headlines, observations and LLM/model responses in this demo are simulated;
+reading a real catalog does not make them market evidence.
+
+For registered inputs and real LightGBM workers, use the separate
+[bounded research workflow](docs/research_workflow.md). It connects discovery,
+per-fold strategy/buy-and-hold reports and linked forecast/paper observation.
+Its development forecast MAE drives discovery; account returns do not select
+candidates. These capabilities can be connected to the product loop one step
+at a time.
 
 ## Current capabilities
 
 | Capability | Status and boundary |
 | --- | --- |
-| Minimal research loop | One profile runs bounded discovery, costed per-fold strategy/buy-and-hold reports and linked forecast/paper observation; feedback uses development forecast MAE only |
+| Simulated product loop | One stock-symbol command shows context, catalog-based factor selection, prediction, feedback, revised selection and a second prediction; each simulated service can be replaced independently |
+| Bounded research workflow | One profile runs bounded discovery, costed per-fold strategy/buy-and-hold reports and linked forecast/paper observation; feedback uses development forecast MAE only |
 | Five-session price forecasting | Available for explicitly supported sources/markets; includes collection, fixed-model research, model sealing and replay |
 | Prospective forecast observation | Offline registration and append-only outcome settlement from observed market receipts; real prospective accumulation and outcome-driven policy updates remain outstanding |
 | Enhanced forecast comparison | Available: three predefined price/context recipes, frozen folds, naive controls and a separate publication fit |
@@ -120,7 +131,18 @@ python -m pip install -r requirements-dev.lock
 python -m pip install --no-deps -e .
 ```
 
-Run the complete bounded workflow with invented data and real model workers:
+Start with the complete simulated product loop:
+
+```bash
+quant-rsi research-demo KO
+quant-rsi research-demo KO --json
+```
+
+This entry point needs no data collection, API key, model fit or research
+workspace. See the [demo guide](docs/simulated_research_loop.md) for the optional
+catalog argument and ordinary Python callables used to replace each step.
+
+When ready to run real model workers, the bounded engine has a separate example:
 
 ```bash
 export QUANT_RSI_WORKSPACE="$PWD"
@@ -182,12 +204,13 @@ arbitrary generated code. Detailed contracts are in the
 
 ## Roadmap
 
-1. Measure the [minimal workflow](docs/research_workflow.md): hypothesis effort,
-   validation cost and honest baseline comparisons before broadening its scope.
-2. Evolve native research alongside a compatible mature-engine comparison under
-   matched data, information and budgets; expand factors and models where useful.
-3. Accumulate prospective outcomes, evaluate research strategies independently
-   and extend [news coverage](docs/news_collection.md) without hiding missing data.
+1. Replace the simulated LLM with a real implementation while keeping the rest
+   of the product loop runnable with simulated services.
+2. Connect news tools, executable factor values and models individually, using
+   the same visible inputs and outputs to inspect each change.
+3. Compare the resulting research methods under frozen tasks and budgets, using
+   the native engine alongside compatible mature engines; measure useful results
+   and the effort required to test a hypothesis.
 
 Track the [architecture RFC #24](https://github.com/natureofnature/Quant_RSI/issues/24),
 [factor-tree issue #8](https://github.com/natureofnature/Quant_RSI/issues/8),
@@ -202,6 +225,7 @@ it is not a declaration that every capability is implemented.
 
 | Start here when you want to… | Guide |
 | --- | --- |
+| Run the stock-symbol product loop and replace simulated services | [Simulated research loop](docs/simulated_research_loop.md) |
 | Run one profile through research, strategy comparison and observation | [Minimal research workflow](docs/research_workflow.md) |
 | Run detailed commands or recover an experiment | [Experiment workflows and recovery](docs/experiment_workflows.md) |
 | Run bounded discovery and manage event instances | [Factor discovery](docs/factor_discovery.md) |
