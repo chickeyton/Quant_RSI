@@ -121,13 +121,43 @@ def test_paths_stay_inside_the_workspace(remote, path):
         server(repo_dir=path or "..")
 
 
-def test_push_code_refuses_private_files(tmp_path, remote):
-    (tmp_path / "a.py").write_text("x = 1\n")
-    result = sync.push_code(remote, remote.config, tmp_path, ["a.py"])
+def test_push_code_refuses_private_files(remote):
+    code = sync.archive(ROOT, ["README.md"])
+    result = sync.push_code(remote, remote.config, ["README.md"], code)
     assert result["files"] == 1 and remote.extracted[0][2] is True
     for private in (".quant_rsi/ibkr.json", ".env", "runs/ko/model.txt"):
         with pytest.raises(ValueError, match="private"):
-            sync.push_code(remote, remote.config, tmp_path, ["a.py", private])
+            sync.push_code(remote, remote.config, ["README.md", private], code)
+    assert len(remote.extracted) == 1
+
+
+def test_git_snapshot_sends_committed_bytes_not_windows_line_endings(tmp_path):
+    def git(*args):
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init", "-q")
+    git("config", "user.email", "test@example.org")
+    git("config", "user.name", "test")
+    (tmp_path / ".gitattributes").write_bytes(b"* text=auto\n")
+    (tmp_path / ".gitignore").write_bytes(b"/runs/\n")
+    (tmp_path / "tracked.txt").write_bytes(b"one\n")
+    git("add", ".")
+    git("commit", "-q", "-m", "init")
+    # A Windows checkout, an uncommitted edit, a new file and ignored output.
+    (tmp_path / "tracked.txt").write_bytes(b"one\r\ntwo\r\n")
+    (tmp_path / "new.txt").write_bytes(b"new\r\n")
+    (tmp_path / "runs").mkdir()
+    (tmp_path / "runs" / "out.txt").write_bytes(b"local\n")
+    names, code = sync.git_snapshot(tmp_path)
+    assert sorted(names) == [".gitattributes", ".gitignore", "new.txt", "tracked.txt"]
+    with tarfile.open(fileobj=io.BytesIO(code)) as tar:
+        files = {m.name: tar.extractfile(m).read() for m in tar.getmembers() if m.isfile()}
+    assert files["tracked.txt"] == b"one\ntwo\n" and files["new.txt"] == b"new\n"
+    # The real index is untouched.
+    status = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=tmp_path, capture_output=True, check=True
+    ).stdout
+    assert b"?? new.txt" in status
 
 
 def test_pull_checks_digest_and_never_silently_overwrites(tmp_path, remote):
@@ -161,7 +191,8 @@ def test_ssh_commands_quote_paths_and_activate_the_venv():
     argv, kwargs = calls[0]
     assert argv[:5] == ["ssh", "-i", "key", "-p", "2222"] and argv[-2] == "tester@test.example.org"
     script = argv[-1]
-    assert script.startswith("cd '/workspace/a b/repo/chickeyton/Quant_RSI' && . ")
+    assert script.startswith("mkdir -p '/workspace/a b/tmp' && export TMPDIR='/workspace/a b/tmp'")
+    assert "&& cd '/workspace/a b/repo/chickeyton/Quant_RSI' && . " in script
     assert "'/workspace/a b/.venv-quant-rsi/bin/activate'" in script
     assert script.endswith("python -m pytest -k 'x; rm -rf /'")
     remote.extract("/workspace/a b/s", b"", overwrite=False)

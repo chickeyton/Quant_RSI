@@ -12,10 +12,12 @@ against the SHA-256 that `fit` printed.
 import argparse
 import io
 import json
+import os
 import shlex
 import subprocess
 import sys
 import tarfile
+import tempfile
 from collections.abc import Iterable, Sequence
 from pathlib import Path, PurePosixPath
 from typing import Literal, Protocol
@@ -64,6 +66,8 @@ class ServerConfig(StrictModel):
     repo_dir: str = "repo/chickeyton/Quant_RSI"
     venv: str = ".venv-quant-rsi"
     profile: str = "profile"
+    # Temporary files of remote commands (pytest's tmp_path included) stay in the workspace.
+    tmp_dir: str = "tmp"
 
     @field_validator("workspace")
     @classmethod
@@ -73,7 +77,7 @@ class ServerConfig(StrictModel):
             raise ValueError("workspace must be an absolute POSIX path")
         return str(path)
 
-    @field_validator("repo_dir", "venv", "profile")
+    @field_validator("repo_dir", "venv", "profile", "tmp_dir")
     @classmethod
     def inside(cls, value):
         return relative(value)
@@ -149,7 +153,9 @@ class SshRemote:
     def execute(self, argv: Sequence[str]) -> tuple[int, bytes]:
         s = self.server
         command = " ".join(shlex.quote(a) for a in argv)
+        tmp = shlex.quote(s.path(s.tmp_dir))
         script = (
+            f"mkdir -p {tmp} && export TMPDIR={tmp} && "
             f"cd {shlex.quote(s.repo)} && . {shlex.quote(s.path(s.profile))} && "
             f". {shlex.quote(s.path(s.venv, 'bin', 'activate'))} && {command}"
         )
@@ -164,25 +170,38 @@ def archive(root: Path, names: Iterable[str]) -> bytes:
     return buffer.getvalue()
 
 
-def push_code(remote: Remote, server: ServerConfig, root: Path, files: Sequence[str]) -> dict:
-    """Copy the working tree's tracked and unignored files; credentials are refused."""
-    names = [relative(name) for name in files]
+def push_code(remote: Remote, server: ServerConfig, names: Sequence[str], code: bytes) -> dict:
+    """Send a `git_snapshot` archive; credentials and local output are refused."""
+    names = [relative(name) for name in names]
     private = [n for n in names if n.startswith(PRIVATE_PREFIXES)]
     if private:
         raise ValueError(f"refusing to send private files: {private[:5]}")
-    names = [n for n in names if (root / n).is_file()]
-    remote.extract(server.repo, archive(root, names), overwrite=True)
+    remote.extract(server.repo, code, overwrite=True)
     return {"repo": server.repo, "files": len(names)}
 
 
-def git_files(root: Path) -> list[str]:
-    out = subprocess.run(
-        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-        cwd=root,
-        stdout=subprocess.PIPE,
-        check=True,
-    ).stdout
-    return [name.decode() for name in out.split(b"\0") if name]
+def git_snapshot(root: Path) -> tuple[list[str], bytes]:
+    """Tracked and unignored working-tree files, with the bytes Git would commit.
+
+    A Windows checkout may hold CRLF line endings; tests that fingerprint repository files
+    expect the normalised bytes, so the archive comes from a temporary index, not the disk.
+    """
+    with tempfile.TemporaryDirectory() as temporary:
+        env = {**os.environ, "GIT_INDEX_FILE": str(Path(temporary) / "index")}
+
+        def git(*args: str) -> bytes:
+            return subprocess.run(
+                ["git", *args], cwd=root, env=env, stdout=subprocess.PIPE, check=True
+            ).stdout
+
+        git("read-tree", "HEAD")
+        git("-c", "core.safecrlf=false", "add", "--all")
+        tree = git("write-tree").decode().strip()
+        listing = git("ls-tree", "-r", "-z", "--name-only", tree)
+        names = [name.decode() for name in listing.split(b"\0") if name]
+        # `git archive` applies checkout line-ending conversion unless told otherwise.
+        lf = ("-c", "core.autocrlf=false", "-c", "core.eol=lf")
+        return names, git(*lf, "archive", "--format=tar", tree)
 
 
 def push_snapshot(
@@ -284,7 +303,7 @@ def _main(argv, remote: Remote | None) -> int:
     remote = remote or SshRemote(server)
     root = Path.cwd()
     if args.command == "push-code":
-        result = push_code(remote, server, root, git_files(root))
+        result = push_code(remote, server, *git_snapshot(root))
     elif args.command == "push-snapshot":
         result = push_snapshot(
             remote,
