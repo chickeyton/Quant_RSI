@@ -133,12 +133,31 @@ marked at the final close, without an invented terminal sale or fee.
 Account quotes are rounded half-even to 12 decimal places to satisfy the existing
 account contract; source prices and model inputs are unchanged.
 
-The report includes net return, maximum drawdown, turnover, commission/slippage,
+The report includes net return, annualized Sharpe and volatility, maximum drawdown,
+turnover, commission/slippage,
 ending inventory and an HTML NAV plot from daily account valuations. Orders and
 fills are hypothetical, using the existing account helpers; their timestamps do
 not prove live or durable submission. Price forecasts and account returns answer
 different questions. Read the development comparison separately from the latest
 forecast, whose outcome remains `not_observed`.
+
+Sharpe uses the mean of **daily costed simple NAV returns** divided by their sample
+standard deviation (`ddof=1`), multiplied by `sqrt(252)`. Annualized volatility is
+that standard deviation multiplied by `sqrt(252)`. The risk-free rate is explicitly
+assumed to be **0%** for all three accounts, consistent with the zero-interest cash
+simulation; it is not a current market rate. These statistics include cash days and
+every daily valuation between signals, exclude the initial pre-trade cash mark, and
+do not treat overlapping five-session prediction labels as daily returns.
+
+The report displays the actual daily return count (normally 24 for 20 consecutive
+forecast origins). The two strategy accounts and buy-and-hold use identical dates
+and assumptions. Fewer than two returns, missing/nonpositive NAV, or zero volatility
+make Sharpe `null` in JSON and `N/A` in reports, with an explicit status; flat
+accounts still have zero volatility. Missing valuations are not silently skipped.
+Short-sample annualization is descriptive and does not establish a stable long-term
+Sharpe or independent improvement. These metrics also reach the second LLM call
+through `feedback.strategy_diagnostics`; no new automatic selection objective or
+Sharpe-based acceptance rule is introduced.
 
 ## Saved output
 

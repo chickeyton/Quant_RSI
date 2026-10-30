@@ -9,6 +9,8 @@ def _cell(value):
 
 
 def _number(value, percent=False):
+    if value is None:
+        return "N/A"
     return f"{float(value) * (100 if percent else 1):.4f}" + ("%" if percent else "")
 
 
@@ -200,27 +202,48 @@ def render_study(result):
         "above the configured threshold targets the next open; unchanged long signals "
         "keep existing units. Buy-and-hold uses the same capital, dates and costs. "
         "Inventory is marked at the final close without assumed exit fees. "
-        "Five-session forecast and execution intervals differ. Returns exclude dividends.",
+        "Five-session forecast and execution intervals differ. Returns exclude dividends. "
+        "Sharpe and volatility use consecutive costed daily NAV returns, including cash days "
+        "and excluding the initial pre-trade mark. Annualization assumes 252 sessions/year, "
+        "a 0% risk-free rate and sample standard deviation (ddof=1). "
+        "These short development samples do not establish reliable long-term Sharpe. "
+        "N/A means the statistic cannot be calculated; inspect the status below.",
     )
     rows = []
+    cost_rows = []
     accounts = []
     for label, prediction in (("Initial", first), ("Revised", second)):
         for name in ("strategy", "buy_and_hold"):
+            if name == "buy_and_hold" and label == "Initial":
+                continue
             account = prediction["strategy"][name]
             metrics = account["metrics"]
+            account_label = label + " strategy" if name == "strategy" else "Buy-and-hold"
             rows.append(
                 [
-                    label + " / " + name,
+                    account_label,
                     _number(metrics["net_return"], True),
+                    _number(metrics["sharpe_ratio"]),
+                    _number(metrics["annualized_volatility"], True),
                     _number(metrics["max_drawdown"], True),
+                    metrics["risk_statistics"]["daily_return_count"],
+                ]
+            )
+            cost_rows.append(
+                [
+                    account_label,
                     metrics["fees"]["commission"],
                     metrics["fees"]["slippage"],
                     _number(metrics["turnover"]),
+                    metrics["risk_statistics"]["status"],
                 ]
             )
-            if name == "strategy" or label == "Revised":
-                accounts.append((label + " / " + name, account))
-    table(["Account", "Net return", "Max drawdown", "Commission", "Slippage", "Turnover"], rows)
+            accounts.append((account_label, account))
+    table(
+        ["Account", "Net return", "Sharpe (ann.)", "Volatility (ann.)", "Max drawdown", "Daily N"],
+        rows,
+    )
+    table(["Account", "Commission", "Slippage", "Turnover", "Risk statistic status"], cost_rows)
     html.append(_equity_chart(accounts))
     section(
         "Latest forecast",

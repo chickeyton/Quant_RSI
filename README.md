@@ -11,7 +11,8 @@ quant-rsi research-study KO --output /tmp/ko-study
 This connects configured company relationships, issuer news, daily prices, two
 Codex hypothesis calls and two real LightGBM fits. Open `/tmp/ko-study/report.html`
 for prediction baselines, initial/revised strategies versus buy-and-hold, costs,
-risk and the latest forecast. Use a new output path for each study.
+Sharpe, volatility, maximum drawdown and the latest forecast. Use a new output path
+for each study. Risk statistics use short development samples, not independent validation.
 
 To try the same report offline, with real model fits on synthetic inputs:
 
