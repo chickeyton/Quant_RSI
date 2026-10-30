@@ -63,7 +63,7 @@ def test_evaluate_and_fit_commands(tmp_path, capsys):
     )
     report = json.loads(capsys.readouterr().out)
     assert report["kind"] == "IntradayDevelopmentEvaluation" and len(report["folds"]) == 2
-    model_path = tmp_path / "model.txt"
+    model_path = tmp_path / "new" / "dir" / "model.txt"  # fit creates the directory
     assert (
         main(
             [

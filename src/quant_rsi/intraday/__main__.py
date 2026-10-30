@@ -19,6 +19,13 @@ def _print(value) -> None:
     sys.stdout.write(json.dumps(value, indent=2, default=str) + "\n")
 
 
+def _output(path) -> Path:
+    """An output path whose directory exists."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def _session(config, client_id):
     from quant_rsi.brokers.ibkr.connection import IbkrSession
     from quant_rsi.brokers.ibkr.ibapi_transport import RealIbapiTransport
@@ -75,7 +82,7 @@ def cmd_resolve(args) -> int:
     session = _session(config, config.data_client_id)
     bindings = [resolve(session, spec).model_dump(mode="json") for spec in profile.specs()]
     session.disconnect()
-    Path(args.output).write_bytes(canonical(bindings))
+    _output(args.output).write_bytes(canonical(bindings))
     _print(bindings)
     return 0
 
@@ -140,10 +147,10 @@ def cmd_fit(args) -> int:
         seed=plan.seed,
         min_rows=plan.min_training_rows,
     )
-    Path(args.output).write_text(model.model_text, encoding="utf-8", newline="\n")
+    _output(args.output).write_text(model.model_text, encoding="utf-8", newline="\n")
     signal = choice.signal.model_dump(mode="json")
     if args.policy_output:
-        Path(args.policy_output).write_bytes(canonical(signal))
+        _output(args.policy_output).write_bytes(canonical(signal))
     _print(
         {
             "model_sha256": model.model_digest,
