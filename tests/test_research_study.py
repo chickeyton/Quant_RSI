@@ -41,7 +41,9 @@ def test_offline_entry_saves_report_and_complete_account_loop(tmp_path):
     steps = {event["stage"]: event["output"] for event in result["trace"]}
     for key in ("first_prediction", "second_prediction"):
         prediction = steps[key]
-        assert prediction["training_feature_columns"] == 1
+        assert prediction["training_feature_columns"] == 2
+        assert prediction["news_feature_support"]["runnable"]
+        assert {row["value"] for row in prediction["news_feature_inputs"]} == {0.0, 1.0}
         assert prediction["development"]["metrics"]["sample_count"] == 20
         assert prediction["strategy"]["strategy"]["valuations"]
         assert prediction["strategy"]["buy_and_hold"]["fills"]
@@ -54,6 +56,7 @@ def test_offline_entry_saves_report_and_complete_account_loop(tmp_path):
         "result.json",
         "config.json",
         "inputs.json",
+        "news_history.json",
         "trace.jsonl",
     } <= {path.name for path in root.iterdir()}
     html = (root / "report.html").read_text()
@@ -63,9 +66,11 @@ def test_offline_entry_saves_report_and_complete_account_loop(tmp_path):
     assert (root / "result.json").read_bytes() == before
 
 
+@pytest.mark.parametrize("use_news", [True, False])
 def test_codex_proposals_execute_and_feedback_includes_predictions_and_strategy(
     tmp_path,
     monkeypatch,
+    use_news,
 ):
     calls = []
 
@@ -83,10 +88,18 @@ def test_codex_proposals_execute_and_feedback_includes_predictions_and_strategy(
         return json.dumps(
             {
                 "hypothesis": "<script>alert('untrusted')</script> test supplied news hypothesis",
-                "factor_ids": [f"research.{op}_{window}"],
+                "factor_ids": [f"research.{op}_{window}"] + (["news.events_7"] if use_news else []),
                 "evidence_news_ids": [data["context"]["news"]["items"][0]["id"]],
                 "event_signal": 0.2,
                 "proposed_factors": [{"op": op, "window": window, "description": "Bounded test"}],
+                "proposed_news_factors": [
+                    {
+                        "name": "events",
+                        "keywords": ["earnings"],
+                        "window_days": 7,
+                        "description": "Headline count",
+                    }
+                ],
             }
         )
 
@@ -96,6 +109,13 @@ def test_codex_proposals_execute_and_feedback_includes_predictions_and_strategy(
     assert len(calls) == 2 and calls[0]["context"]["news"] == calls[1]["context"]["news"]
     result = json.loads((root / "result.json").read_text())
     assert result["study"]["factor_changes"]["activated"] == ["research.qlib_roc_v1_13"]
+    assert result["study"]["news_factors"]["support"]["runnable"]
+    assert result["study"]["news_factors"]["executed_initial"] == (
+        ["news.events_7"] if use_news else []
+    )
+    if not use_news:
+        assert "no news column was fitted" in result["study"]["news_use"]
+        assert "pending" not in result["study"]["news_use"]
     html = (root / "report.html").read_text()
     assert "<script>" not in html and "&lt;script&gt;" in html
 
@@ -161,11 +181,19 @@ def test_api_study_uses_strict_proposal_schema_and_keeps_key_out_of_artifacts(
         window = 9 if len(calls) == 1 else 15
         reply = {
             "hypothesis": "Test API research",
-            "factor_ids": [f"research.momentum_{window}"],
+            "factor_ids": [f"research.momentum_{window}", "news.api_events_7"],
             "evidence_news_ids": ["demo-demand"],
             "event_signal": 0.0,
             "proposed_factors": [
                 {"op": "momentum", "window": window, "description": "Offline transport test"}
+            ],
+            "proposed_news_factors": [
+                {
+                    "name": "api_events",
+                    "keywords": ["demand"],
+                    "window_days": 7,
+                    "description": "API headline count",
+                }
             ],
         }
         return io.BytesIO(

@@ -67,6 +67,18 @@ def simulated_hypothesis(context, library, *, previous=None, feedback=None):
         factors = [f"research.{op}_10"]
         reason = "Simulated researcher proposes a bounded recipe, then revises after feedback."
         proposal = {"proposed_factors": [{"op": op, "window": 10, "description": reason}]}
+        if "news_feature_support" in context:
+            name, window = ("demand", 3) if previous else ("earnings", 7)
+            proposal["proposed_news_factors"] = [
+                {
+                    "name": name,
+                    "keywords": [name],
+                    "window_days": window,
+                    "description": "Simulated retained-headline count proposal.",
+                }
+            ]
+            if context["news_feature_support"]["runnable"]:
+                factors.append(f"news.{name}_{window}")
     return {
         **proposal,
         "provider": "simulated_llm",
@@ -89,6 +101,10 @@ def select_factors(library, hypothesis):
     unknown = set(ids) - definitions.keys()
     if unknown:
         raise ValueError(f"hypothesis selected unknown factors: {sorted(unknown)}")
+    if any(definitions[key].get("runnable") is False for key in ids):
+        raise ValueError(
+            "Selected news factor is pending: insufficient usable historical snapshots"
+        )
     return [deepcopy(definitions[key]) for key in ids]
 
 

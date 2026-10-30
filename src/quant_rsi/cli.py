@@ -72,6 +72,11 @@ def main(argv: list[str] | None = None) -> int:
         demo.add_argument("--prices-dir", type=Path, help="retained daily collection directory")
         if study:
             demo.add_argument("--output", type=Path, required=True, help="new report directory")
+            demo.add_argument(
+                "--news-archive",
+                type=Path,
+                help="retain/reuse issuer RSS snapshots with original receipt times",
+            )
             demo.add_argument("--evaluation-sessions", type=int, default=20, choices=range(2, 21))
             demo.add_argument("--initial-cash", default="10000")
             demo.add_argument("--commission-bps", default="5")
