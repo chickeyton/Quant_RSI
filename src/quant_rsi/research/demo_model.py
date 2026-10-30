@@ -1,9 +1,11 @@
 """Numerical features and LightGBM fits on synthetic or retained public daily prices."""
 
 from copy import deepcopy
+from datetime import datetime
 
 import numpy as np
 
+from quant_rsi.core.artifacts import canonical
 from quant_rsi.core.data import synthetic_data
 from quant_rsi.core.schemas import DataSpec
 from quant_rsi.forecast.forecast_protocol import BOOST_ROUNDS, MODEL_PARAMETERS
@@ -18,10 +20,23 @@ from quant_rsi.research.demo_features import (
 class LightGBMDemo:
     """Two development fits share fixed origins and one mature-label training window."""
 
-    def __init__(self, library, *, prices=None, evaluation_sessions=1):
+    def __init__(
+        self,
+        library,
+        *,
+        prices=None,
+        evaluation_sessions=1,
+        news_history=None,
+        news_cutoffs=None,
+        news_symbol=None,
+    ):
         if type(evaluation_sessions) is not int or not 1 <= evaluation_sessions <= 20:
             raise ValueError("evaluation_sessions must be an integer from 1 through 20")
         self.evaluation_sessions = evaluation_sessions
+        self._news_configuration_open = True
+        self._news_history = None
+        self._news_columns = {}
+        self.news_feature_support = None
         self.library = deepcopy(library)
         self.library["definitions"] = [
             item for item in self.library["definitions"] if item["kind"] == "numeric"
@@ -67,8 +82,93 @@ class LightGBMDemo:
             self.train = np.arange(30, self.origins[0] - self.horizon)
         if len(self.train) < 12:
             raise ValueError("Insufficient mature training rows for the selected price window")
+        if news_history is not None:
+            self.configure_news(news_history, news_cutoffs, news_symbol)
+
+    def configure_news(self, news_history, news_cutoffs, news_symbol):
+        """Freeze one target's evidence and common rows before hypothesis selection."""
+        if not self._news_configuration_open or self._news_history is not None:
+            raise ValueError("News must be configured once, before context or prediction")
+        if self.evaluation_sessions <= 1:
+            raise ValueError("News features require a multi-origin development study")
+        if not isinstance(news_symbol, str) or not news_symbol:
+            raise ValueError("News features require an explicit target symbol")
+        if news_cutoffs is None or len(news_cutoffs) != len(self.data.dates):
+            raise ValueError("News cutoffs must align with every price session")
+        times = [datetime.fromisoformat(value) for value in news_cutoffs]
+        if any(value.tzinfo is None for value in times) or any(
+            left >= right for left, right in zip(times, times[1:], strict=False)
+        ):
+            raise ValueError("News cutoffs must be aware, chronological timestamps")
+        if self.price_info and (
+            tuple(news_cutoffs) != tuple(self.price_info.get("session_close_times", ()))
+            or self.data.instruments != (news_symbol,)
+        ):
+            raise ValueError("News requires the retained target's actual session close times")
+        self._news_history = deepcopy(news_history)
+        self._news_cutoffs = tuple(news_cutoffs)
+        self._news_symbol = news_symbol
+        self._news_configuration_open = False
+        _, evidence = self._news_column(
+            {"op": "headline_keyword_count", "keywords": ["earnings"], "window_days": 30}
+        )
+        available = np.array([item["value"] is not None for item in evidence])
+        training = self.train[available[self.train]]
+        origins = self.origins[available[self.origins]]
+        runnable = len(training) >= 12 and len(origins) >= 2
+        reasons = {reason for item in evidence for reason in item["reasons"]}
+        if len(training) < 12:
+            reasons.add("insufficient_news_training_rows")
+        if len(origins) < 2:
+            reasons.add("insufficient_news_evaluation_rows")
+        self.news_feature_support = {
+            "runnable": runnable,
+            "original_training_rows": len(self.train),
+            "original_evaluation_rows": len(self.origins),
+            "available_training_rows": len(training),
+            "available_evaluation_rows": len(origins),
+            "retained_training_rows": len(training) if runnable else len(self.train),
+            "retained_evaluation_rows": len(origins) if runnable else len(self.origins),
+            "reasons": sorted(reasons),
+            "source_basis": "retained_target_issuer_headline_snapshots",
+            "providers": list(getattr(self._news_history, "providers", ())),
+            "mask_policy": "shared_before_factor_selection",
+        }
+        if runnable:
+            self.train, self.origins = training, origins
+            self.origin = int(origins[-1])
+        self.library["news_feature_support"] = deepcopy(self.news_feature_support)
+        self.library["execution_note"] = (
+            "Numeric price recipes and retained target-issuer headline counts use the same frozen "
+            "training and evaluation rows. Missing news observations are unavailable, not zero."
+            if runnable
+            else "Only numeric price recipes can execute: news history has insufficient available "
+            "training or evaluation rows. News proposals remain specifications."
+        )
+        return deepcopy(self.news_feature_support)
+
+    def _news_column(self, recipe):
+        key = canonical(recipe)
+        if key not in self._news_columns:
+            evidence = [
+                deepcopy(self._news_history.evaluate(recipe, self._news_symbol, cutoff))
+                for cutoff in self._news_cutoffs
+            ]
+            values = np.array(
+                [np.nan if item["value"] is None else float(item["value"]) for item in evidence]
+            )
+            if any(
+                item["value"] is not None and (not np.isfinite(value) or value < 0)
+                for item, value in zip(evidence, values, strict=True)
+            ):
+                raise ValueError("News executor returned an invalid count")
+            self._news_columns[key] = values, evidence
+        return self._news_columns[key]
 
     def context(self, symbol):
+        self._news_configuration_open = False
+        if self._news_history is not None and symbol != self._news_symbol:
+            raise ValueError("News data does not match the target symbol")
         if self.price_info and self.data.instruments != (symbol,):
             raise ValueError("Price data does not match the target symbol")
         result = {
@@ -99,14 +199,47 @@ class LightGBMDemo:
                 "features. The second revision reuses disclosed development outcomes, so this "
                 "is not independent holdout validation. Five-session outcomes overlap."
             )
+        if self.news_feature_support is not None:
+            result["news_feature_support"] = deepcopy(self.news_feature_support)
+            result["model_note"] += (
+                " Retained issuer-headline features are optional and use only snapshots available "
+                "at each supplied session cutoff. Missing coverage is not a zero count."
+            )
         return result
 
     def predict(self, context, factors, hypothesis):
         import lightgbm as lgb
 
-        if not factors or any(item["kind"] != "numeric" for item in factors):
-            raise ValueError("LightGBM demo accepts only selected numeric price factors")
-        matrix = np.column_stack([price_feature(self.data, item["recipe"]) for item in factors])
+        self._news_configuration_open = False
+        if not factors or any(item["kind"] not in {"numeric", "news"} for item in factors):
+            raise ValueError(
+                "LightGBM demo accepts only selected numeric or supported news factors"
+            )
+        news_factors = [item for item in factors if item["kind"] == "news"]
+        if news_factors and not (self.news_feature_support or {}).get("runnable"):
+            raise ValueError("News factor execution is unavailable for this study")
+        columns, news_inputs, news_evidence = [], [], {}
+        for item in factors:
+            if item["kind"] == "numeric":
+                columns.append(price_feature(self.data, item["recipe"]))
+                continue
+            values, evidence = self._news_column(item["recipe"])
+            columns.append(values)
+            news_evidence[item["factor_id"]] = deepcopy(evidence[self.origin]) | {
+                "cutoff": self._news_cutoffs[self.origin]
+            }
+            for role, indices in (("training", self.train), ("evaluation", self.origins)):
+                news_inputs.extend(
+                    deepcopy(evidence[index])
+                    | {
+                        "factor_id": item["factor_id"],
+                        "role": role,
+                        "origin_session": self.data.dates[index],
+                        "cutoff": self._news_cutoffs[index],
+                    }
+                    for index in indices
+                )
+        matrix = np.column_stack(columns)
         x = matrix[self.train]
         y = np.log(self.data.closes[self.train + self.horizon, 0] / self.data.closes[self.train, 0])
         if not np.isfinite(x).all() or not np.isfinite(y).all():
@@ -141,9 +274,25 @@ class LightGBMDemo:
         }
         if self.evaluation_sessions > 1:
             result["development"] = self._development(predicted_returns, float(y.mean()))
+        if self.news_feature_support is not None:
+            result["news_feature_support"] = deepcopy(self.news_feature_support)
+        if news_factors:
+            result["news_feature_inputs"] = news_inputs
+            result["news_feature_evidence"] = news_evidence
         if self.price_info:
             if not np.isfinite(matrix[-1:]).all():
-                raise ValueError("Non-finite numerical latest-forecast inputs")
+                if not news_factors:
+                    raise ValueError("Non-finite numerical latest-forecast inputs")
+                result["latest_forecast_unavailable"] = {
+                    "origin_session": self.data.dates[-1],
+                    "reasons": ["latest_news_features_unavailable"],
+                    "news_feature_evidence": {
+                        item["factor_id"]: deepcopy(self._news_column(item["recipe"])[1][-1])
+                        | {"cutoff": self._news_cutoffs[-1]}
+                        for item in news_factors
+                    },
+                }
+                return result
             latest_return = float(model.predict(matrix[-1:], num_threads=1)[0])
             latest_price = float(self.data.closes[-1, 0] * np.exp(latest_return))
             if not np.isfinite(latest_price) or latest_price <= 0:
@@ -159,6 +308,16 @@ class LightGBMDemo:
                 ],
                 "outcome": "not_observed",
             }
+            if news_factors:
+                result["latest_forecast"]["feature_values"] = {
+                    item["factor_id"]: float(matrix[-1, index])
+                    for index, item in enumerate(factors)
+                }
+                result["latest_forecast"]["news_feature_evidence"] = {
+                    item["factor_id"]: deepcopy(self._news_column(item["recipe"])[1][-1])
+                    | {"cutoff": self._news_cutoffs[-1]}
+                    for item in news_factors
+                }
         return result
 
     def _development(self, predicted_returns, training_mean):
@@ -184,7 +343,7 @@ class LightGBMDemo:
         predicted = rows(predicted_returns)
         baselines = {}
         for name, value in (("unchanged_price", 0.0), ("training_label_mean", training_mean)):
-            baseline_rows = rows(np.full(self.evaluation_sessions, value))
+            baseline_rows = rows(np.full(len(self.origins), value))
             baselines[name] = {
                 "prediction": "zero_log_return"
                 if name == "unchanged_price"
@@ -240,10 +399,15 @@ class LightGBMDemo:
             "second_outcome": "reused_development_observation",
             "improvement": "not_evaluated",
         }
-        if self.price_info:
+        if self.price_info and "latest_forecast" in second:
             result["latest_forecast"] = second["latest_forecast"]
             result["text"] += (
                 " The separate latest forecast uses the same fitted model; outcome unobserved."
+            )
+        elif self.price_info and "latest_forecast_unavailable" in second:
+            result["latest_forecast_unavailable"] = deepcopy(second["latest_forecast_unavailable"])
+            result["text"] += (
+                " The latest forecast is unavailable because its news inputs are missing."
             )
         if self.evaluation_sessions > 1:
             result["development"] = {
@@ -253,7 +417,7 @@ class LightGBMDemo:
                 "evaluation_note": "retrospective_development_same_data_feedback_reuse",
             }
             result["text"] += (
-                f" Metrics describe the same {self.evaluation_sessions} matured origins; "
+                f" Metrics describe the same {len(self.origins)} matured origins; "
                 "news informs retrospective selection and the revised fit reuses these disclosed "
                 "outcomes. Overlapping five-session labels are not independent samples."
             )
