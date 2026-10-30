@@ -193,6 +193,21 @@ def _run(args, symbol, root, configuration, record):
     first_return = float(first["strategy"]["strategy"]["metrics"]["net_return"])
     revised_return = float(second["strategy"]["strategy"]["metrics"]["net_return"])
     buy_hold_return = float(second["strategy"]["buy_and_hold"]["metrics"]["net_return"])
+    risk_accounts = [
+        ("initial", first["strategy"]["strategy"]["metrics"]),
+        ("revised", second["strategy"]["strategy"]["metrics"]),
+        ("buy-and-hold", second["strategy"]["buy_and_hold"]["metrics"]),
+    ]
+    sharpe_summary = ", ".join(
+        f"{label} "
+        + (
+            f"{account_metrics['sharpe_ratio']:.4f}"
+            if account_metrics["sharpe_ratio"] is not None
+            else f"N/A ({account_metrics['risk_statistics']['status']})"
+        )
+        for label, account_metrics in risk_accounts
+    )
+    risk_info = risk_accounts[0][1]["risk_statistics"]
     result["notice"] = (
         f"Connected research study with {model.price_provider} prices. "
         f"Hypotheses: {steps['initial_hypothesis']['provider']}; "
@@ -248,6 +263,10 @@ def _run(args, symbol, root, configuration, record):
             f"MAE by {abs(change):.4f}. "
             f"Net strategy return: initial {first_return:.2%}, revised {revised_return:.2%}, "
             f"buy-and-hold {buy_hold_return:.2%}. "
+            f"Annualized Sharpe: {sharpe_summary} "
+            f"({risk_info['daily_return_count']} daily returns; "
+            "252 sessions/year; risk-free rate 0%). "
+            "Short-sample Sharpe is descriptive, not a reliable long-term estimate. "
             "These are retrospective development results after factor selection and feedback, "
             "not independent accuracy or evidence of improvement. Strategy results are "
             "hypothetical and include explicit costs. The latest forecast, when present, "

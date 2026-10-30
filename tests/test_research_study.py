@@ -61,6 +61,23 @@ def test_offline_entry_saves_report_and_complete_account_loop(tmp_path):
     } <= {path.name for path in root.iterdir()}
     html = (root / "report.html").read_text()
     assert "<svg" in html and "Price MAE" in html and "No independent holdout" in html
+    for report in (html, (root / "report.md").read_text()):
+        assert "Sharpe (ann.)" in report and "Volatility (ann.)" in report
+        assert "Daily N" in report and "0% risk-free rate" in report
+        assert "252 sessions/year" in report and "ddof=1" in report
+    assert "Annualized Sharpe:" in result["study"]["conclusion"]
+    for key in ("first_prediction", "second_prediction"):
+        accounts = steps[key]["strategy"]
+        for name in ("strategy", "buy_and_hold"):
+            metrics = accounts[name]["metrics"]
+            assert metrics["risk_statistics"]["daily_return_count"] == 24
+            assert metrics["annualized_volatility"] >= 0
+            value = metrics["sharpe_ratio"]
+            assert (f"{value:.4f}" if value is not None else "N/A") in html
+    assert (
+        steps["first_prediction"]["strategy"]["buy_and_hold"]
+        == steps["second_prediction"]["strategy"]["buy_and_hold"]
+    )
     before = (root / "result.json").read_bytes()
     assert main(command(root, "--llm", "simulated")) == 1
     assert (root / "result.json").read_bytes() == before
@@ -81,6 +98,11 @@ def test_codex_proposals_execute_and_feedback_includes_predictions_and_strategy(
         revision = data["feedback"] is not None
         if revision:
             assert "strategy_diagnostics" in data["feedback"]
+            for name in ("strategy", "buy_and_hold"):
+                metrics = data["feedback"]["strategy_diagnostics"][name]
+                assert "sharpe_ratio" in metrics and "annualized_volatility" in metrics
+                assert metrics["risk_statistics"]["daily_return_count"] == 24
+                assert metrics["risk_statistics"]["annual_risk_free_rate"] == 0
             assert data["feedback"]["development"]["metrics"]["sample_count"] == 20
             assert "rows" not in data["feedback"]["development"]
             assert "research.momentum_7" in {x["factor_id"] for x in data["catalog"]["definitions"]}
