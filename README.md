@@ -11,7 +11,8 @@ quant-rsi research-study KO --output /tmp/ko-study
 This connects configured company relationships, issuer news, daily prices, two
 Codex hypothesis calls and two real LightGBM fits. Open `/tmp/ko-study/report.html`
 for prediction baselines, initial/revised strategies versus buy-and-hold, costs,
-risk and the latest forecast. Use a new output path for each study.
+Sharpe, volatility, maximum drawdown and the latest forecast. Use a new output path
+for each study. Risk statistics use short development samples, not independent validation.
 
 To try the same report offline, with real model fits on synthetic inputs:
 
@@ -21,7 +22,8 @@ quant-rsi research-study KO --output /tmp/ko-study-offline \
 ```
 
 The [connected study guide](docs/connected_research_study.md) explains prerequisites,
-options, artifacts and interpretation. Feedback revises bounded numeric recipes;
+options, artifacts and interpretation. Feedback revises bounded price recipes and
+headline-count recipes when receipt-time news history supports them;
 both attempts use the same development observations, so a better second result
 is not independent evidence of improvement. The latest forecast has no observed
 outcome. RSI means **recursive self-improvement** here; testing whether research
@@ -77,7 +79,7 @@ The connected study follows one visible path:
 
 ```mermaid
 flowchart TD
-    A["Stock + relationship/news/price context"] --> B["LLM proposes bounded numeric recipes"]
+    A["Stock + relationship/news/price context"] --> B["LLM proposes bounded price / headline-count recipes"]
     B --> C["LightGBM fit + development forecasts"]
     C --> D["Prediction baselines + costed strategy / buy-and-hold"]
     D --> E["Feedback to LLM: revise recipes"]
@@ -87,8 +89,9 @@ flowchart TD
 
 The study defaults to 20 matured five-session forecasts, with training labels
 strictly before the first evaluation origin. The revision sees those results,
-so its comparison remains development analysis. Current news informs research
-choices and is not backfilled as historical features. Strategy orders execute at
+so its comparison remains development analysis. Archived headlines can supply
+keyword-count features only where their recorded reception precedes the relevant
+close. Current news is not backfilled into historical rows. Strategy orders execute at
 the next open in a hypothetical account; this is not live order submission.
 
 For registered inputs and real LightGBM workers, use the separate
@@ -107,6 +110,7 @@ at a time.
 | Live LLM hypotheses | Optional Codex CLI or OpenAI Responses API makes two independent calls with explicit feedback; current news is research context, not historical training data |
 | Company relationships | Optional KO profile lists source-backed CCEP bottling and MNST distribution links; configured relationships, not automatic discovery or statistical correlations |
 | Live news in the product loop | Routes target and configured related issuers to registered RSS feeds; KO is available, CCEP/MNST are explicitly `not_configured`; no general search or article fetching |
+| News features in the connected study | Literal keyword counts over retained target headlines, gated by original receipt time and freshness; insufficient history leaves proposals pending, while the offline synthetic demo can exercise actual news columns |
 | LightGBM in the product loop | Numeric feature calculation and two fits on synthetic or collected daily prices; feedback informs a development reestimate at the same origin, with no independent improvement claim |
 | Daily prices in the product loop | Collect once or reuse verified daily evidence; report development errors separately from the latest-bar five-session forecast, whose outcome is unobserved |
 | Bounded research workflow | One profile runs bounded discovery, costed per-fold strategy/buy-and-hold reports and linked forecast/paper observation; feedback uses development forecast MAE only |
@@ -163,6 +167,10 @@ the checkout. Failures retain completed stage traces without silently substituti
 simulated services. To inspect the smaller original interaction, run
 `quant-rsi research-demo KO`; its flags and independent worktree setup remain in
 [the demo guide](docs/simulated_research_loop.md).
+
+To retain current RSS snapshots across studies, add `--news-archive /tmp/ko-news`.
+This builds receipt-time history going forward; collecting news now cannot make
+it usable at earlier market closes. See [news archive and features](docs/connected_research_study.md#news-archive-and-features).
 
 When ready to run real model workers, the bounded engine has a separate example:
 

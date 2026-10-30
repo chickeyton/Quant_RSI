@@ -9,6 +9,8 @@ def _cell(value):
 
 
 def _number(value, percent=False):
+    if value is None:
+        return "N/A"
     return f"{float(value) * (100 if percent else 1):.4f}" + ("%" if percent else "")
 
 
@@ -110,13 +112,71 @@ def render_study(result):
         ],
     )
     dev = second["development"]
+    news_factors = result["study"].get("news_factors")
+    if news_factors:
+        support = news_factors["support"]
+        section(
+            "News factor execution",
+            (
+                "Historical news inputs are usable. "
+                if support["runnable"]
+                else "News proposals are pending: too few usable historical snapshots. "
+            )
+            + result["study"]["news_use"]
+            + " "
+            + news_factors["timing_note"]
+            + " Both attempts and prediction baselines share the same preselected sample mask. "
+            "Keyword windows use calendar days; zero means no matching retained title, "
+            "not absence of all issuer news.",
+        )
+        table(
+            ["Coverage", "Count"],
+            [[key, value] for key, value in support.items() if key.endswith("rows")],
+        )
+        table(
+            ["Proposed factor", "Keywords", "Days", "State"],
+            [
+                [
+                    item["factor_id"],
+                    ", ".join(item["recipe"]["keywords"]),
+                    item["recipe"]["window_days"],
+                    "eligible" if item["runnable"] else "pending",
+                ]
+                for item in news_factors["definitions"]
+            ],
+        )
+        evidence_rows = []
+        for label, prediction in (("Initial", first), ("Revised", second)):
+            for identity, evidence in prediction.get("news_feature_evidence", {}).items():
+                evidence_rows.append(
+                    [
+                        label,
+                        identity,
+                        evidence["value"],
+                        evidence["snapshot_received_at"],
+                        ", ".join(evidence["evidence_news_ids"]) or "no matching retained title",
+                    ]
+                )
+        if evidence_rows:
+            table(
+                [
+                    "Round",
+                    "Executed factor",
+                    "Count at final origin",
+                    "Snapshot receipt",
+                    "Evidence",
+                ],
+                evidence_rows,
+            )
     section(
         "Prediction comparison",
         f"{dev['first_evaluation_session']} to "
         f"{dev['last_evaluation_session']}: overlapping five-session labels, "
         "retrospective development observations. MAPE is price error percent; "
         "direction hit rate is a sample frequency, not confidence or independent accuracy. "
-        "Current news and feedback influenced recipe selection. No independent holdout.",
+        "Current news and feedback influenced recipe selection. No independent holdout. "
+        "Where news coverage removes dates, accounts hold prior units until the next "
+        "supplied signal; missing dates do not imply a fresh daily forecast.",
     )
     rows = []
     comparisons = [
@@ -142,27 +202,48 @@ def render_study(result):
         "above the configured threshold targets the next open; unchanged long signals "
         "keep existing units. Buy-and-hold uses the same capital, dates and costs. "
         "Inventory is marked at the final close without assumed exit fees. "
-        "Five-session forecast and execution intervals differ. Returns exclude dividends.",
+        "Five-session forecast and execution intervals differ. Returns exclude dividends. "
+        "Sharpe and volatility use consecutive costed daily NAV returns, including cash days "
+        "and excluding the initial pre-trade mark. Annualization assumes 252 sessions/year, "
+        "a 0% risk-free rate and sample standard deviation (ddof=1). "
+        "These short development samples do not establish reliable long-term Sharpe. "
+        "N/A means the statistic cannot be calculated; inspect the status below.",
     )
     rows = []
+    cost_rows = []
     accounts = []
     for label, prediction in (("Initial", first), ("Revised", second)):
         for name in ("strategy", "buy_and_hold"):
+            if name == "buy_and_hold" and label == "Initial":
+                continue
             account = prediction["strategy"][name]
             metrics = account["metrics"]
+            account_label = label + " strategy" if name == "strategy" else "Buy-and-hold"
             rows.append(
                 [
-                    label + " / " + name,
+                    account_label,
                     _number(metrics["net_return"], True),
+                    _number(metrics["sharpe_ratio"]),
+                    _number(metrics["annualized_volatility"], True),
                     _number(metrics["max_drawdown"], True),
+                    metrics["risk_statistics"]["daily_return_count"],
+                ]
+            )
+            cost_rows.append(
+                [
+                    account_label,
                     metrics["fees"]["commission"],
                     metrics["fees"]["slippage"],
                     _number(metrics["turnover"]),
+                    metrics["risk_statistics"]["status"],
                 ]
             )
-            if name == "strategy" or label == "Revised":
-                accounts.append((label + " / " + name, account))
-    table(["Account", "Net return", "Max drawdown", "Commission", "Slippage", "Turnover"], rows)
+            accounts.append((account_label, account))
+    table(
+        ["Account", "Net return", "Sharpe (ann.)", "Volatility (ann.)", "Max drawdown", "Daily N"],
+        rows,
+    )
+    table(["Account", "Commission", "Slippage", "Turnover", "Risk statistic status"], cost_rows)
     html.append(_equity_chart(accounts))
     section(
         "Latest forecast",
@@ -183,13 +264,15 @@ def render_study(result):
                 ]
             ],
         )
+    elif second.get("latest_forecast_unavailable"):
+        section("Forecast unavailable", "; ".join(second["latest_forecast_unavailable"]["reasons"]))
     else:
         section("Forecast availability", "Synthetic run: no real-market latest forecast.")
     section(
         "Engine and limits",
         result["study"]["external_engine"] + " "
         "This is a research run, not a broker deployment or a registered prospective study. "
-        "Missing partner news is not zero news; no text/news feature was fitted. "
+        "Missing partner news is not zero news. "
         "Definitions, full quotes, predictions, orders and valuations are retained locally.",
     )
     table(["Setting", "Value"], [[key, value] for key, value in result["configuration"].items()])
@@ -197,13 +280,14 @@ def render_study(result):
         [
             "## Full evidence",
             "",
-            "See `result.json`, `inputs.json`, `config.json` and "
+            "See `result.json`, `inputs.json`, `news_history.json`, `config.json` and "
             "`trace.jsonl` in this directory. Reading these files makes no API calls.",
             "",
         ]
     )
     html.append(
         "<p><a href='result.json'>Full result</a> · <a href='trace.jsonl'>Stage trace</a> · "
+        "<a href='news_history.json'>News snapshots</a> · "
         "<a href='inputs.json'>Retained inputs</a> · <a href='config.json'>Configuration</a> · "
         "<a href='report.md'>Markdown report</a></p>"
     )

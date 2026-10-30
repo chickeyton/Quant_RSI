@@ -2,6 +2,7 @@
 
 import math
 from decimal import ROUND_HALF_EVEN, Decimal
+from statistics import mean, stdev
 
 from quant_rsi.core.artifacts import canonical, digest
 from quant_rsi.core.data import MarketData
@@ -161,6 +162,7 @@ def _submit(state, data, index, symbol, long, price, rules):
 def _metrics(state, rules):
     initial = Decimal(rules.initial_cash)
     return {
+        **_risk_metrics(state["valuations"]),
         "net_return": account.amount(Decimal(state["last_nav"]) / initial - 1),
         "max_drawdown": min((row["drawdown"] for row in state["valuations"]), key=Decimal),
         "fees": {key: state["cumulative_" + key] for key in ("commission", "tax", "slippage")},
@@ -171,3 +173,35 @@ def _metrics(state, rules):
         "ending_inventory": state["holdings"],
         "ending_cash": state["cash"],
     }
+
+
+def _risk_metrics(valuations):
+    """Use consecutive costed closes, excluding the initial pre-trade cash mark."""
+    result = {
+        "sharpe_ratio": None,
+        "annualized_volatility": None,
+        "risk_statistics": {
+            "return_basis": "consecutive_daily_net_account_nav_simple_returns",
+            "annualization_sessions": 252,
+            "annual_risk_free_rate": 0.0,
+            "standard_deviation_ddof": 1,
+            "daily_return_count": 0,
+            "status": "insufficient_observations",
+            "interpretation": "Short retrospective development sample; not independent evidence.",
+        },
+    }
+    info = result["risk_statistics"]
+    nav = [float(row["nav"]) if row["nav"] is not None else None for row in valuations]
+    if any(value is None or not math.isfinite(value) or value <= 0 for value in nav):
+        info["status"] = "missing_or_nonpositive_nav"
+        return result
+    returns = [current / previous - 1 for previous, current in zip(nav, nav[1:], strict=False)]
+    info["daily_return_count"] = len(returns)
+    if len(returns) < 2:
+        return result
+    deviation = stdev(returns)
+    result["annualized_volatility"] = deviation * math.sqrt(252)
+    info["status"] = "zero_volatility" if deviation == 0 else "available"
+    if deviation:
+        result["sharpe_ratio"] = mean(returns) / deviation * math.sqrt(252)
+    return result

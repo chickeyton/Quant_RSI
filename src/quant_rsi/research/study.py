@@ -9,7 +9,13 @@ from pydantic import TypeAdapter
 
 from quant_rsi.factors.contracts import InstrumentId
 from quant_rsi.market.market_contracts import SideCosts, decimal_text
-from quant_rsi.research.demo import load_catalog, run_demo, simulated_hypothesis, simulated_news
+from quant_rsi.research.demo import (
+    load_catalog,
+    run_demo,
+    simulated_hypothesis,
+    simulated_news,
+    simulated_related,
+)
 from quant_rsi.research.demo_model import LightGBMDemo
 from quant_rsi.research.demo_news import issuer_news
 from quant_rsi.research.demo_prices import load_daily_prices
@@ -17,6 +23,12 @@ from quant_rsi.research.demo_proposals import FactorProposal
 from quant_rsi.research.demo_related import profile_related
 from quant_rsi.research.demo_strategy import evaluate_strategy
 from quant_rsi.research.llm import LLMHypothesizer
+from quant_rsi.research.study_news import (
+    NewsHistory,
+    load_archive,
+    retain_snapshot,
+    simulated_history,
+)
 
 
 def _write(path, value):
@@ -32,6 +44,8 @@ def run_study(args):
     checkout = Path(__file__).resolve().parents[3]
     if root.is_relative_to(checkout):
         raise ValueError("Keep study artifacts outside the source checkout")
+    if args.news_archive and args.news_archive.resolve().is_relative_to(checkout):
+        raise ValueError("Keep news snapshots outside the source checkout")
     root.mkdir(parents=True, exist_ok=False)
     configuration = {
         key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()
@@ -40,7 +54,7 @@ def run_study(args):
         symbol=symbol,
         model="lightgbm",
         research_rounds=2,
-        generated_recipes="bounded_price_operators_only",
+        generated_recipes="bounded_price_operators_and_retained_headline_counts",
     )
     _write(root / "config.json", configuration)
     last_stage = "initialization"
@@ -93,6 +107,33 @@ def _run(args, symbol, root, configuration, record):
     model = LightGBMDemo(library, prices=prices, evaluation_sessions=args.evaluation_sessions)
     if prices is None:
         model.data = replace(model.data, instruments=(symbol,))
+    related = (profile_related if args.related == "profile" else simulated_related)(symbol)
+    news_context = {"symbol": symbol, "related": related}
+    current_news = (
+        issuer_news(news_context, limit=args.news_limit)
+        if args.news == "issuer-rss"
+        else simulated_news(news_context)
+    )
+    archive = args.news_archive or root / "news_archive"
+    snapshots = load_archive(archive)
+    if args.prices == "daily" and any(
+        snapshot["provider"] != "issuer_rss" for snapshot in snapshots
+    ):
+        raise ValueError("Simulated news history cannot enter a daily-price study")
+    if args.news == "issuer-rss":
+        retain_snapshot(archive, current_news)
+        snapshots = load_archive(archive)
+    elif args.prices == "synthetic" and not snapshots:
+        snapshots = simulated_history(model.data, symbol)
+    history = NewsHistory(snapshots)
+    cutoffs = (
+        model.price_info["session_close_times"]
+        if model.price_info
+        else [model.data.timestamp(i, "close") for i in range(len(model.data.dates))]
+    )
+    model.configure_news(history, cutoffs, symbol)
+    model.library["news_feature_support"] = model.context(symbol)["news_feature_support"]
+    _write(root / "news_history.json", snapshots)
     _write(
         root / "inputs.json",
         {
@@ -102,6 +143,8 @@ def _run(args, symbol, root, configuration, record):
             "opens": model.data.opens[:, 0].tolist(),
             "closes": model.data.closes[:, 0].tolist(),
             "price_evidence": model.price_info,
+            "news_history_file": "news_history.json",
+            "news_snapshot_count": len(snapshots),
         },
     )
 
@@ -128,22 +171,17 @@ def _run(args, symbol, root, configuration, record):
             },
         }
 
-    providers = {}
-    if args.related == "profile":
-        providers["related"] = profile_related
     result = run_demo(
         symbol,
         catalog=lambda: model.library,
         price_context=context,
-        news=(lambda context: issuer_news(context, limit=args.news_limit))
-        if args.news == "issuer-rss"
-        else simulated_news,
+        related=lambda target: related,
+        news=lambda context: current_news,
         hypothesize=hypothesis,
         predict=predict,
         observe=observe,
         summarize=model.summarize,
         on_stage=record,
-        **providers,
     )
     steps = {event["stage"]: event["output"] for event in result["trace"]}
     first, second = (steps[key] for key in ("first_prediction", "second_prediction"))
@@ -155,6 +193,21 @@ def _run(args, symbol, root, configuration, record):
     first_return = float(first["strategy"]["strategy"]["metrics"]["net_return"])
     revised_return = float(second["strategy"]["strategy"]["metrics"]["net_return"])
     buy_hold_return = float(second["strategy"]["buy_and_hold"]["metrics"]["net_return"])
+    risk_accounts = [
+        ("initial", first["strategy"]["strategy"]["metrics"]),
+        ("revised", second["strategy"]["strategy"]["metrics"]),
+        ("buy-and-hold", second["strategy"]["buy_and_hold"]["metrics"]),
+    ]
+    sharpe_summary = ", ".join(
+        f"{label} "
+        + (
+            f"{account_metrics['sharpe_ratio']:.4f}"
+            if account_metrics["sharpe_ratio"] is not None
+            else f"N/A ({account_metrics['risk_statistics']['status']})"
+        )
+        for label, account_metrics in risk_accounts
+    )
+    risk_info = risk_accounts[0][1]["risk_statistics"]
     result["notice"] = (
         f"Connected research study with {model.price_provider} prices. "
         f"Hypotheses: {steps['initial_hypothesis']['provider']}; "
@@ -164,6 +217,14 @@ def _run(args, symbol, root, configuration, record):
         "is established. Inspect source coverage and the separate unobserved latest forecast."
     )
     result["configuration"] = configuration
+    news_definitions = [
+        item for item in steps["revised_factor_library"]["definitions"] if item["kind"] == "news"
+    ]
+    news_used = any(
+        item["kind"] == "news"
+        for key in ("initial_factors", "revised_factors")
+        for item in steps[key]
+    )
     result["study"] = {
         "engine": "local_lightgbm_and_existing_finite_account",
         "factor_changes": {
@@ -172,7 +233,26 @@ def _run(args, symbol, root, configuration, record):
             "retained": sorted(first_ids & second_ids),
             "meaning": "Run-local selection changes; definitions and evidence remain in the trace.",
         },
-        "news_use": "Hypothesis and recipe selection only; no historical text feature is fitted.",
+        "news_use": (
+            "Selected retained-headline counts entered the fitted feature matrix. "
+            "Counts cover the selected RSS corpus, not all issuer news; no sentiment is inferred."
+            if news_used
+            else "News informed hypotheses and recipe proposals only; no news column was fitted."
+        ),
+        "news_factors": {
+            "support": model.context(symbol)["news_feature_support"],
+            "definitions": news_definitions,
+            "snapshot_count": len(snapshots),
+            "archive_directory": str(archive.resolve()) if args.news == "issuer-rss" else None,
+            "executed_initial": [
+                x["factor_id"] for x in steps["initial_factors"] if x["kind"] == "news"
+            ],
+            "executed_revised": [
+                x["factor_id"] for x in steps["revised_factors"] if x["kind"] == "news"
+            ],
+            "timing_note": "Original receipt times are preserved source records, not independently "
+            "authenticated clocks. Real price cutoffs use the retained exchange calendar.",
+        },
         "external_engine": "Qlib-style local price adapters; no Qlib or QuantDinger execution.",
         "conclusion": (
             f"{symbol}: completed two fits and one factor revision over "
@@ -183,6 +263,10 @@ def _run(args, symbol, root, configuration, record):
             f"MAE by {abs(change):.4f}. "
             f"Net strategy return: initial {first_return:.2%}, revised {revised_return:.2%}, "
             f"buy-and-hold {buy_hold_return:.2%}. "
+            f"Annualized Sharpe: {sharpe_summary} "
+            f"({risk_info['daily_return_count']} daily returns; "
+            "252 sessions/year; risk-free rate 0%). "
+            "Short-sample Sharpe is descriptive, not a reliable long-term estimate. "
             "These are retrospective development results after factor selection and feedback, "
             "not independent accuracy or evidence of improvement. Strategy results are "
             "hypothetical and include explicit costs. The latest forecast, when present, "

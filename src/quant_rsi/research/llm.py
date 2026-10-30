@@ -14,7 +14,7 @@ from urllib.request import Request, urlopen
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from quant_rsi.research.demo import select_factors
-from quant_rsi.research.demo_proposals import FactorProposal, extend_library
+from quant_rsi.research.demo_proposals import FactorProposal, NewsFactorProposal, extend_library
 
 
 class Hypothesis(BaseModel):
@@ -28,6 +28,10 @@ class Hypothesis(BaseModel):
 
 class StudyHypothesis(Hypothesis):
     proposed_factors: list[FactorProposal] = Field(min_length=1, max_length=3)
+
+
+class NewsStudyHypothesis(StudyHypothesis):
+    proposed_news_factors: list[NewsFactorProposal] = Field(min_length=1, max_length=2)
 
 
 @dataclass(frozen=True)
@@ -49,6 +53,9 @@ class LLMHypothesizer:
     def __call__(self, context, library, *, previous=None, feedback=None):
         study = context.get("allow_factor_proposals", False)
         response_type = StudyHypothesis if study else Hypothesis
+        news_study = study and "news_feature_support" in context
+        if news_study:
+            response_type = NewsStudyHypothesis
         schema = response_type.model_json_schema()
         if not study:
             schema["properties"]["factor_ids"]["items"]["enum"] = [
@@ -97,6 +104,22 @@ class LLMHypothesizer:
                 "not independent evidence. Current news is not a historical feature. "
                 if study
                 else "Use only supplied catalog factor IDs. "
+            )
+            + (
+                "Also propose one or two target-issuer news factors with name, keywords, "
+                "window_days (1..30 calendar days), and description. Their IDs are "
+                "news.<name>_<window_days>. Names use lowercase letters, digits and underscores. "
+                "Execution counts distinct retained target headlines containing ANY literal "
+                "case-insensitive keyword, using only snapshots received by the historical "
+                "decision close. It does not extract sentiment or all-world news counts. "
+                "If context.news_feature_support.runnable is true, you may select proposed "
+                "news factors alongside a proposed price factor. You may omit unhelpful news "
+                "factors, including deactivating all of them after feedback. Otherwise "
+                "retain news proposals as pending but DO NOT include any news IDs in factor_ids; "
+                "select executable price factors only. Missing news is never zero. "
+                "Keep existing news recipes unchanged or propose a new name. "
+                if news_study
+                else ""
             )
             + "\nINPUT_JSON:\n"
             + json.dumps(

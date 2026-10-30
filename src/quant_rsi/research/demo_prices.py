@@ -77,4 +77,5 @@ def _read_collection(symbol, root):
         "currency": contract.currency,
         "qualifications": receipt["qualifications"],
         "latest_target_session": contract.calendar.sessions[HISTORY_SESSIONS - 1 + 5].session_id,
+        "session_close_times": [session.close_at.isoformat() for session in sessions],
     }

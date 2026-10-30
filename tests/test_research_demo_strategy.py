@@ -9,7 +9,7 @@ import pytest
 
 from quant_rsi.core.data import MarketData, synthetic_data
 from quant_rsi.core.schemas import DataSpec
-from quant_rsi.research.demo_strategy import evaluate_strategy
+from quant_rsi.research.demo_strategy import _risk_metrics, evaluate_strategy
 
 
 def market():
@@ -48,6 +48,10 @@ def test_constant_positive_matches_buyhold_costs_and_preserves_end_inventory():
     assert strategy["orders"][0]["target_session"] == data.dates[1]
     assert result["period"] == {"start": data.dates[0], "end": data.dates[7]}
     assert "hypothetical" in result["evidence_mode"]
+    # One cost loss followed by six flat days; the initial cash mark is not a return.
+    assert strategy["metrics"]["sharpe_ratio"] == pytest.approx(-6)
+    assert strategy["metrics"]["annualized_volatility"] == pytest.approx(0.00099 * 6)
+    assert strategy["metrics"]["risk_statistics"]["daily_return_count"] == 7
 
 
 def test_negative_then_positive_then_negative_changes_next_open_positions():
@@ -71,6 +75,42 @@ def test_nonpositive_remains_cash_but_buyhold_still_enters(score):
     assert result["strategy"]["fills"] == []
     assert Decimal(result["strategy"]["metrics"]["net_return"]) == 0
     assert len(result["buy_and_hold"]["fills"]) == 1
+    metrics = result["strategy"]["metrics"]
+    assert metrics["sharpe_ratio"] is None
+    assert metrics["annualized_volatility"] == 0
+    assert metrics["risk_statistics"]["status"] == "zero_volatility"
+
+
+def test_sharpe_uses_daily_nav_between_sparse_signals_not_overlapping_forecast_returns():
+    data = market()
+    data.closes[1:, 0] = 110
+    result = evaluate_strategy(data, "KO", [prediction(data)], commission_bps="0", slippage_bps="0")
+    # Daily net returns are 10%, 0%, 0%, 0%, 0%, even though there is only one forecast.
+    metrics = result["strategy"]["metrics"]
+    assert metrics["sharpe_ratio"] == pytest.approx(np.sqrt(50.4))
+    assert metrics["annualized_volatility"] == pytest.approx(np.sqrt(0.504))
+    assert metrics["risk_statistics"]["daily_return_count"] == 5
+    assert metrics["risk_statistics"]["annual_risk_free_rate"] == 0
+    assert metrics["risk_statistics"]["annualization_sessions"] == 252
+    assert metrics["risk_statistics"]["standard_deviation_ddof"] == 1
+    assert metrics == result["buy_and_hold"]["metrics"]
+
+
+@pytest.mark.parametrize(
+    "nav,status,count",
+    [
+        ([], "insufficient_observations", 0),
+        ([100, 101], "insufficient_observations", 1),
+        ([100, None, 101], "missing_or_nonpositive_nav", 0),
+        ([100, 0, 101], "missing_or_nonpositive_nav", 0),
+    ],
+)
+def test_unavailable_risk_statistics_do_not_bridge_gaps_or_emit_infinity(nav, status, count):
+    metrics = _risk_metrics([{"nav": value} for value in nav])
+    assert metrics["sharpe_ratio"] is None
+    assert metrics["annualized_volatility"] is None
+    assert metrics["risk_statistics"]["status"] == status
+    assert metrics["risk_statistics"]["daily_return_count"] == count
 
 
 def test_next_open_gap_changes_fill_without_changing_close_sized_order():
