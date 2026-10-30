@@ -157,10 +157,25 @@ def _calendar(body):
     if len(set(years)) != len(years) or len(table) != 11:
         raise ValueError("Expected ten explicitly published NYSE holidays per year")
     holidays = {year: set() for year in years}
+    expected_closures = dict.fromkeys(years, 10)
     for row in table[1:]:
         if len(row) != len(years) + 1:
             raise ValueError("Incomplete official holiday row")
         for year, value in zip(years, row[1:], strict=True):
+            # NYSE does not observe a Saturday New Year's Day on the preceding Friday.
+            # Accept the dash only with the official explanation for this exact year.
+            if (
+                row[0] == "New Year’s Day"
+                and value == "—*"
+                and date(year, 1, 1).weekday() == 5
+                and (
+                    f"* Because the holiday falls on Saturday, January 1, {year}, "
+                    "no New Year’s Day holiday is observed."
+                )
+                in page.paragraphs
+            ):
+                expected_closures[year] -= 1
+                continue
             match = re.search(DATE_PATTERN, value)
             if match is None:
                 raise ValueError("Unrecognized official holiday date")
@@ -168,7 +183,7 @@ def _calendar(body):
             if day.strftime("%A") not in value:
                 raise ValueError("Official holiday weekday/date mismatch")
             holidays[year].add(day)
-    if any(len(days) != 10 for days in holidays.values()):
+    if any(len(days) != expected_closures[year] for year, days in holidays.items()):
         raise ValueError("Duplicate or missing official holidays")
     early = set()
     paragraphs = [x for x in page.paragraphs if "Each market will close early" in x]
@@ -255,11 +270,16 @@ def _chart(body, ticker):
 
 def _complete_bars(timestamps, quotes, holidays, early, received_at):
     complete, previous = [], None
+    first_calendar_year = min(holidays)
     for i, epoch in enumerate(timestamps):
         opening = datetime.fromtimestamp(epoch, EASTERN)
         if previous is not None and opening.date() <= previous:
             raise ValueError("Duplicate or out-of-order daily session")
         previous = opening.date()
+        # A one-year chart can precede the published calendar. Retain only covered
+        # history; the required window and future sessions are still checked below.
+        if opening.year < first_calendar_year:
+            continue
         # The source can contain a current partial bar, but cannot define its close.
         session = _session(opening.date(), holidays, early)
         if session is None or opening != datetime.fromisoformat(session["open_at"]):

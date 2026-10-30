@@ -37,6 +37,85 @@ def main(argv: list[str] | None = None) -> int:
         description="Bounded quant research and development observations"
     )
     commands = parser.add_subparsers(dest="command", required=True)
+    for name in ("research-demo", "research-study"):
+        study = name == "research-study"
+        demo = commands.add_parser(
+            name,
+            help="connected research report"
+            if study
+            else "simulate one complete stock research loop",
+        )
+        demo.add_argument("symbol", nargs="?", default="KO")
+        demo.add_argument("--catalog", type=Path, default=Path("instruments/shared/equities.json"))
+        demo.add_argument("--json", action="store_true", help="emit the complete trace as JSON")
+        demo.add_argument(
+            "--llm",
+            choices=("simulated", "codex", "api"),
+            default="codex" if study else "simulated",
+        )
+        demo.add_argument("--llm-model", help="model ID; required for API, optional for Codex")
+        demo.add_argument("--llm-timeout", type=float, default=180, help="seconds per LLM call")
+        demo.add_argument(
+            "--related",
+            choices=("simulated", "profile"),
+            default="profile" if study else "simulated",
+        )
+        demo.add_argument(
+            "--news",
+            choices=("simulated", "issuer-rss"),
+            default="issuer-rss" if study else "simulated",
+        )
+        demo.add_argument("--news-limit", type=int, default=5, help="RSS items per issuer (1-20)")
+        demo.add_argument(
+            "--prices", choices=("synthetic", "daily"), default="daily" if study else "synthetic"
+        )
+        demo.add_argument("--prices-dir", type=Path, help="retained daily collection directory")
+        if study:
+            demo.add_argument("--output", type=Path, required=True, help="new report directory")
+            demo.add_argument("--evaluation-sessions", type=int, default=20, choices=range(2, 21))
+            demo.add_argument("--initial-cash", default="10000")
+            demo.add_argument("--commission-bps", default="5")
+            demo.add_argument("--slippage-bps", default="5")
+            demo.add_argument("--threshold", type=float, default=0.0)
+        else:
+            demo.add_argument("--model", choices=("simulated", "lightgbm"), default="simulated")
+    workflow = commands.add_parser("research-workflow", help="one frozen research/account profile")
+    workflow_commands = workflow.add_subparsers(dest="workflow_command", required=True)
+    for name in ("prepare", "run"):
+        command = workflow_commands.add_parser(name)
+        command.add_argument("profile", type=Path)
+        if name == "run":
+            command.add_argument("--max-fits", type=int, default=1)
+    for name in ("resume", "status", "replay", "report", "observe"):
+        command = workflow_commands.add_parser(name)
+        command.add_argument("campaign_id")
+        if name == "resume":
+            command.add_argument("--max-fits", type=int, default=1)
+        if name == "observe":
+            command.add_argument("--snapshot-ref", required=True)
+            command.add_argument("--request-id", required=True)
+    observation = commands.add_parser(
+        "forecast-observe", help="record outcomes of committed five-session forecasts; no fits"
+    )
+    observation_commands = observation.add_subparsers(dest="observation_command", required=True)
+    for name in ("register", "settle", "status", "replay"):
+        command = observation_commands.add_parser(name)
+        command.add_argument("experiment_id")
+        if name == "settle":
+            command.add_argument("--snapshot-ref", required=True)
+            command.add_argument("--request-id", required=True)
+    collection = commands.add_parser(
+        "news-collect", help="bounded prospective issuer RSS observations"
+    )
+    collection_commands = collection.add_subparsers(dest="collection_command", required=True)
+    collection_commands.add_parser("init").add_argument("plan", type=Path)
+    for name in ("poll", "process", "status", "replay"):
+        command = collection_commands.add_parser(name)
+        command.add_argument("campaign_id")
+        if name in {"poll", "process"}:
+            command.add_argument("--request-id", required=True)
+        if name == "process":
+            command.add_argument("--news-campaign-id", required=True)
     factors = commands.add_parser("factors", help="validate layered factor specifications; no fits")
     factor_commands = factors.add_subparsers(dest="factor_command", required=True)
     factor_validate = factor_commands.add_parser("validate")
@@ -224,6 +303,125 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--steps", type=int, default=1)
     args = parser.parse_args(argv)
     try:
+        if args.command == "research-study":
+            from quant_rsi.research.study import run_study
+
+            result = run_study(args)
+            print(
+                json.dumps(result, indent=2, allow_nan=False)
+                if args.json
+                else f"Research completed: {args.output.resolve() / 'report.html'}\n"
+                + result["study"]["conclusion"]
+            )
+            return 0
+        if args.command == "research-demo":
+            from quant_rsi.research.demo import (
+                load_catalog,
+                render_demo,
+                run_demo,
+                simulated_hypothesis,
+                simulated_news,
+            )
+
+            news = simulated_news
+            if args.news == "issuer-rss":
+                from quant_rsi.research.demo_news import issuer_news
+
+                def news(context):
+                    return issuer_news(context, limit=args.news_limit)
+
+            hypothesize = simulated_hypothesis
+            providers = {"catalog": lambda: load_catalog(args.catalog)}
+            if args.prices == "daily" and (args.model != "lightgbm" or args.prices_dir is None):
+                raise ValueError("--prices daily requires --model lightgbm and --prices-dir")
+            if args.prices == "synthetic" and args.prices_dir is not None:
+                raise ValueError("--prices-dir requires --prices daily")
+            if args.model == "lightgbm":
+                from quant_rsi.research.demo_model import LightGBMDemo
+
+                prices = None
+                if args.prices == "daily":
+                    from quant_rsi.research.demo_prices import load_daily_prices
+
+                    prices = load_daily_prices(args.symbol.strip().upper(), args.prices_dir)
+                model = LightGBMDemo(load_catalog(args.catalog), prices=prices)
+                providers = {
+                    "catalog": lambda: model.library,
+                    "price_context": model.context,
+                    "predict": model.predict,
+                    "observe": model.observe,
+                    "summarize": model.summarize,
+                }
+            if args.llm != "simulated":
+                from quant_rsi.research.llm import LLMHypothesizer
+
+                hypothesize = LLMHypothesizer(args.llm, args.llm_model, args.llm_timeout)
+            if args.related == "profile":
+                from quant_rsi.research.demo_related import profile_related
+
+                providers["related"] = profile_related
+            result = run_demo(
+                args.symbol,
+                hypothesize=hypothesize,
+                news=news,
+                **providers,
+            )
+            print(json.dumps(result, indent=2) if args.json else render_demo(result))
+            return 0
+        if args.command == "research-workflow":
+            from quant_rsi.research import workflow
+
+            if args.workflow_command in {"prepare", "run"}:
+                report = workflow.prepare(json.loads(args.profile.read_bytes()))
+                if args.workflow_command == "run":
+                    report = workflow.resume(report["campaign_id"], max_fits=args.max_fits)
+            elif args.workflow_command == "resume":
+                report = workflow.resume(args.campaign_id, max_fits=args.max_fits)
+            elif args.workflow_command == "observe":
+                report = workflow.observe(
+                    args.campaign_id, args.snapshot_ref, request_id=args.request_id
+                )
+            else:
+                report = workflow.inspect(
+                    args.campaign_id, replay=args.workflow_command == "replay"
+                )
+            if args.workflow_command == "report":
+                print(workflow.render_report(report))
+            else:
+                print(json.dumps(report, indent=2, allow_nan=False))
+            return 0
+        if args.command == "forecast-observe":
+            from quant_rsi.forecast import forecast_settlement
+
+            if args.observation_command == "register":
+                report = forecast_settlement.register(args.experiment_id)
+            elif args.observation_command == "settle":
+                report = forecast_settlement.settle(
+                    args.experiment_id, args.snapshot_ref, request_id=args.request_id
+                )
+            else:
+                report = forecast_settlement.inspect(
+                    args.experiment_id, replay=args.observation_command == "replay"
+                )
+            print(json.dumps(report, indent=2, allow_nan=False))
+            return 0
+        if args.command == "news-collect":
+            from quant_rsi.market import news_collection
+
+            if args.collection_command == "init":
+                report = news_collection.initialize(
+                    news_collection.CollectionPlan.model_validate_json(args.plan.read_bytes())
+                )
+            elif args.collection_command == "poll":
+                report = news_collection.poll(args.campaign_id, args.request_id)
+            elif args.collection_command == "process":
+                report = news_collection.process(
+                    args.campaign_id, args.request_id, args.news_campaign_id
+                )
+            else:
+                report = news_collection.inspect(args.campaign_id)
+            print(json.dumps(report, indent=2, allow_nan=False))
+            return 0
         if args.command == "factor-discovery":
             from quant_rsi.factors import discovery
 

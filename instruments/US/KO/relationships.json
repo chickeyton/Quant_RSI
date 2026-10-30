@@ -1,0 +1,18 @@
+{
+  "instrument": "KO",
+  "reviewed_on": "2026-10-29",
+  "relationships": [
+    {
+      "symbol": "CCEP",
+      "relationship": "bottling_partner",
+      "reason": "Coca-Cola Europacific Partners produces and distributes Coca-Cola branded beverages.",
+      "source_urls": ["https://www.coca-colacompany.com/about-us/coca-cola-system/coca-cola-europacific-partners"]
+    },
+    {
+      "symbol": "MNST",
+      "relationship": "distribution_partner",
+      "reason": "Coca-Cola describes ongoing distribution coordination with Monster Beverage in its 2025 annual report.",
+      "source_urls": ["https://investors.coca-colacompany.com/filings-reports/all-sec-filings/content/0001628280-26-010047/ko-20251231.htm"]
+    }
+  ]
+}

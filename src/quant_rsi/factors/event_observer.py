@@ -10,7 +10,7 @@ from quant_rsi.core import controller
 from quant_rsi.core.artifacts import ArtifactStore, canonical, decode, digest
 from quant_rsi.evaluation.evidence import authority_root
 from quant_rsi.factors import lifecycle
-from quant_rsi.factors.news import Extraction, NewsRequest
+from quant_rsi.factors.news import Extraction, NewsRequest, retained_evidence_refs
 from quant_rsi.forecast.forecast_experiment import commit_event
 from quant_rsi.forecast.forecast_inputs import SignalSnapshot
 from quant_rsi.market import market_contracts
@@ -60,7 +60,10 @@ def observe(result, template):
                 continue
             supporting = {
                 ref: evidence[ref]
-                for ref in (event.payload_ref, event.receipt_ref, event.query_ref, extraction_ref)
+                for ref in retained_evidence_refs(
+                    (event.payload_ref, event.receipt_ref, event.query_ref, extraction_ref),
+                    evidence,
+                )
             }
             if not exists:
                 if not extraction.value:

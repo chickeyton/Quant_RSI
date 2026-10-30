@@ -15,6 +15,7 @@ def main():
     parser.add_argument("--campaign-id", required=True)
     parser.add_argument("--folds", default=canonical(DEFAULT_FOLDS).decode())
     parser.add_argument("--max-rounds", type=int, default=3)
+    parser.add_argument("--factor-set", choices=("legacy", "candidate-prices"), default="legacy")
     parser.add_argument(
         "--exposure",
         choices=("engineering_fixture", "historical_market_exploration"),
@@ -26,7 +27,11 @@ def main():
         Path(__file__).resolve().parents[1] / "instruments",
         "US",
         "KO",
-        {"price_momentum": "target", "price_mean_return": "target"},
+        (
+            {"price_momentum": "target", "price_mean_return": "target"}
+            if args.factor_set == "legacy"
+            else {"qlib_roc": "target", "qlib_ma": "target"}
+        ),
     )
     plan = DiscoveryPlan.model_validate_json(
         canonical(

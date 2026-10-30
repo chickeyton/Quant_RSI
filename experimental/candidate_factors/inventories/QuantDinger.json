@@ -1,0 +1,1154 @@
+{
+  "source_id": "QuantDinger",
+  "scope": "Literal built-in _technical/_fundamental declarations; optional adapters excluded.",
+  "entries": [
+    {
+      "id": "sma",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        199,
+        199
+      ]
+    },
+    {
+      "id": "ema",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        200,
+        200
+      ]
+    },
+    {
+      "id": "sma_distance",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        201,
+        201
+      ]
+    },
+    {
+      "id": "ema_distance",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        202,
+        202
+      ]
+    },
+    {
+      "id": "momentum",
+      "category": "momentum",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 60
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        203,
+        203
+      ]
+    },
+    {
+      "id": "roc",
+      "category": "momentum",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 12
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        204,
+        204
+      ]
+    },
+    {
+      "id": "rsi",
+      "category": "momentum",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 14
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        205,
+        205
+      ]
+    },
+    {
+      "id": "macd",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "output": "histogram"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        206,
+        206
+      ]
+    },
+    {
+      "id": "bollinger_bands",
+      "category": "volatility",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20,
+        "stddev": 2.0,
+        "output": "position"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        207,
+        207
+      ]
+    },
+    {
+      "id": "stochastic",
+      "category": "momentum",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 14,
+        "smooth_k": 3,
+        "smooth_d": 3,
+        "output": "k"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        208,
+        208
+      ]
+    },
+    {
+      "id": "kdj",
+      "category": "momentum",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 9,
+        "k_period": 3,
+        "d_period": 3,
+        "output": "j"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        209,
+        209
+      ]
+    },
+    {
+      "id": "cci",
+      "category": "momentum",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        210,
+        210
+      ]
+    },
+    {
+      "id": "williams_r",
+      "category": "momentum",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 14
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        211,
+        211
+      ]
+    },
+    {
+      "id": "mfi",
+      "category": "volume",
+      "required_fields": [
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "default_params": {
+        "period": 14
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        212,
+        212
+      ]
+    },
+    {
+      "id": "adx",
+      "category": "trend",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 14,
+        "output": "adx"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        213,
+        213
+      ]
+    },
+    {
+      "id": "aroon",
+      "category": "trend",
+      "required_fields": [
+        "high",
+        "low"
+      ],
+      "default_params": {
+        "period": 25,
+        "output": "oscillator"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        214,
+        214
+      ]
+    },
+    {
+      "id": "trix",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 15
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        215,
+        215
+      ]
+    },
+    {
+      "id": "supertrend",
+      "category": "trend",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 10,
+        "multiplier": 3.0,
+        "output": "direction"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        216,
+        216
+      ]
+    },
+    {
+      "id": "atr",
+      "category": "volatility",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 14
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        217,
+        217
+      ]
+    },
+    {
+      "id": "realized_volatility",
+      "category": "risk",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "lower_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        218,
+        218
+      ]
+    },
+    {
+      "id": "skewness",
+      "category": "risk",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        219,
+        219
+      ]
+    },
+    {
+      "id": "kurtosis",
+      "category": "risk",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "lower_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        220,
+        220
+      ]
+    },
+    {
+      "id": "ema_slope",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20,
+        "slope_period": 5
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        221,
+        221
+      ]
+    },
+    {
+      "id": "atr_pct",
+      "category": "risk",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 14
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "lower_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        222,
+        222
+      ]
+    },
+    {
+      "id": "downside_volatility",
+      "category": "risk",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "lower_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        223,
+        223
+      ]
+    },
+    {
+      "id": "max_drawdown",
+      "category": "risk",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 60
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        224,
+        224
+      ]
+    },
+    {
+      "id": "donchian_channels",
+      "category": "volatility",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 20,
+        "output": "position"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        225,
+        225
+      ]
+    },
+    {
+      "id": "keltner_channels",
+      "category": "volatility",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 20,
+        "atr_period": 10,
+        "multiplier": 2.0,
+        "output": "position"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        226,
+        226
+      ]
+    },
+    {
+      "id": "volume_zscore",
+      "category": "liquidity",
+      "required_fields": [
+        "volume"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        227,
+        227
+      ]
+    },
+    {
+      "id": "volume_ratio",
+      "category": "liquidity",
+      "required_fields": [
+        "volume"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        228,
+        228
+      ]
+    },
+    {
+      "id": "mean_reversion_zscore",
+      "category": "reversal",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "lower_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        229,
+        229
+      ]
+    },
+    {
+      "id": "turnover_proxy",
+      "category": "liquidity",
+      "required_fields": [
+        "close",
+        "volume"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        230,
+        230
+      ]
+    },
+    {
+      "id": "obv",
+      "category": "volume",
+      "required_fields": [
+        "close",
+        "volume"
+      ],
+      "default_params": {
+        "period": 20,
+        "output": "slope"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        231,
+        231
+      ]
+    },
+    {
+      "id": "ad_line",
+      "category": "volume",
+      "required_fields": [
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "default_params": {
+        "period": 20,
+        "output": "slope"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        232,
+        232
+      ]
+    },
+    {
+      "id": "chaikin_oscillator",
+      "category": "volume",
+      "required_fields": [
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "default_params": {
+        "fast_period": 3,
+        "slow_period": 10
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        233,
+        233
+      ]
+    },
+    {
+      "id": "vwap",
+      "category": "volume",
+      "required_fields": [
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "default_params": {
+        "period": 20,
+        "output": "distance"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        234,
+        234
+      ]
+    },
+    {
+      "id": "cmf",
+      "category": "volume",
+      "required_fields": [
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        235,
+        235
+      ]
+    },
+    {
+      "id": "dema",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        236,
+        236
+      ]
+    },
+    {
+      "id": "tema",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        237,
+        237
+      ]
+    },
+    {
+      "id": "zlema",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        238,
+        238
+      ]
+    },
+    {
+      "id": "hma",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        239,
+        239
+      ]
+    },
+    {
+      "id": "kama",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 10,
+        "fast_period": 2,
+        "slow_period": 30
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        240,
+        240
+      ]
+    },
+    {
+      "id": "ppo",
+      "category": "momentum",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "fast_period": 12,
+        "slow_period": 26
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        241,
+        241
+      ]
+    },
+    {
+      "id": "cmo",
+      "category": "momentum",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 14
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        242,
+        242
+      ]
+    },
+    {
+      "id": "awesome_oscillator",
+      "category": "momentum",
+      "required_fields": [
+        "high",
+        "low"
+      ],
+      "default_params": {
+        "fast_period": 5,
+        "slow_period": 34
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        243,
+        243
+      ]
+    },
+    {
+      "id": "ultimate_oscillator",
+      "category": "momentum",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "fast_period": 7,
+        "medium_period": 14,
+        "slow_period": 28
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        244,
+        244
+      ]
+    },
+    {
+      "id": "tsi",
+      "category": "momentum",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "slow_period": 25,
+        "fast_period": 13
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        245,
+        245
+      ]
+    },
+    {
+      "id": "vortex",
+      "category": "trend",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 14,
+        "output": "oscillator"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        246,
+        246
+      ]
+    },
+    {
+      "id": "choppiness",
+      "category": "trend",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 14
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "lower_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        247,
+        247
+      ]
+    },
+    {
+      "id": "efficiency_ratio",
+      "category": "trend",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 10
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        248,
+        248
+      ]
+    },
+    {
+      "id": "elder_ray",
+      "category": "momentum",
+      "required_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 13,
+        "output": "bull"
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "neutral",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        249,
+        249
+      ]
+    },
+    {
+      "id": "force_index",
+      "category": "volume",
+      "required_fields": [
+        "close",
+        "volume"
+      ],
+      "default_params": {
+        "period": 13
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        250,
+        250
+      ]
+    },
+    {
+      "id": "ulcer_index",
+      "category": "risk",
+      "required_fields": [
+        "close"
+      ],
+      "default_params": {
+        "period": 14
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "lower_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        251,
+        251
+      ]
+    },
+    {
+      "id": "parkinson_volatility",
+      "category": "risk",
+      "required_fields": [
+        "high",
+        "low"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "lower_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        252,
+        252
+      ]
+    },
+    {
+      "id": "garman_klass_volatility",
+      "category": "risk",
+      "required_fields": [
+        "open",
+        "high",
+        "low",
+        "close"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "lower_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        253,
+        253
+      ]
+    },
+    {
+      "id": "amihud_illiquidity",
+      "category": "liquidity",
+      "required_fields": [
+        "close",
+        "volume"
+      ],
+      "default_params": {
+        "period": 20
+      },
+      "kind": "technical",
+      "upstream_direction_hint_unvalidated": "lower_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        254,
+        254
+      ]
+    },
+    {
+      "id": "market_cap",
+      "category": "size",
+      "required_fields": [
+        "market_cap"
+      ],
+      "default_params": {},
+      "kind": "fundamental",
+      "upstream_direction_hint_unvalidated": "lower_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        255,
+        255
+      ]
+    },
+    {
+      "id": "earnings_yield",
+      "category": "valuation",
+      "required_fields": [
+        "net_income",
+        "market_cap"
+      ],
+      "default_params": {},
+      "kind": "fundamental",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        256,
+        256
+      ]
+    },
+    {
+      "id": "book_to_price",
+      "category": "valuation",
+      "required_fields": [
+        "shareholder_equity",
+        "market_cap"
+      ],
+      "default_params": {},
+      "kind": "fundamental",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        257,
+        257
+      ]
+    },
+    {
+      "id": "return_on_equity",
+      "category": "quality",
+      "required_fields": [
+        "net_income",
+        "shareholder_equity"
+      ],
+      "default_params": {},
+      "kind": "fundamental",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        258,
+        258
+      ]
+    },
+    {
+      "id": "revenue_growth",
+      "category": "growth",
+      "required_fields": [
+        "revenue_growth"
+      ],
+      "default_params": {},
+      "kind": "fundamental",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        259,
+        259
+      ]
+    },
+    {
+      "id": "debt_to_equity",
+      "category": "quality",
+      "required_fields": [
+        "total_debt",
+        "shareholder_equity"
+      ],
+      "default_params": {},
+      "kind": "fundamental",
+      "upstream_direction_hint_unvalidated": "lower_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        260,
+        260
+      ]
+    },
+    {
+      "id": "free_cash_flow_yield",
+      "category": "cashflow",
+      "required_fields": [
+        "free_cash_flow",
+        "market_cap"
+      ],
+      "default_params": {},
+      "kind": "fundamental",
+      "upstream_direction_hint_unvalidated": "higher_is_bullish",
+      "path": "backend_api_python/app/services/factors/registry.py",
+      "lines": [
+        261,
+        261
+      ]
+    }
+  ]
+}

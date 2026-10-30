@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 from quant_rsi.core.artifacts import canonical, digest
 from quant_rsi.core.contracts_base import StrictModel
 from quant_rsi.factors.contracts import Name, NumericFactorDefinition
+from quant_rsi.factors.price_adapters import CandidatePriceRecipe, evaluate_price_adapter
 
 
 class FactorLeaf(StrictModel):
@@ -165,21 +166,33 @@ def source_leaves(inputs, leaves, origin, as_of, basis):
             values[leaf.name] = None if result["value"] is None else float(result["value"] > 0)
             continue
         source = inputs.target if leaf.role == "target" else inputs.contexts.get(leaf.role)
-        window = leaf.definition.recipe.window
-        if source is None or index < window:
+        recipe = leaf.definition.recipe
+        observations = (
+            recipe.observations if isinstance(recipe, CandidatePriceRecipe) else recipe.window + 1
+        )
+        if source is None or index + 1 < observations:
             reasons.append(leaf.name + ":source_or_history_missing")
             values[leaf.name] = None
             continue
-        closes = [s.close_at for s in target.contract.calendar.sessions[index - window : index + 1]]
+        closes = [
+            s.close_at
+            for s in target.contract.calendar.sessions[index + 1 - observations : index + 1]
+        ]
         prices, problems, evidence = _history(source, closes, as_of, basis)
         reasons.extend(leaf.name + ":" + p for p in problems)
         refs.update(evidence)
         value = None
         if prices is not None:
-            if leaf.definition.recipe.op == "momentum":
+            if isinstance(recipe, CandidatePriceRecipe):
+                value = evaluate_price_adapter(recipe, prices)
+                if value is None:
+                    reasons.append(leaf.name + ":adapter_value_unavailable")
+            elif recipe.op == "momentum":
                 value = prices[-1] / prices[0] - 1
             else:
-                value = sum(b / a - 1 for a, b in zip(prices, prices[1:], strict=False)) / window
+                value = (
+                    sum(b / a - 1 for a, b in zip(prices, prices[1:], strict=False)) / recipe.window
+                )
         values[leaf.name] = value
     return values, reasons, refs
 

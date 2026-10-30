@@ -1,0 +1,162 @@
+{
+  "survey_version": 1,
+  "collected_on": "2026-10-28",
+  "sources": [
+    {
+      "id": "qlib",
+      "repository": "https://github.com/microsoft/qlib",
+      "commit": "54355232463878d2eebb91fe0ee5fa7fa1f5976c",
+      "license_spdx": "MIT",
+      "license_scope": "Selected files only; no assertion about other subtrees or dependencies.",
+      "license_artifacts": [
+        {
+          "upstream_path": "LICENSE",
+          "local_path": "licenses/qlib/LICENSE",
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+        }
+      ],
+      "files": [
+        {
+          "path": "qlib/contrib/data/loader.py",
+          "sha256": "814b7f7ab3d418ae3c87ce352220080b239eba2670eac9e38376b794be4075cb"
+        },
+        {
+          "path": "qlib/data/dataset/processor.py",
+          "sha256": "424af44e81c99467171c2d0b7978fb9f95d3b4c8b743a535ff4fe45d708cf517"
+        },
+        {
+          "path": "qlib/data/ops.py",
+          "sha256": "f563394c3b4fd1130774d171ff1e0c3dac49028cdc28a64bbf42c85e4a2d3e9e"
+        }
+      ]
+    },
+    {
+      "id": "gs-quant",
+      "repository": "https://github.com/goldmansachs/gs-quant",
+      "commit": "e2b98f5fa0bfd3a931b9a6fcbee84c027588edea",
+      "license_spdx": "Apache-2.0",
+      "license_scope": "Selected files only; no assertion about other subtrees or dependencies.",
+      "license_artifacts": [
+        {
+          "upstream_path": "LICENSE",
+          "local_path": "licenses/gs-quant/LICENSE",
+          "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+        },
+        {
+          "upstream_path": "NOTICE",
+          "local_path": "licenses/gs-quant/NOTICE",
+          "sha256": "2009d9a8b6df80e617a44aab836dfdc5eb09676288964303b6edf3e7c8de2116"
+        },
+        {
+          "upstream_path": "NOTICE.txt",
+          "local_path": "licenses/gs-quant/NOTICE.txt",
+          "sha256": "56a3baa9f89701c87540f6055a33e544b96a62c64f0c08e1457de018c1781351"
+        }
+      ],
+      "files": [
+        {
+          "path": "gs_quant/timeseries/technicals.py",
+          "sha256": "c752c04414a4d38b749e4d17635a27f37b549a931f9bce80e870fb9e9bff2829"
+        },
+        {
+          "path": "gs_quant/timeseries/statistics.py",
+          "sha256": "b183fd1b2331dcce5a2d1a1bb37dfe7c4fd3fce38b82bba3048539c734c19990"
+        },
+        {
+          "path": "gs_quant/timeseries/econometrics.py",
+          "sha256": "3f3b398518738b1fd4dcc65d72e72718a4efcf71f57a0437350b2ad75cef59d8"
+        }
+      ]
+    },
+    {
+      "id": "Lean",
+      "repository": "https://github.com/QuantConnect/Lean",
+      "commit": "59a4205b1cb3c88a9c1bf37ffba9227c5ee9fdfa",
+      "license_spdx": "Apache-2.0",
+      "license_scope": "Selected files only; no assertion about other subtrees or dependencies.",
+      "license_artifacts": [
+        {
+          "upstream_path": "LICENSE",
+          "local_path": "licenses/Lean/LICENSE",
+          "sha256": "522cf0a716ce03f67d46f8fceb5bf78c5b84400ec5cd8d14bf9f02cddc1cb6ba"
+        }
+      ],
+      "files": [
+        {
+          "path": "Indicators/AverageTrueRange.cs",
+          "sha256": "7d9b48151299a75cfef1505518da34703c59c76fb296ba8040cf276706b3b7a6"
+        },
+        {
+          "path": "Indicators/OnBalanceVolume.cs",
+          "sha256": "e44d331ab628dc52291ebe9a383d487278d8000a9e8da860c609b07ee77a1730"
+        },
+        {
+          "path": "Indicators/RelativeStrengthIndex.cs",
+          "sha256": "b8c297a77c563b4f287e1236664d8e84cb6ac938e66ca41b2ee43b56397da0a9"
+        },
+        {
+          "path": "Indicators/Beta.cs",
+          "sha256": "24fb8c39c770f576b0891a7326a3aa59ec3b89765ab0057cfe84ae05ff56f7b7"
+        },
+        {
+          "path": "Indicators/IchimokuKinkoHyo.cs",
+          "sha256": "c47110c98ad884adf0f2faf32a589c343a1318ea1426686b4e428747dbbcc46e"
+        },
+        {
+          "path": "Indicators/ExponentialMovingAverage.cs",
+          "sha256": "dfc0ce32bf17259a18c2ebe19dcdcd412a1f7cf090b9a6063dbf07cca250575b"
+        },
+        {
+          "path": "Indicators/VolumeWeightedAveragePriceIndicator.cs",
+          "sha256": "c4671282b17bfce9bc1cf85d6739dd732a7415b13ab73e340d277de699b0371d"
+        }
+      ]
+    },
+    {
+      "id": "QuantDinger",
+      "repository": "https://github.com/OpenByteInc/QuantDinger",
+      "commit": "8b2af21c288d87a5571d67ee6b2bfa860b06a4ba",
+      "license_spdx": "Apache-2.0",
+      "license_scope": "Selected files only; no assertion about other subtrees or dependencies.",
+      "license_artifacts": [
+        {
+          "upstream_path": "LICENSE",
+          "local_path": "licenses/QuantDinger/LICENSE",
+          "sha256": "c0a1e0a8cd6a160d060858b2eff80befc9f2cf42db1433d34c1af0f92d6489b0"
+        },
+        {
+          "upstream_path": "REUSE.toml",
+          "local_path": "licenses/QuantDinger/REUSE.toml",
+          "sha256": "e2db87d1b3fbd2245c3e86ff3ec3fb93118d0610f0bcab2e9ab4d561287b981f"
+        },
+        {
+          "upstream_path": "LICENSES/Apache-2.0.txt",
+          "local_path": "licenses/QuantDinger/Apache-2.0.txt",
+          "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff"
+        }
+      ],
+      "files": [
+        {
+          "path": "backend_api_python/app/services/factors/catalog.py",
+          "sha256": "a8039dd8f86c58a08ba296457362ed7212bc67218473f77823a796cb9dec6d91"
+        },
+        {
+          "path": "backend_api_python/app/services/factors/registry.py",
+          "sha256": "c927f1eee4d866f44d8f472c9eac1d020ecbd5654256ce277492fd587a712835"
+        },
+        {
+          "path": "backend_api_python/app/services/factors/qlib_adapter.py",
+          "sha256": "cdbb279d477c5889e6cd01c37d2e3d9fe7bed4ef5ea530adb9d2ee15e5474412"
+        },
+        {
+          "path": "backend_api_python/app/services/factors/talib_adapter.py",
+          "sha256": "85841db14df85cee0d10776542ee98e47588d7b82d41008ef2633d8502f4087c"
+        },
+        {
+          "path": "backend_api_python/app/services/factors/research.py",
+          "sha256": "04d5bed990a7d60d5b3a4797b0554945f042c9aa2467f2ea67d77121cacb4c23"
+        }
+      ]
+    }
+  ]
+}

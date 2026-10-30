@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 from typing import Annotated, Literal, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -16,7 +17,15 @@ KnowledgeBasis = Literal[
 ]
 
 
+@lru_cache(maxsize=4096)
+def _timestamp_text(value: str) -> datetime:
+    return timestamp(datetime.fromisoformat(value.replace("Z", "+00:00")))
+
+
 def timestamp(value: str | datetime) -> datetime:
+    # Cache only bounded immutable text, never live clocks, tzinfo objects or evidence.
+    if type(value) is str and len(value) <= 128:
+        return _timestamp_text(value)
     result = (
         datetime.fromisoformat(value.replace("Z", "+00:00")) if isinstance(value, str) else value
     )

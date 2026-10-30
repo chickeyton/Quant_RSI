@@ -3,7 +3,7 @@
   "kind": "instrument_factor_config",
   "market": "US",
   "instrument": "KO",
-  "catalogs": ["equities"],
+  "catalogs": ["equities", "candidate_prices"],
   "definitions": [],
   "bindings": [
     {
@@ -20,6 +20,16 @@
       "binding_id": "announced_events",
       "definition_id": "equity.announced_events",
       "source": {"source_id": "issuer_announcements", "entity": "KO", "field": "text"}
+    },
+    {
+      "binding_id": "qlib_roc",
+      "definition_id": "equity.qlib_roc_5_v1",
+      "source": {"source_id": "target_daily_prices", "entity": "KO", "field": "close"}
+    },
+    {
+      "binding_id": "qlib_ma",
+      "definition_id": "equity.qlib_ma_5_v1",
+      "source": {"source_id": "target_daily_prices", "entity": "KO", "field": "close"}
     }
   ]
 }

@@ -1,0 +1,674 @@
+{
+  "source_id": "Lean",
+  "scope": "Top-level Indicators/*.cs filenames from pinned git tree; includes infrastructure, not file-level reviewed factors.",
+  "entries": [
+    {
+      "path": "Indicators/AbsolutePriceOscillator.cs",
+      "symbol": "AbsolutePriceOscillator"
+    },
+    {
+      "path": "Indicators/AccelerationBands.cs",
+      "symbol": "AccelerationBands"
+    },
+    {
+      "path": "Indicators/AccumulationDistribution.cs",
+      "symbol": "AccumulationDistribution"
+    },
+    {
+      "path": "Indicators/AccumulationDistributionOscillator.cs",
+      "symbol": "AccumulationDistributionOscillator"
+    },
+    {
+      "path": "Indicators/AdvanceDeclineDifference.cs",
+      "symbol": "AdvanceDeclineDifference"
+    },
+    {
+      "path": "Indicators/AdvanceDeclineIndicator.cs",
+      "symbol": "AdvanceDeclineIndicator"
+    },
+    {
+      "path": "Indicators/AdvanceDeclineRatio.cs",
+      "symbol": "AdvanceDeclineRatio"
+    },
+    {
+      "path": "Indicators/AdvanceDeclineVolumeRatio.cs",
+      "symbol": "AdvanceDeclineVolumeRatio"
+    },
+    {
+      "path": "Indicators/Alpha.cs",
+      "symbol": "Alpha"
+    },
+    {
+      "path": "Indicators/ArmsIndex.cs",
+      "symbol": "ArmsIndex"
+    },
+    {
+      "path": "Indicators/ArnaudLegouxMovingAverage.cs",
+      "symbol": "ArnaudLegouxMovingAverage"
+    },
+    {
+      "path": "Indicators/AroonOscillator.cs",
+      "symbol": "AroonOscillator"
+    },
+    {
+      "path": "Indicators/AugenPriceSpike.cs",
+      "symbol": "AugenPriceSpike"
+    },
+    {
+      "path": "Indicators/AutoRegressiveIntegratedMovingAverage.cs",
+      "symbol": "AutoRegressiveIntegratedMovingAverage"
+    },
+    {
+      "path": "Indicators/AverageDirectionalIndex.cs",
+      "symbol": "AverageDirectionalIndex"
+    },
+    {
+      "path": "Indicators/AverageDirectionalMovementIndexRating.cs",
+      "symbol": "AverageDirectionalMovementIndexRating"
+    },
+    {
+      "path": "Indicators/AverageRange.cs",
+      "symbol": "AverageRange"
+    },
+    {
+      "path": "Indicators/AverageTrueRange.cs",
+      "symbol": "AverageTrueRange"
+    },
+    {
+      "path": "Indicators/AwesomeOscillator.cs",
+      "symbol": "AwesomeOscillator"
+    },
+    {
+      "path": "Indicators/BalanceOfPower.cs",
+      "symbol": "BalanceOfPower"
+    },
+    {
+      "path": "Indicators/BarIndicator.cs",
+      "symbol": "BarIndicator"
+    },
+    {
+      "path": "Indicators/Beta.cs",
+      "symbol": "Beta"
+    },
+    {
+      "path": "Indicators/BollingerBands.cs",
+      "symbol": "BollingerBands"
+    },
+    {
+      "path": "Indicators/ChaikinMoneyFlow.cs",
+      "symbol": "ChaikinMoneyFlow"
+    },
+    {
+      "path": "Indicators/ChaikinOscillator.cs",
+      "symbol": "ChaikinOscillator"
+    },
+    {
+      "path": "Indicators/ChandeKrollStop.cs",
+      "symbol": "ChandeKrollStop"
+    },
+    {
+      "path": "Indicators/ChandeMomentumOscillator.cs",
+      "symbol": "ChandeMomentumOscillator"
+    },
+    {
+      "path": "Indicators/ChoppinessIndex.cs",
+      "symbol": "ChoppinessIndex"
+    },
+    {
+      "path": "Indicators/CommodityChannelIndex.cs",
+      "symbol": "CommodityChannelIndex"
+    },
+    {
+      "path": "Indicators/CompositeIndicator.cs",
+      "symbol": "CompositeIndicator"
+    },
+    {
+      "path": "Indicators/ConnorsRelativeStrengthIndex.cs",
+      "symbol": "ConnorsRelativeStrengthIndex"
+    },
+    {
+      "path": "Indicators/ConstantIndicator.cs",
+      "symbol": "ConstantIndicator"
+    },
+    {
+      "path": "Indicators/CoppockCurve.cs",
+      "symbol": "CoppockCurve"
+    },
+    {
+      "path": "Indicators/Correlation.cs",
+      "symbol": "Correlation"
+    },
+    {
+      "path": "Indicators/CorrelationType.cs",
+      "symbol": "CorrelationType"
+    },
+    {
+      "path": "Indicators/Covariance.cs",
+      "symbol": "Covariance"
+    },
+    {
+      "path": "Indicators/DeMarkerIndicator.cs",
+      "symbol": "DeMarkerIndicator"
+    },
+    {
+      "path": "Indicators/Delay.cs",
+      "symbol": "Delay"
+    },
+    {
+      "path": "Indicators/Delta.cs",
+      "symbol": "Delta"
+    },
+    {
+      "path": "Indicators/DerivativeOscillator.cs",
+      "symbol": "DerivativeOscillator"
+    },
+    {
+      "path": "Indicators/DetrendedPriceOscillator.cs",
+      "symbol": "DetrendedPriceOscillator"
+    },
+    {
+      "path": "Indicators/DonchianChannel.cs",
+      "symbol": "DonchianChannel"
+    },
+    {
+      "path": "Indicators/DoubleExponentialMovingAverage.cs",
+      "symbol": "DoubleExponentialMovingAverage"
+    },
+    {
+      "path": "Indicators/DualSymbolIndicator.cs",
+      "symbol": "DualSymbolIndicator"
+    },
+    {
+      "path": "Indicators/EaseOfMovementValue.cs",
+      "symbol": "EaseOfMovementValue"
+    },
+    {
+      "path": "Indicators/ExponentialMovingAverage.cs",
+      "symbol": "ExponentialMovingAverage"
+    },
+    {
+      "path": "Indicators/FilteredIdentity.cs",
+      "symbol": "FilteredIdentity"
+    },
+    {
+      "path": "Indicators/FisherTransform.cs",
+      "symbol": "FisherTransform"
+    },
+    {
+      "path": "Indicators/ForceIndex.cs",
+      "symbol": "ForceIndex"
+    },
+    {
+      "path": "Indicators/FractalAdaptiveMovingAverage.cs",
+      "symbol": "FractalAdaptiveMovingAverage"
+    },
+    {
+      "path": "Indicators/FunctionalIndicator.cs",
+      "symbol": "FunctionalIndicator"
+    },
+    {
+      "path": "Indicators/Gamma.cs",
+      "symbol": "Gamma"
+    },
+    {
+      "path": "Indicators/GreeksIndicators.cs",
+      "symbol": "GreeksIndicators"
+    },
+    {
+      "path": "Indicators/HeikinAshi.cs",
+      "symbol": "HeikinAshi"
+    },
+    {
+      "path": "Indicators/HilbertTransform.cs",
+      "symbol": "HilbertTransform"
+    },
+    {
+      "path": "Indicators/HullMovingAverage.cs",
+      "symbol": "HullMovingAverage"
+    },
+    {
+      "path": "Indicators/HurstExponent.cs",
+      "symbol": "HurstExponent"
+    },
+    {
+      "path": "Indicators/IchimokuKinkoHyo.cs",
+      "symbol": "IchimokuKinkoHyo"
+    },
+    {
+      "path": "Indicators/Identity.cs",
+      "symbol": "Identity"
+    },
+    {
+      "path": "Indicators/ImpliedVolatility.cs",
+      "symbol": "ImpliedVolatility"
+    },
+    {
+      "path": "Indicators/Indicator.cs",
+      "symbol": "Indicator"
+    },
+    {
+      "path": "Indicators/IndicatorBase.Operators.cs",
+      "symbol": "IndicatorBase.Operators"
+    },
+    {
+      "path": "Indicators/IndicatorBase.cs",
+      "symbol": "IndicatorBase"
+    },
+    {
+      "path": "Indicators/IndicatorBasedOptionPriceModel.cs",
+      "symbol": "IndicatorBasedOptionPriceModel"
+    },
+    {
+      "path": "Indicators/IndicatorBasedOptionPriceModelProvider.cs",
+      "symbol": "IndicatorBasedOptionPriceModelProvider"
+    },
+    {
+      "path": "Indicators/IndicatorExtensions.cs",
+      "symbol": "IndicatorExtensions"
+    },
+    {
+      "path": "Indicators/IndicatorResult.cs",
+      "symbol": "IndicatorResult"
+    },
+    {
+      "path": "Indicators/IndicatorStatus.cs",
+      "symbol": "IndicatorStatus"
+    },
+    {
+      "path": "Indicators/InternalBarStrength.cs",
+      "symbol": "InternalBarStrength"
+    },
+    {
+      "path": "Indicators/IntradayVwap.cs",
+      "symbol": "IntradayVwap"
+    },
+    {
+      "path": "Indicators/KaufmanAdaptiveMovingAverage.cs",
+      "symbol": "KaufmanAdaptiveMovingAverage"
+    },
+    {
+      "path": "Indicators/KaufmanEfficiencyRatio.cs",
+      "symbol": "KaufmanEfficiencyRatio"
+    },
+    {
+      "path": "Indicators/KeltnerChannels.cs",
+      "symbol": "KeltnerChannels"
+    },
+    {
+      "path": "Indicators/KlingerVolumeOscillator.cs",
+      "symbol": "KlingerVolumeOscillator"
+    },
+    {
+      "path": "Indicators/KnowSureThing.cs",
+      "symbol": "KnowSureThing"
+    },
+    {
+      "path": "Indicators/LeastSquaresMovingAverage.cs",
+      "symbol": "LeastSquaresMovingAverage"
+    },
+    {
+      "path": "Indicators/LeastSquaresMovingAverageWithReference.cs",
+      "symbol": "LeastSquaresMovingAverageWithReference"
+    },
+    {
+      "path": "Indicators/LinearWeightedMovingAverage.cs",
+      "symbol": "LinearWeightedMovingAverage"
+    },
+    {
+      "path": "Indicators/LogReturn.cs",
+      "symbol": "LogReturn"
+    },
+    {
+      "path": "Indicators/MarketProfile.cs",
+      "symbol": "MarketProfile"
+    },
+    {
+      "path": "Indicators/MassIndex.cs",
+      "symbol": "MassIndex"
+    },
+    {
+      "path": "Indicators/Maximum.cs",
+      "symbol": "Maximum"
+    },
+    {
+      "path": "Indicators/McClellanOscillator.cs",
+      "symbol": "McClellanOscillator"
+    },
+    {
+      "path": "Indicators/McClellanSummationIndex.cs",
+      "symbol": "McClellanSummationIndex"
+    },
+    {
+      "path": "Indicators/McGinleyDynamic.cs",
+      "symbol": "McGinleyDynamic"
+    },
+    {
+      "path": "Indicators/MeanAbsoluteDeviation.cs",
+      "symbol": "MeanAbsoluteDeviation"
+    },
+    {
+      "path": "Indicators/MesaAdaptiveMovingAverage.cs",
+      "symbol": "MesaAdaptiveMovingAverage"
+    },
+    {
+      "path": "Indicators/MidPoint.cs",
+      "symbol": "MidPoint"
+    },
+    {
+      "path": "Indicators/MidPrice.cs",
+      "symbol": "MidPrice"
+    },
+    {
+      "path": "Indicators/Minimum.cs",
+      "symbol": "Minimum"
+    },
+    {
+      "path": "Indicators/Momentum.cs",
+      "symbol": "Momentum"
+    },
+    {
+      "path": "Indicators/MomentumPercent.cs",
+      "symbol": "MomentumPercent"
+    },
+    {
+      "path": "Indicators/Momersion.cs",
+      "symbol": "Momersion"
+    },
+    {
+      "path": "Indicators/MomersionIndicator.cs",
+      "symbol": "MomersionIndicator"
+    },
+    {
+      "path": "Indicators/MoneyFlowIndex.cs",
+      "symbol": "MoneyFlowIndex"
+    },
+    {
+      "path": "Indicators/MovingAverageConvergenceDivergence.cs",
+      "symbol": "MovingAverageConvergenceDivergence"
+    },
+    {
+      "path": "Indicators/MovingAverageType.cs",
+      "symbol": "MovingAverageType"
+    },
+    {
+      "path": "Indicators/MovingAverageTypeExtensions.cs",
+      "symbol": "MovingAverageTypeExtensions"
+    },
+    {
+      "path": "Indicators/MultiSymbolIndicator.cs",
+      "symbol": "MultiSymbolIndicator"
+    },
+    {
+      "path": "Indicators/NewHighsNewLows.cs",
+      "symbol": "NewHighsNewLows"
+    },
+    {
+      "path": "Indicators/NewHighsNewLowsVolume.cs",
+      "symbol": "NewHighsNewLowsVolume"
+    },
+    {
+      "path": "Indicators/NormalizedAverageTrueRange.cs",
+      "symbol": "NormalizedAverageTrueRange"
+    },
+    {
+      "path": "Indicators/OnBalanceVolume.cs",
+      "symbol": "OnBalanceVolume"
+    },
+    {
+      "path": "Indicators/OptionGreekIndicatorBase.cs",
+      "symbol": "OptionGreekIndicatorBase"
+    },
+    {
+      "path": "Indicators/OptionGreekIndicatorsHelper.cs",
+      "symbol": "OptionGreekIndicatorsHelper"
+    },
+    {
+      "path": "Indicators/OptionIndicatorBase.cs",
+      "symbol": "OptionIndicatorBase"
+    },
+    {
+      "path": "Indicators/ParabolicStopAndReverse.cs",
+      "symbol": "ParabolicStopAndReverse"
+    },
+    {
+      "path": "Indicators/ParabolicStopAndReverseExtended.cs",
+      "symbol": "ParabolicStopAndReverseExtended"
+    },
+    {
+      "path": "Indicators/PercentagePriceOscillator.cs",
+      "symbol": "PercentagePriceOscillator"
+    },
+    {
+      "path": "Indicators/PivotPointsHighLow.cs",
+      "symbol": "PivotPointsHighLow"
+    },
+    {
+      "path": "Indicators/PremierStochasticOscillator.cs",
+      "symbol": "PremierStochasticOscillator"
+    },
+    {
+      "path": "Indicators/PythonIndicator.cs",
+      "symbol": "PythonIndicator"
+    },
+    {
+      "path": "Indicators/RateOfChange.cs",
+      "symbol": "RateOfChange"
+    },
+    {
+      "path": "Indicators/RateOfChangePercent.cs",
+      "symbol": "RateOfChangePercent"
+    },
+    {
+      "path": "Indicators/RateOfChangeRatio.cs",
+      "symbol": "RateOfChangeRatio"
+    },
+    {
+      "path": "Indicators/RegressionChannel.cs",
+      "symbol": "RegressionChannel"
+    },
+    {
+      "path": "Indicators/RelativeDailyVolume.cs",
+      "symbol": "RelativeDailyVolume"
+    },
+    {
+      "path": "Indicators/RelativeMovingAverage.cs",
+      "symbol": "RelativeMovingAverage"
+    },
+    {
+      "path": "Indicators/RelativeStrengthIndex.cs",
+      "symbol": "RelativeStrengthIndex"
+    },
+    {
+      "path": "Indicators/RelativeVigorIndex.cs",
+      "symbol": "RelativeVigorIndex"
+    },
+    {
+      "path": "Indicators/RelativeVigorIndexSignal.cs",
+      "symbol": "RelativeVigorIndexSignal"
+    },
+    {
+      "path": "Indicators/ResetCompositeIndicator.cs",
+      "symbol": "ResetCompositeIndicator"
+    },
+    {
+      "path": "Indicators/Rho.cs",
+      "symbol": "Rho"
+    },
+    {
+      "path": "Indicators/RogersSatchellVolatility.cs",
+      "symbol": "RogersSatchellVolatility"
+    },
+    {
+      "path": "Indicators/SchaffTrendCycle.cs",
+      "symbol": "SchaffTrendCycle"
+    },
+    {
+      "path": "Indicators/SharpeRatio.cs",
+      "symbol": "SharpeRatio"
+    },
+    {
+      "path": "Indicators/SimpleMovingAverage.cs",
+      "symbol": "SimpleMovingAverage"
+    },
+    {
+      "path": "Indicators/SmoothedOnBalanceVolume.cs",
+      "symbol": "SmoothedOnBalanceVolume"
+    },
+    {
+      "path": "Indicators/SortinoRatio.cs",
+      "symbol": "SortinoRatio"
+    },
+    {
+      "path": "Indicators/SqueezeMomentum.cs",
+      "symbol": "SqueezeMomentum"
+    },
+    {
+      "path": "Indicators/StandardDeviation.cs",
+      "symbol": "StandardDeviation"
+    },
+    {
+      "path": "Indicators/Stochastic.cs",
+      "symbol": "Stochastic"
+    },
+    {
+      "path": "Indicators/StochasticRelativeStrengthIndex.cs",
+      "symbol": "StochasticRelativeStrengthIndex"
+    },
+    {
+      "path": "Indicators/Sum.cs",
+      "symbol": "Sum"
+    },
+    {
+      "path": "Indicators/SuperTrend.cs",
+      "symbol": "SuperTrend"
+    },
+    {
+      "path": "Indicators/SwissArmyKnife.cs",
+      "symbol": "SwissArmyKnife"
+    },
+    {
+      "path": "Indicators/T3MovingAverage.cs",
+      "symbol": "T3MovingAverage"
+    },
+    {
+      "path": "Indicators/TargetDownsideDeviation.cs",
+      "symbol": "TargetDownsideDeviation"
+    },
+    {
+      "path": "Indicators/Theta.cs",
+      "symbol": "Theta"
+    },
+    {
+      "path": "Indicators/TimeProfile.cs",
+      "symbol": "TimeProfile"
+    },
+    {
+      "path": "Indicators/TimeSeriesForecast.cs",
+      "symbol": "TimeSeriesForecast"
+    },
+    {
+      "path": "Indicators/TimeSeriesIndicator.cs",
+      "symbol": "TimeSeriesIndicator"
+    },
+    {
+      "path": "Indicators/TomDemarkSequential.cs",
+      "symbol": "TomDemarkSequential"
+    },
+    {
+      "path": "Indicators/TradeBarIndicator.cs",
+      "symbol": "TradeBarIndicator"
+    },
+    {
+      "path": "Indicators/TriangularMovingAverage.cs",
+      "symbol": "TriangularMovingAverage"
+    },
+    {
+      "path": "Indicators/TripleExponentialMovingAverage.cs",
+      "symbol": "TripleExponentialMovingAverage"
+    },
+    {
+      "path": "Indicators/Trix.cs",
+      "symbol": "Trix"
+    },
+    {
+      "path": "Indicators/TrueRange.cs",
+      "symbol": "TrueRange"
+    },
+    {
+      "path": "Indicators/TrueStrengthIndex.cs",
+      "symbol": "TrueStrengthIndex"
+    },
+    {
+      "path": "Indicators/UltimateOscillator.cs",
+      "symbol": "UltimateOscillator"
+    },
+    {
+      "path": "Indicators/ValueAtRisk.cs",
+      "symbol": "ValueAtRisk"
+    },
+    {
+      "path": "Indicators/VariableIndexDynamicAverage.cs",
+      "symbol": "VariableIndexDynamicAverage"
+    },
+    {
+      "path": "Indicators/Variance.cs",
+      "symbol": "Variance"
+    },
+    {
+      "path": "Indicators/Vega.cs",
+      "symbol": "Vega"
+    },
+    {
+      "path": "Indicators/VolumeProfile.cs",
+      "symbol": "VolumeProfile"
+    },
+    {
+      "path": "Indicators/VolumeWeightedAveragePriceIndicator.cs",
+      "symbol": "VolumeWeightedAveragePriceIndicator"
+    },
+    {
+      "path": "Indicators/VolumeWeightedMovingAverage.cs",
+      "symbol": "VolumeWeightedMovingAverage"
+    },
+    {
+      "path": "Indicators/Vortex.cs",
+      "symbol": "Vortex"
+    },
+    {
+      "path": "Indicators/WaveTrendOscillator.cs",
+      "symbol": "WaveTrendOscillator"
+    },
+    {
+      "path": "Indicators/WilderAccumulativeSwingIndex.cs",
+      "symbol": "WilderAccumulativeSwingIndex"
+    },
+    {
+      "path": "Indicators/WilderMovingAverage.cs",
+      "symbol": "WilderMovingAverage"
+    },
+    {
+      "path": "Indicators/WilderSwingIndex.cs",
+      "symbol": "WilderSwingIndex"
+    },
+    {
+      "path": "Indicators/WilliamsPercentR.cs",
+      "symbol": "WilliamsPercentR"
+    },
+    {
+      "path": "Indicators/WindowIdentity.cs",
+      "symbol": "WindowIdentity"
+    },
+    {
+      "path": "Indicators/WindowIndicator.cs",
+      "symbol": "WindowIndicator"
+    },
+    {
+      "path": "Indicators/ZeroLagExponentialMovingAverage.cs",
+      "symbol": "ZeroLagExponentialMovingAverage"
+    },
+    {
+      "path": "Indicators/ZigZag.cs",
+      "symbol": "ZigZag"
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+{
+  "survey_version": 1,
+  "candidates": [
+    {
+      "id": "lean.rsi",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "Lean",
+        "path": "Indicators/RelativeStrengthIndex.cs",
+        "symbol": "RelativeStrengthIndex",
+        "lines": [
+          1,
+          126
+        ],
+        "url": "https://github.com/QuantConnect/Lean/blob/59a4205b1cb3c88a9c1bf37ffba9227c5ee9fdfa/Indicators/RelativeStrengthIndex.cs#L1-L126"
+      },
+      "execution_modes": [
+        "recursive_state"
+      ],
+      "inputs": [
+        "price"
+      ],
+      "example_parameters": {
+        "period": 14,
+        "moving_average_type": "Wilders"
+      },
+      "formula_summary": "100 - 100 / (1 + average_gain / average_loss).",
+      "output_units": "0_to_100",
+      "warmup_and_state": "Period + 1 observations; gains/losses use the selected moving-average type.",
+      "semantic_edges": "Upstream rounds average loss to 10 decimal places and returns 100 when it is zero, including a flat path.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Test seed, flat path, reset and chunked replay.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "lean.atr",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "Lean",
+        "path": "Indicators/AverageTrueRange.cs",
+        "symbol": "AverageTrueRange",
+        "lines": [
+          1,
+          100
+        ],
+        "url": "https://github.com/QuantConnect/Lean/blob/59a4205b1cb3c88a9c1bf37ffba9227c5ee9fdfa/Indicators/AverageTrueRange.cs#L1-L100"
+      },
+      "execution_modes": [
+        "recursive_state"
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "example_parameters": {
+        "period": 14,
+        "moving_average_type": "Wilders"
+      },
+      "formula_summary": "Smoothed true range: max(high-low, abs(high-previous_close), abs(low-previous_close)).",
+      "output_units": "price",
+      "warmup_and_state": "Period warmup; previous close and smoothing state matter.",
+      "semantic_edges": "First-bar true range and alternate smoother semantics need dependency-level conformance.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Test gap bars and reset; pin smoothing type.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "lean.obv",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "Lean",
+        "path": "Indicators/OnBalanceVolume.cs",
+        "symbol": "OnBalanceVolume",
+        "lines": [
+          1,
+          99
+        ],
+        "url": "https://github.com/QuantConnect/Lean/blob/59a4205b1cb3c88a9c1bf37ffba9227c5ee9fdfa/Indicators/OnBalanceVolume.cs#L1-L99"
+      },
+      "execution_modes": [
+        "recursive_state"
+      ],
+      "inputs": [
+        "close",
+        "volume"
+      ],
+      "example_parameters": {},
+      "formula_summary": "Add volume on higher close, subtract on lower close, hold on equal close.",
+      "output_units": "volume",
+      "warmup_and_state": "First bar seeds OBV with its volume; ready after one bar.",
+      "semantic_edges": "Not zero-seeded. Equal-close bars still update the previous input.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Persist prior close and total; cumulative input history cannot be silently truncated.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "lean.vwap",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "Lean",
+        "path": "Indicators/VolumeWeightedAveragePriceIndicator.cs",
+        "symbol": "VolumeWeightedAveragePriceIndicator",
+        "lines": [
+          1,
+          117
+        ],
+        "url": "https://github.com/QuantConnect/Lean/blob/59a4205b1cb3c88a9c1bf37ffba9227c5ee9fdfa/Indicators/VolumeWeightedAveragePriceIndicator.cs#L1-L117"
+      },
+      "execution_modes": [
+        "rolling_window"
+      ],
+      "inputs": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "example_parameters": {
+        "period": 2
+      },
+      "formula_summary": "Rolling sum(volume * (open+high+low+close)/4) / sum(volume).",
+      "output_units": "price",
+      "warmup_and_state": "Ready after period bars.",
+      "semantic_edges": "OHLC4 price; neither HLC3 nor session-to-date VWAP. Zero-volume behavior needs conformance.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Fix rolling period, price basis and volume units.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    },
+    {
+      "id": "lean.ichimoku",
+      "role": "feature",
+      "review_status": "candidate_specification",
+      "source": {
+        "source_id": "Lean",
+        "path": "Indicators/IchimokuKinkoHyo.cs",
+        "symbol": "IchimokuKinkoHyo",
+        "lines": [
+          1,
+          214
+        ],
+        "url": "https://github.com/QuantConnect/Lean/blob/59a4205b1cb3c88a9c1bf37ffba9227c5ee9fdfa/Indicators/IchimokuKinkoHyo.cs#L1-L214"
+      },
+      "execution_modes": [
+        "rolling_window",
+        "shifted_components",
+        "multi_output"
+      ],
+      "inputs": [
+        "high",
+        "low",
+        "close"
+      ],
+      "example_parameters": {
+        "tenkanPeriod": 9,
+        "kijunPeriod": 26,
+        "senkouAPeriod": 26,
+        "senkouBPeriod": 52,
+        "senkouADelayPeriod": 26,
+        "senkouBDelayPeriod": 26
+      },
+      "formula_summary": "Tenkan and Kijun are midpoints of rolling highs/lows; SenkouA averages delayed Tenkan/Kijun; SenkouB averages delayed rolling high/low; Chikou delays close.",
+      "output_units": "price",
+      "warmup_and_state": "WarmUpPeriod = max(tenkanPeriod + senkouADelayPeriod, kijunPeriod + senkouADelayPeriod, senkouBPeriod + senkouBDelayPeriod); 78 with these parameters.",
+      "semantic_edges": "The indicator main value returns close; bind named component properties explicitly. senkouAPeriod is exposed in the constructor/name but unused in the calculation at this commit. Chart display shifts do not establish observation time.",
+      "integration_requirements": "Require finalized bars with observed availability times and a consistent split/dividend adjustment basis; do not fill unavailable values with zero. Resolve per-output calculation time versus display time before use; freeze names/order and test no look-ahead.",
+      "upstream_runtime_conformance": "not_run",
+      "predictive_evidence": "not_assessed"
+    }
+  ]
+}
