@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "host": "test-server.example.org",
+  "port": 22,
+  "user": "USER",
+  "identity_file": "~/.ssh/id_ed25519",
+  "workspace": "/workspace/USER",
+  "repo_dir": "repo/chickeyton/Quant_RSI",
+  "venv": ".venv-quant-rsi",
+  "profile": "profile"
+}

@@ -78,13 +78,20 @@ def test_paper_guard_accepts_paper_session():
     assert check_paper(config(), port=4002, accounts=(ACCOUNT,), client_id=21) == ACCOUNT
 
 
+def test_paper_account_ids_may_contain_letters():
+    lettered = config(expected_account="DUA1234567")
+    assert check_paper(lettered, port=7497, accounts=("DUA1234567",), client_id=21) == "DUA1234567"
+    with pytest.raises(ValidationError):
+        config(expected_account="DUa1234567")
+
+
 # Session -----------------------------------------------------------------------------------------
 def test_handshake_records_accounts_order_ids_and_clock_skew():
     broker = FakeBroker()
     later = broker.now() + timedelta(seconds=3)
     session = broker.session(clock=lambda: later)
     assert session.info.accounts == (ACCOUNT,) and session.info.next_order_id == 100
-    assert session.info.clock_skew_seconds == pytest.approx(3)
+    assert session.info.clock_skew_seconds == pytest.approx(3, abs=0.5)
     assert session.next_order_id() == 100 and session.next_order_id() == 101
 
 

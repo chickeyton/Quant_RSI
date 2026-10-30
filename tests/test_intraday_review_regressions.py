@@ -340,11 +340,11 @@ def test_clock_skew_is_remeasured_on_interval():
     session = broker.session(clock=lambda: broker.now() + timedelta(seconds=offset[0]))
     ticks = [0.0]
     monitor = ClockSkewMonitor(session, interval_seconds=60, monotonic=lambda: ticks[0])
-    assert monitor() == pytest.approx(0)
+    assert monitor() == pytest.approx(0, abs=0.5)
     offset[0] = 4.0
-    assert monitor() == pytest.approx(0)  # cached inside the interval
+    assert monitor() == pytest.approx(0, abs=0.5)  # cached inside the interval
     ticks[0] = 61.0
-    assert monitor() == pytest.approx(4)
+    assert monitor() == pytest.approx(4, abs=0.5)
 
 
 # Features: early close ---------------------------------------------------------------------------

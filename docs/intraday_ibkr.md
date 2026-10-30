@@ -24,6 +24,7 @@ quality, and paper fills are simulated by IBKR.
 | Replay simulator and development evaluation | Implemented; `development_only` evidence |
 | Paper episodes: journal, scheduled submission, deadlines, flatten, stop and handover, reconciliation, risk stops, shadow report | Implemented |
 | Forward session schedule and temporal-ordering check | Implemented as library functions |
+| Sync of code and snapshots to a shared test server for offline work | Implemented; see below |
 | C2/C4/C5 controller integration, sealing registry, budget ledger, `quant-rsi` subcommands | **Not yet**: they depend on the POSIX controller and need a Linux environment |
 | IBKR daily data into the five-session forecast envelope | Daily collection is implemented; envelope integration with a Yahoo action-notice sidecar is not |
 
@@ -43,7 +44,9 @@ as Linux. The rest of Quant RSI still requires Linux.
 
 3. In TWS or IB Gateway, logged in to the **paper** account:
    - enable socket clients;
-   - turn read-only API off (orders are needed);
+   - keep "Allow connections from localhost only" on;
+   - keep read-only API on for data collection and offline evaluation; turn it off only
+     to run paper episodes, which place orders;
    - note the paper port (7497 for TWS, 4002 for Gateway).
 4. Copy [`examples/ibkr.json.template`](../examples/ibkr.json.template) to
    `.quant_rsi/ibkr.json`, which is ignored by Git. Set `expected_account` to your `DU…`
@@ -125,6 +128,48 @@ How collection is organised:
 
 Multi-day requests are not used, because IBKR's maximum duration for 1-minute bars has not
 been verified against a live session.
+
+### Offline work on a shared test server
+
+Only the machine running TWS connects to IBKR: `ibkr-check`, `resolve`, `collect` and the
+`paper-*` commands. Do not expose the TWS API port to a shared server, whether through a
+firewall rule or an SSH tunnel: TWS asks API clients for no password, and every user on that
+server could connect. Instead, copy code and snapshots to the server and run offline work
+there. `python -m quant_rsi.intraday.sync` does this over SSH.
+
+Collecting on the TWS machine, syncing, and fitting on the server form the **offline
+development cycle**. Only `collect` reads from TWS; nothing in the cycle places orders.
+
+1. Copy [`examples/test_server.json.template`](../examples/test_server.json.template) to
+   `.quant_rsi/test_server.json`, which is ignored by Git, and fill in the host, port, user,
+   key and workspace. Every server path stays under the workspace.
+2. On the server, create the venv named by `venv` and install the project as in the
+   [README](../README.md). `ibapi` is not needed there.
+3. From the repository root on the TWS machine:
+
+   ```bash
+   S="python -m quant_rsi.intraday.sync"
+   $S push-code                      # tracked and unignored files; never .quant_rsi/ or runs/
+   $S push-snapshot --store runs/spy/store --snapshot SNAPSHOT_SHA256
+   $S test -- -q tests/test_intraday_policy.py
+   $S run --save runs/spy/fit.json -- fit --store runs/spy/store \
+     --snapshot SNAPSHOT_SHA256 --plan examples/intraday_development_spy.json \
+     --output runs/spy/model.txt --policy-output runs/spy/signal.json
+   $S pull --remote runs/spy/model.txt --local runs/spy/model.txt --expect-sha256 MODEL_SHA256
+   $S pull --remote runs/spy/signal.json --local runs/spy/signal.json
+   ```
+
+How the sync behaves:
+- **Snapshots:** `push-snapshot` checks the snapshot locally, sends only the store files the
+  server lacks, never overwrites one, and then loads the snapshot on the server, which
+  verifies every digest. The local `pacing.sqlite` is not sent.
+- **Commands:** `run` accepts only `evaluate` and `fit`. Paths in their arguments are
+  relative to the server's repository copy.
+- **Pulls:** `pull` refuses a file whose SHA-256 differs from `--expect-sha256` (use the
+  `model_sha256` that `fit` printed), and never replaces a different local file without
+  `--force`.
+- **Code:** `push-code` refuses credentials and local output even if Git would include them.
+  It does not delete files removed locally.
 
 ### Paper episode
 
@@ -238,7 +283,7 @@ python -m quant_rsi.intraday paper-stop --journal runs/ko/paper.sqlite \
 pytest -q tests/test_intraday_core.py tests/test_ibkr_adapter.py \
   tests/test_intraday_paper.py tests/test_intraday_schedule.py tests/test_intraday_cli.py \
   tests/test_intraday_review_regressions.py tests/test_intraday_second_review.py \
-  tests/test_intraday_policy.py
+  tests/test_intraday_policy.py tests/test_intraday_sync.py
 ```
 
 These tests use synthetic bars and a scripted fake TWS. They need neither `ibapi` nor a

@@ -20,7 +20,8 @@ class IbkrConfig(StrictModel):
     data_client_id: int = Field(ge=1, le=32767)
     orders_client_id: int = Field(ge=1, le=32767)
     account_mode: Literal["paper"]
-    expected_account: str = Field(pattern=r"^DU[0-9]{1,16}$")
+    # Paper account IDs may carry letters after "DU", for example DUA1234567.
+    expected_account: str = Field(pattern=r"^DU[A-Z0-9]{1,16}$")
     paper_ports: tuple[int, ...] = DEFAULT_PAPER_PORTS
     max_clock_skew_seconds: float = Field(default=2.0, gt=0, le=60)
     request_timeout_seconds: float = Field(default=30.0, gt=0, le=600)

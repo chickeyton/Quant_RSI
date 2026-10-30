@@ -47,6 +47,14 @@ class IbkrDisconnected(IbkrError):
     pass
 
 
+def _server_time(epoch) -> datetime:
+    """TWS reports whole seconds, so its clock lies in [epoch, epoch + 1); use the middle.
+
+    Comparing with the truncated second would overstate skew by up to one second.
+    """
+    return datetime.fromtimestamp(int(epoch) + 0.5, timezone.utc)
+
+
 @dataclass(frozen=True)
 class SessionInfo:
     host: str
@@ -116,7 +124,7 @@ class IbkrSession:
                 continue
             self._absorb(message, in_call=False, waiting=None)
         server = self.call("current_time", {}, end_kinds={"current_time"}, req_id=None)
-        server_time = datetime.fromtimestamp(int(server[-1].payload["epoch"]), timezone.utc)
+        server_time = _server_time(server[-1].payload["epoch"])
         self.info = SessionInfo(
             host=self.host,
             port=self.port,
@@ -146,7 +154,7 @@ class IbkrSession:
 
     def measure_clock_skew(self) -> float:
         server = self.call("current_time", {}, end_kinds={"current_time"}, req_id=None)
-        server_time = datetime.fromtimestamp(int(server[-1].payload["epoch"]), timezone.utc)
+        server_time = _server_time(server[-1].payload["epoch"])
         return abs((self.clock() - server_time).total_seconds())
 
     @property
