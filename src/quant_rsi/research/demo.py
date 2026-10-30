@@ -61,7 +61,14 @@ def simulated_hypothesis(context, library, *, previous=None, feedback=None):
         available = [item["factor_id"] for item in library["definitions"]]
         factors = available[:1] if previous is None else available[1:]
         reason = "Try a numeric recipe, then change the numeric selection after model feedback."
+    proposal = {}
+    if context.get("allow_factor_proposals"):
+        op = "qlib_ma_v1" if previous else "momentum"
+        factors = [f"research.{op}_10"]
+        reason = "Simulated researcher proposes a bounded recipe, then revises after feedback."
+        proposal = {"proposed_factors": [{"op": op, "window": 10, "description": reason}]}
     return {
+        **proposal,
         "provider": "simulated_llm",
         "hypothesis": reason,
         "evidence_news_ids": [item["id"]],
@@ -137,6 +144,7 @@ def run_demo(
     observe=simulated_observe,
     summarize=simulated_summary,
     price_context=None,
+    on_stage=None,
 ):
     """One factor revision, no network, fits, workspace or persistence by default.
 
@@ -151,6 +159,8 @@ def run_demo(
 
     def record(stage, value):
         trace.append({"stage": stage, "output": deepcopy(value)})
+        if on_stage is not None:
+            on_stage(deepcopy(trace[-1]))
         return value
 
     record("target", {"provider": "simulated_price_context", **context})
@@ -158,6 +168,10 @@ def run_demo(
     context["news"] = record("news", news(deepcopy(context)))
     library = record("factor_library", catalog())
     initial = record("initial_hypothesis", hypothesize(deepcopy(context), deepcopy(library)))
+    if context.get("allow_factor_proposals"):
+        from quant_rsi.research.demo_proposals import extend_library
+
+        library = record("initial_factor_library", extend_library(library, initial))
     factors = record("initial_factors", select_factors(library, initial))
     first = record("first_prediction", predict(deepcopy(context), factors, deepcopy(initial)))
     observed = observe(deepcopy(context), deepcopy(first))
@@ -179,6 +193,8 @@ def run_demo(
             feedback=deepcopy(feedback),
         ),
     )
+    if context.get("allow_factor_proposals"):
+        library = record("revised_factor_library", extend_library(library, revised))
     factors = record("revised_factors", select_factors(library, revised))
     second = record("second_prediction", predict(deepcopy(context), factors, deepcopy(revised)))
     summary = record(
@@ -190,19 +206,20 @@ def run_demo(
         for hypothesis in (initial, revised)
     )
     live_news = context["news"].get("provider") == "issuer_rss"
+    configured_related = context["related"].get("provider") == "instrument_relationship_profile"
     trained_model = first.get("provider") == "lightgbm"
     notice = "Product wiring demo. News, LLM, prices and predictions are simulated by default."
     if live_llm or live_news:
         notice = (
             f"Product wiring demo with {'real' if live_llm else 'simulated'} LLM hypotheses "
             f"and {'real issuer RSS' if live_news else 'simulated'} news. "
-            "Related stocks, prices, predictions and observations are simulated; "
+            "Prices, predictions and observations are simulated; "
             "improvement is not evaluated."
         )
     if trained_model:
         notice = (
             f"Real LightGBM training with {'real' if live_llm else 'simulated'} LLM hypotheses "
-            f"and {'real issuer RSS' if live_news else 'simulated'} news. Prices, related stocks "
+            f"and {'real issuer RSS' if live_news else 'simulated'} news. Prices "
             "and observed outcomes are synthetic. Both estimates use the same development origin; "
             "the revision reuses disclosed feedback. No independent improvement or market forecast."
         )
@@ -211,12 +228,22 @@ def run_demo(
                 "Real daily prices and LightGBM training with "
                 f"{'real' if live_llm else 'simulated'} LLM hypotheses "
                 f"and {'real issuer RSS' if live_news else 'simulated'} news. "
-                "Related stocks remain simulated. Historical estimates reuse development feedback; "
+                "Historical estimates reuse development feedback; "
                 "the separate latest forecast has no observed outcome. "
                 "No independent gain established."
             )
+    notice += (
+        " Related stocks use source-backed configuration, not automatic discovery or "
+        "measured return correlations."
+        if configured_related
+        else " Related stocks remain simulated."
+    )
+    if context["news"].get("coverage_status") == "partial":
+        notice += " Related-issuer news coverage is incomplete; see the news coverage entries."
     return {
-        "mode": "mixed" if live_llm or live_news or trained_model else "simulation",
+        "mode": "mixed"
+        if live_llm or live_news or trained_model or configured_related
+        else "simulation",
         "notice": notice,
         "target": symbol,
         "factor_revisions": 1,

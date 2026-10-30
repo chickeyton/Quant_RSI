@@ -122,6 +122,114 @@ def test_real_news_with_simulated_llm_is_also_labeled_mixed(transport):
     assert "simulated LLM" in result["notice"] and "real issuer RSS" in result["notice"]
 
 
+def test_profile_peer_news_reaches_both_llm_calls_with_coverage(transport, monkeypatch, capsys):
+    target = news_feed.source_for("KO")
+
+    def source_for(symbol):
+        if symbol == "MNST":
+            raise FileNotFoundError(symbol)
+        return target.model_copy(update={"instrument": symbol, "provider_id": symbol.lower()})
+
+    monkeypatch.setattr(news_feed, "source_for", source_for)
+    calls = []
+
+    def codex(self, prompt, schema):
+        data = json.loads(prompt.split("\nINPUT_JSON:\n")[1])
+        calls.append(data)
+        related = data["context"]["related"]
+        assert related["stocks"] == ["CCEP", "MNST"]
+        assert all(item["source_urls"] for item in related["relationships"])
+        news = data["context"]["news"]
+        assert [item["symbol"] for item in news["items"]] == ["KO", "CCEP"]
+        assert [item["status"] for item in news["coverage"]] == [
+            "available",
+            "available",
+            "not_configured",
+        ]
+        return json.dumps(
+            {
+                "hypothesis": "Explore supplied partner context; missing MNST coverage is unknown.",
+                "factor_ids": ["equity.price_mean_return_5"]
+                if data["feedback"]
+                else ["equity.price_momentum_5"],
+                "evidence_news_ids": [news["items"][1]["id"]],
+                "event_signal": 0.1,
+            }
+        )
+
+    monkeypatch.setattr(llm.LLMHypothesizer, "_codex", codex)
+    assert (
+        main(
+            [
+                "research-demo",
+                "KO",
+                "--catalog",
+                str(CATALOG),
+                "--related",
+                "profile",
+                "--news",
+                "issuer-rss",
+                "--news-limit",
+                "1",
+                "--llm",
+                "codex",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    result = json.loads(capsys.readouterr().out)
+    assert transport == [("KO", 262144), ("CCEP", 262144)]
+    assert len(calls) == 2 and calls[0]["context"]["news"] == calls[1]["context"]["news"]
+    assert calls[1]["feedback"] is not None
+    assert result["summary"]["factors_changed"]
+    assert "source-backed configuration" in result["notice"]
+    assert "coverage is incomplete" in result["notice"]
+
+
+@pytest.mark.parametrize("failure", ["http", "empty", "invalid"])
+def test_failed_peer_feed_discloses_gap_without_fabricating_items(monkeypatch, failure):
+    from quant_rsi.research.demo_related import profile_related
+
+    target = news_feed.source_for("KO")
+    monkeypatch.setattr(
+        news_feed,
+        "source_for",
+        lambda symbol: target.model_copy(
+            update={"instrument": symbol, "provider_id": symbol.lower()}
+        ),
+    )
+
+    def fetch(source, limit):
+        if source.instrument == "KO":
+            return feed(item("actual", "")), {"received_at": RECEIVED}
+        return {
+            "http": (b"denied", {"error": "HTTPError"}),
+            "empty": (feed(), {}),
+            "invalid": (b"invalid XML", {}),
+        }[failure]
+
+    monkeypatch.setattr(news_feed, "fetch", fetch)
+    news = demo_news.issuer_news({"symbol": "KO", "related": profile_related("KO")})
+    assert [item["symbol"] for item in news["items"]] == ["KO"]
+    assert news["coverage_status"] == "partial"
+    assert all(
+        entry["status"] == "unavailable" and entry["reason"] for entry in news["coverage"][1:]
+    )
+
+
+def test_unregistered_peer_feeds_are_explicit_without_network_attempts(transport):
+    from quant_rsi.research.demo_related import profile_related
+
+    news = demo_news.issuer_news({"symbol": "KO", "related": profile_related("KO")})
+    assert transport == [("KO", 262144)]
+    assert [entry["status"] for entry in news["coverage"]] == [
+        "available",
+        "not_configured",
+        "not_configured",
+    ]
+
+
 def test_summary_context_is_bounded_and_truncation_disclosed(monkeypatch):
     monkeypatch.setattr(
         news_feed,

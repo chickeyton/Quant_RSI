@@ -1,5 +1,9 @@
 # Run the simulated stock-research loop
 
+For one command that saves prediction, strategy and baseline reports, start with
+the [connected research study](connected_research_study.md). This guide covers
+the smaller `research-demo` entry point and its replaceable services.
+
 The first product loop has one entry point. It lets you follow a stock from
 context gathering to a prediction, observe a simulated result, change the chosen
 factors using feedback and produce the next prediction. Start with the complete
@@ -83,7 +87,8 @@ or invalid output, unknown factor IDs or an unchanged revision stop the command.
 The adapter does not retry or fall back to simulated hypotheses.
 
 The trace identifies `codex_cli` or `openai_api` and reports `mode: mixed` with a
-simulation notice. Related stocks remain synthetic. Predictions use illustrative
+simulation notice. Related stocks are synthetic by default, or configured with
+`--related profile`. Predictions use illustrative
 contributions by default, or actual fitting with `--model lightgbm`; prices default
 to synthetic, with collected data available via `--prices daily`. News is simulated
 unless `--news issuer-rss` is selected. LLM outputs can
@@ -99,6 +104,38 @@ mean return after simulated feedback. This verifies the connection, not predicti
 accuracy; future LLM selections may differ. API mode was tested with offline
 responses only because an API key was unavailable.
 
+## Use configured company relationships
+
+```bash
+quant-rsi research-demo KO --related profile --json
+quant-rsi research-demo KO --related profile --news issuer-rss --llm codex
+```
+
+The default is `--related simulated`. Profile mode loads
+[`instruments/US/KO/relationships.json`](../instruments/US/KO/relationships.json):
+CCEP is a bottling relationship and MNST a distribution relationship. The profile
+records supporting source links and `reviewed_on: 2026-10-29`. These are configured
+business links, not automatically discovered peers or measured price correlations.
+Profiles allow one to three related issuers. Sources are reviewed configuration,
+not reverified on each run; an absent or invalid profile stops profile mode.
+
+With `--news issuer-rss`, the target and profile companies are routed to registered
+issuer feeds. Only KO currently has a verified feed configuration. CCEP and MNST
+are explicitly reported as `not_configured`; their presence in the relationship
+profile does not mean their news was fetched. KO's target feed remains required.
+Coverage is therefore `partial`. A configured partner feed that fails or returns
+no items is marked `unavailable` with a reason; usable target news is retained.
+No partner articles or relationships are invented to fill missing coverage.
+The existing price, model and LLM options work unchanged with `--related profile`.
+
+On 2026-10-29, the combined profile, issuer-RSS, Codex and daily-price LightGBM
+command completed all 12 trace stages. Both Codex hypotheses acknowledged the
+CCEP/MNST relationships and missing partner news; the revision changed momentum
+to mean return after the disclosed development error. KO supplied three selected
+RSS items. This verifies the connected loop, not live partner-news retrieval or
+independent predictive improvement. Successful partner-feed routing is covered
+by offline HTTP fixtures.
+
 ## Use real issuer news
 
 The default `--news simulated` preserves the offline loop. To replace just news,
@@ -109,14 +146,17 @@ quant-rsi research-demo KO --news issuer-rss --news-limit 5 --json
 quant-rsi research-demo KO --news issuer-rss --llm codex
 ```
 
-`--news-limit` accepts integers from `1` to `20`, defaulting to `5`. The adapter
+`--news-limit` accepts integers from `1` to `20` **per issuer**, defaulting to `5`.
+Items are grouped target first, then profile order, newest within each feed; this
+is not a global ranking across companies. The adapter
 reuses the existing registered source, bounded transport and RSS parser in
 [`market/news_feed.py`](../src/quant_rsi/market/news_feed.py). Currently only KO's
-official issuer feed is registered. It makes one request capped at 256 KiB and
-parses at most 128 items, selecting the newest items up to the requested limit.
+official issuer feed is registered. Each configured feed gets one request capped
+at 256 KiB and at most 128 parsed items, selecting up to the requested limit.
 Responses reaching the byte limit or exceeding the item bound are rejected.
 It does not search
-the web, fetch article bodies, poll additional pages or collect peer-company news.
+the web, fetch article bodies or poll additional pages. Profile relationships
+enable routing to registered related-company feeds; currently CCEP/MNST have none.
 
 Each selected item includes its ID, symbol, URL, title (up to 300 characters) and
 summary (up to 2,000 characters), with HTML stripped and truncation flagged,
@@ -130,12 +170,13 @@ items supply only a title.
 The same selected news context reaches both hypothesis calls. In Codex/API mode,
 the model is told whether news is real or simulated through its provider label;
 its illustrative `event_signal` still is not an executed or calibrated text factor.
-Related companies remain synthetic. The default model and observation are
+Related companies are simulated unless profile mode is selected. The default model and observation are
 simulated; optional LightGBM uses synthetic or collected prices for fitting and
 development observation. Live news alone also marks the output as a mixed simulation.
 
-Unsupported symbols, an empty feed, transport failures and invalid feed content
-stop the run. There is no fallback to invented news or historical backfill. This
+An unsupported target, empty target feed, transport failure or invalid target feed
+stops the run. Missing related-feed configurations are reported in coverage instead
+of replacing them with invented news. There is no historical backfill. This
 entry point creates no research workspace or persistent news observation ledger.
 For retained collection and observation, see [bounded news collection](news_collection.md).
 
@@ -178,8 +219,8 @@ The summary reports both errors against that reused observation and labels
 `second_outcome` as `reused_development_observation`; `improvement` remains
 `not_evaluated`. A smaller second error would not establish predictive gain.
 
-The execution is real feature calculation and model fitting; the price history,
-outcome and related companies remain synthetic. This is still the product demo,
+The execution is real feature calculation and model fitting; the price history
+and outcome remain synthetic; relationships default to simulated. This is still the product demo,
 without a research workspace, market-data experiment or independent holdout.
 On 2026-10-29, both the offline model run and a combined run with
 `--model lightgbm --news issuer-rss --news-limit 3 --llm codex` completed.
@@ -227,7 +268,7 @@ Prices are raw USD closes, unadjusted for dividends, rather than total-return
 prices. Known unsupported corporate actions within the window reject the run.
 Data freshness is bounded by the collection receipt; reusing a directory is not
 a fresh market download. A latest-bar forecast from old evidence is correspondingly
-dated, not a claim to reflect today's market. Related companies remain simulated,
+dated, not a claim to reflect today's market. Relationships default to simulated,
 and text factors are excluded from the model.
 
 On 2026-10-29, a combined daily-price, issuer-RSS and Codex run completed with 120
@@ -246,26 +287,25 @@ before merge, run the following from your existing repository. The separate
 worktree and environment leave that checkout on its current branch:
 
 ```bash
-git fetch origin feat/prices-research-loop
-git worktree add --detach ../Quant_RSI-prices-demo FETCH_HEAD
-cd ../Quant_RSI-prices-demo
+git fetch origin feat/related-research-loop
+git worktree add --detach ../Quant_RSI-related-demo FETCH_HEAD
+cd ../Quant_RSI-related-demo
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-dev.lock
 python -m pip install --no-deps -e .
 quant-rsi research-demo --help
-quant-rsi research-demo KO --model lightgbm --prices daily \
-  --prices-dir "$HOME/quant-rsi-data/KO-demo"
+quant-rsi research-demo KO --related profile --news issuer-rss --llm codex
 ```
 
 Use this while the feature branch is available; after merge, a fresh checkout of
-updated `main` contains the feature. Check that `--help` lists `--prices` and `--prices-dir`
+updated `main` contains the feature. Check that `--help` lists `--related`
 before trying live calls. Installing editable code in the dedicated environment
 ensures its CLI uses that worktree's source and catalog.
 
 ## Follow the whole interaction
 
-1. Start with the requested stock symbol and obtain simulated related stocks and
+1. Start with the requested stock symbol and obtain simulated or configured relationships and
    the selected news context (simulated by default, optional real issuer RSS).
 2. Read the existing factor definitions and ask the selected LLM to choose an
    initial factor set.
@@ -361,7 +401,7 @@ A practical replacement order is:
 
 1. Enable a live `hypothesize` adapter with `--llm codex` or `--llm api`. Keep news,
    prices, prediction and outcome simulated so you can inspect its choices and revisions.
-2. Enable `--news issuer-rss` for KO, or replace `news`/`related` with another
+2. Enable `--related profile --news issuer-rss` for KO, or replace `news`/`related` with another
    data/tool adapter independently. Other services retain their existing inputs and outputs.
 3. Enable `--model lightgbm` for numeric feature calculation and fitting, then
    `--prices daily --prices-dir PATH` for collected historical prices. Catalog
@@ -369,9 +409,9 @@ A practical replacement order is:
 4. Replace `observe` when actual outcomes become available, and `summarize` when
    a richer explanation is useful.
 
-The CLI exposes the stock symbol, catalog path, output format, LLM, news, model and price options.
+The CLI exposes the stock symbol, catalog path, output format, LLM, relationship, news, model and price options.
 Other custom service injection uses the Python entry point. Built-in live LLM,
-issuer-news or LightGBM providers set the aggregate mode to `mixed`; arbitrary injected callables do not
+issuer-news, relationship-profile or LightGBM providers set the aggregate mode to `mixed`; arbitrary injected callables do not
 automatically change that label. Inspect provider labels and the callable
 implementation to distinguish real parts from remaining simulated ones. Later, existing
 [bounded research](research_workflow.md), data and model capabilities can supply
