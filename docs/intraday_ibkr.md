@@ -19,7 +19,7 @@ quality, and paper fills are simulated by IBKR.
 | --- | --- |
 | IBKR session, paper-only guard, pacing, contract qualification | Implemented; tested offline with a scripted fake transport |
 | Intraday snapshots (decision, 1-minute execution and bid/ask grids) | Implemented; deterministic content-addressed column blocks |
-| Timing, labels, features, fixed LightGBM, session folds | Implemented |
+| Timing, labels, intraday and daily-history features, fixed LightGBM, session folds | Implemented |
 | Learnable trading policy: cost-aware entry, edge-scaled sizing, nested calibration | Implemented |
 | Replay simulator and development evaluation | Implemented; `development_only` evidence |
 | Paper episodes: journal, scheduled submission, deadlines, flatten, stop and handover, reconciliation, risk stops, shadow report | Implemented |
@@ -110,6 +110,12 @@ The SPY plan assumes a 0.5 bps spread and uses lower entry and exit thresholds t
 because SPY's spread and 30-minute moves are both smaller. These are starting assumptions;
 replace `assumed_spread_bps` with the spread measured from your bid/ask snapshot. The
 `ctx:` leaves in a plan must name the profile's context instruments.
+
+Both plans also use the `d_` daily-history leaves (design section 5.4): multi-day returns,
+daily volatility and ATR, moving-average distance and the previous session's range. They
+are built from the snapshot's earlier sessions, so no separate daily collection is needed,
+but `d_ma_50_dist` needs 50 complete earlier sessions before it has a value. Collect the
+profile's full `history_sessions`; a short snapshot leaves most rows without a prediction.
 
 `calendar.json` is an explicit `CalendarSpec`: calendar ID, IANA time zone and every
 session's open and close. The collector never infers sessions, and it refuses sessions that
@@ -283,7 +289,7 @@ python -m quant_rsi.intraday paper-stop --journal runs/ko/paper.sqlite \
 pytest -q tests/test_intraday_core.py tests/test_ibkr_adapter.py \
   tests/test_intraday_paper.py tests/test_intraday_schedule.py tests/test_intraday_cli.py \
   tests/test_intraday_review_regressions.py tests/test_intraday_second_review.py \
-  tests/test_intraday_policy.py tests/test_intraday_sync.py
+  tests/test_intraday_policy.py tests/test_intraday_sync.py tests/test_intraday_daily_features.py
 ```
 
 These tests use synthetic bars and a scripted fake TWS. They need neither `ibapi` nor a

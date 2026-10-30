@@ -35,6 +35,9 @@
   "leaves": [
     "ret_1", "ret_3", "ret_6", "ret_12", "rv_12", "rv_24", "range", "vol_z_20",
     "vwap_dev", "or_high_dist", "or_low_dist", "minutes_since_open", "gap", "rsi_14",
+    "d_ret_1", "d_ret_5", "d_ret_20", "d_rv_20", "d_atr_14", "d_move_atr",
+    "d_ma_20_dist", "d_ma_50_dist", "d_prev_range", "d_prev_close_pos",
+    "d_prev_high_dist", "d_prev_low_dist",
     "ctx:XLP:ret_1", "ctx:XLP:ret_6", "ctx:SPY:ret_1", "ctx:SPY:ret_6"
   ],
   "folds": {"first_test_session": 150, "test_sessions": 25, "folds": 3, "embargo_sessions": 1},

@@ -1,14 +1,20 @@
 """Causal intraday feature leaves (design section 5.4).
 
 Features at decision bar `t` read only decision bars `<= t` of the current session and, for
-the explicitly cross-session leaves (`gap`, `vol_z_20`), earlier sessions. Plan validation
-guarantees bar `t` itself is available at the decision. A leaf whose window contains a
-missing bar is missing (NaN); it is never computed over a shortened window.
+the explicitly cross-session leaves (`gap`, `vol_z_20` and the `d_` daily leaves), earlier
+sessions that closed before this one opened. Plan validation guarantees bar `t` itself is
+available at the decision. A leaf whose window contains a missing bar is missing (NaN); it
+is never computed over a shortened window.
+
+Daily leaves (design 5.4) summarise each earlier regular session as one daily bar built from
+its decision bars. That bar exists only when every decision bar of the session is valid, so
+its close is the last regular-hours bar's close, not the official closing auction.
 """
 
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Protocol
 
 import numpy as np
@@ -34,6 +40,24 @@ TARGET_LEAVES = (
     "rsi_14",
 )
 CONTEXT_LEAVES = ("ret_1", "ret_6")
+DAILY_LEAVES = (
+    "d_ret_1",
+    "d_ret_5",
+    "d_ret_20",
+    "d_rv_20",
+    "d_atr_14",
+    "d_move_atr",
+    "d_ma_20_dist",
+    "d_ma_50_dist",
+    "d_prev_range",
+    "d_prev_close_pos",
+    "d_prev_high_dist",
+    "d_prev_low_dist",
+)
+ATR_PERIOD = 14
+# Longer than any market-holiday weekend: a wider gap means the calendar is missing sessions,
+# so a daily window across it would silently span the wrong number of sessions.
+MAX_SESSION_GAP_DAYS = 5
 VOLUME_LOOKBACK_SESSIONS = 20
 OPENING_RANGE_SECONDS = 1800
 RSI_PERIOD = 14
@@ -52,7 +76,7 @@ def default_leaves(contract: IntradayDataContract) -> tuple[str, ...]:
 
 def validate_leaves(contract: IntradayDataContract, leaves: Sequence[str]) -> None:
     for leaf in leaves:
-        if leaf in TARGET_LEAVES:
+        if leaf in TARGET_LEAVES or leaf in DAILY_LEAVES:
             continue
         parts = leaf.split(":")
         if (
@@ -115,19 +139,113 @@ def _rsi(block: Block, t: int) -> float:
     return (rsi - 50.0) / 50.0
 
 
+@dataclass(frozen=True)
+class DailyBar:
+    open: float
+    high: float
+    low: float
+    close: float
+
+
+def daily_bar(block: Block | None) -> DailyBar | None:
+    """One regular session as a daily bar; None unless every decision bar is valid."""
+    if block is None or not len(block) or not (block.columns["status"] == VALID).all():
+        return None
+    cols = block.columns
+    return DailyBar(
+        float(cols["open"][0]),
+        float(cols["high"].max()),
+        float(cols["low"].min()),
+        float(cols["close"][-1]),
+    )
+
+
 class _Session:
     def __init__(self, source: BarSource, sessions: Sequence[MarketSession], index: int):
         self.source, self.sessions, self.index = source, sessions, index
         self.session = sessions[index]
         self.bar_seconds = source.contract.grid.bar_seconds
+        self._daily: dict[tuple[str, int], DailyBar | None] = {}
 
     def block(self, instrument: str, index: int | None = None) -> Block | None:
         session = self.sessions[self.index if index is None else index]
         return self.source.block(instrument, "decision", session.session_id)
 
+    def prior_daily(self, instrument: str, count: int) -> list[DailyBar] | None:
+        """The `count` sessions before this one, oldest first; None if any is unavailable."""
+        first = self.index - count
+        if first < 0:
+            return None
+        window = self.sessions[first : self.index + 1]
+        limit = timedelta(days=MAX_SESSION_GAP_DAYS)
+        if any(
+            later.open_at - earlier.close_at > limit
+            for earlier, later in zip(window[:-1], window[1:], strict=True)
+        ):
+            return None
+        bars = []
+        for index in range(first, self.index):
+            key = (instrument, index)
+            if key not in self._daily:
+                self._daily[key] = daily_bar(self.block(instrument, index))
+            if self._daily[key] is None:
+                return None
+            bars.append(self._daily[key])
+        return bars
+
+
+def _atr(bars: Sequence[DailyBar]) -> float:
+    """Mean true range of the last ATR_PERIOD bars; `bars` holds one more for the first close."""
+    ranges = [
+        max(bar.high, before.close) - min(bar.low, before.close)
+        for before, bar in zip(bars[:-1], bars[1:], strict=True)
+    ]
+    return float(np.mean(ranges))
+
+
+def _daily_leaf(name: str, ctx: _Session, target: Block, t: int) -> float:
+    instrument, cols = target.instrument, target.columns
+    now = float(cols["close"][t]) if cols["status"][t] == VALID else math.nan
+    if name.startswith("d_ret_"):
+        k = int(name[6:])
+        bars = ctx.prior_daily(instrument, k + 1)
+        return math.nan if bars is None else math.log(bars[-1].close / bars[0].close)
+    if name == "d_rv_20":
+        bars = ctx.prior_daily(instrument, 21)
+        if bars is None:
+            return math.nan
+        return float(np.std(np.diff(np.log([bar.close for bar in bars]))))
+    if name in {"d_atr_14", "d_move_atr"}:
+        bars = ctx.prior_daily(instrument, ATR_PERIOD + 1)
+        if bars is None:
+            return math.nan
+        atr = _atr(bars)
+        if name == "d_atr_14":
+            return atr / bars[-1].close
+        return math.nan if atr == 0 else (now - bars[-1].close) / atr
+    if name.startswith("d_ma_"):
+        bars = ctx.prior_daily(instrument, int(name.split("_")[2]))
+        return math.nan if bars is None else now / float(np.mean([b.close for b in bars])) - 1.0
+    bars = ctx.prior_daily(instrument, 1)
+    if bars is None:
+        return math.nan
+    prev = bars[0]
+    if name == "d_prev_range":
+        return (prev.high - prev.low) / prev.close
+    if name == "d_prev_close_pos":
+        span = prev.high - prev.low
+        return math.nan if span == 0 else (prev.close - prev.low) / span
+    if name == "d_prev_high_dist":
+        return now / prev.high - 1.0
+    if name == "d_prev_low_dist":
+        return now / prev.low - 1.0
+    raise ValueError(f"unsupported feature leaf {name}")
+
 
 def _target_leaf(name: str, ctx: _Session, target: Block, t: int) -> float:
     status, cols = target.columns["status"], target.columns
+    if name in DAILY_LEAVES:
+        return _daily_leaf(name, ctx, target, t)
     if name.startswith("ret_"):
         return _ret(target, t, int(name[4:]))
     if name.startswith("rv_"):

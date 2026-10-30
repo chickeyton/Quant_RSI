@@ -126,7 +126,7 @@ at a time.
 | News and financial evidence | Retained KO title indicators can enter opt-in comparisons/discovery; other evidence remains sidecar-only |
 | News collection and extraction | [Bounded KO official RSS observations](docs/news_collection.md), retained-title extraction and revision tracking; provider-side search/full-text extraction remain open in [RFC #28](https://github.com/natureofnature/Quant_RSI/issues/28) |
 | Statistical confirmation and promotion | Incomplete; protected evaluation is engineering-only and retains the incumbent |
-| Intraday bars, model and IBKR paper trading | Standalone, offline-tested: IBKR adapter with a paper-only guard, intraday snapshots, fixed LightGBM development evaluation, replay simulator and paper-account episodes. Not yet wired into the C2/C4/C5 controller or `quant-rsi`; see the [intraday guide](docs/intraday_ibkr.md) |
+| Intraday bars, model and IBKR paper trading | Standalone, offline-tested: IBKR adapter with a paper-only guard, intraday snapshots, intraday and daily-history features, fixed LightGBM development evaluation, replay simulator and paper-account episodes. Not yet wired into the C2/C4/C5 controller or `quant-rsi`; see the [intraday guide](docs/intraday_ibkr.md) |
 | Live trading and general self-modification | Not implemented |
 
 Older guides use project-local labels: **M0** is fixed-model execution, **C2** is
