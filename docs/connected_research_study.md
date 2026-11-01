@@ -788,6 +788,39 @@ not trigger new research. A first collection can require two requests per weekly
 release, plus the archive index; it is bounded to 104 releases. Existing retained
 inputs are reused within the task. There is no new cross-task shared source cache.
 
+### External-driver integration observation (2026-11-01)
+
+An XOM run on source `0b306c1` used 252 retained public daily observations,
+retained issuer RSS, real Codex calls, and the EIA archive. The explicit research
+question requested commercial-crude inventory with a momentum control first,
+then distillate inventory with the same control after feedback. This verifies
+prompted factor substitution, not autonomous discovery of the hypothesis.
+
+The retained collection contained 53 usable releases and two publication-date
+conflicts, which remained excluded. All three external columns covered the
+177 training and 20 development rows. Two Codex calls, two research fits and
+one diagnostic refit completed in 55.95 seconds with retained inputs; this
+duration excludes the initial archive collection. No active news search was
+requested. All 183 recorded source/configuration file hashes matched the run.
+
+| Development model | Price MAE | Net strategy return | Sharpe |
+|---|---:|---:|---:|
+| Initial: crude inventory + momentum | 4.6817 | — | — |
+| Revised: distillate inventory + momentum | 2.7388 | 9.18% | 5.2512 |
+| Diagnostic: revised model without inventory | 3.1692 | 6.00% | 2.7512 |
+
+These are small retrospective development comparisons after feedback, not
+independent gains. In particular, the Sharpe values are short-window diagnostics.
+Terminal evaluation was unavailable because the selected inventory feature had
+expired on October 15 after an earlier release was excluded for conflicting
+dates. No row was dropped and no replacement model was selected. The latest
+forecast was available, but its outcome was not observed.
+
+The machine-local report is
+`/tmp/quant-rsi-external-codex-ablation-study/report.html`; its separate audit is
+`/tmp/quant-rsi-external-codex-ablation-validation.json`. These artifacts are not
+shipped with the package. Offline regressions use original small fixtures.
+
 ## Nasdaq example: AAPL
 
 ```bash
