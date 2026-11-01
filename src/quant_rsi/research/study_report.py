@@ -4,7 +4,7 @@ import json
 from html import escape
 
 from quant_rsi.market.market_contracts import timestamp
-from quant_rsi.research.study_explanation import continuity, evidence_path
+from quant_rsi.research.study_explanation import continuity, evidence_path, question_coverage
 
 
 def _cell(value):
@@ -55,6 +55,21 @@ def render_study(result):
             + "</tbody></table></div>"
         )
 
+    def question_table(rows):
+        table(
+            ["Claim (LLM)", "Bound factors", "Execution", "Rationale (LLM)", "Limitations (LLM)"],
+            [
+                [
+                    row["claim"],
+                    ", ".join(row["factor_ids"]) or "No measured input",
+                    row["status"].replace("_", " "),
+                    row["rationale"],
+                    "; ".join(row["limitations"]),
+                ]
+                for row in rows
+            ],
+        )
+
     title = result["target"] + " · Connected research study"
     md.extend([f"# {title}", "", result["notice"], ""])
     html.append(
@@ -67,6 +82,21 @@ def render_study(result):
         if iterations:
             chosen = iterations["attempts"][iterations["selected_round"] - 1]
             section("Selected research hypothesis", chosen["hypothesis"]["hypothesis"])
+            coverage = question_coverage(chosen["hypothesis"], chosen["prediction"]["factor_ids"])
+            if coverage:
+                section(
+                    "Selected question map",
+                    "Claims, rationale and limitations are the researcher's assessment. "
+                    "Execution is checked against this attempt's recorded model inputs. "
+                    "Inputs fitted does not mean the claim was confirmed or caused returns.",
+                )
+                question_table(coverage)
+            else:
+                section(
+                    "Selected question map",
+                    "No structured question map was recorded by this researcher. "
+                    "Do not infer question coverage from the presence of a fitted model.",
+                )
         section(
             "Scope of the answer",
             "The question guides evidence discovery and factor hypotheses. The results below "
@@ -358,6 +388,8 @@ def render_study(result):
             ["Factor", "Input", "Execution", "Reason"],
             [[f["factor_id"], f["input_kind"], f["status"], f["reason"]] for f in path["factors"]],
         )
+        if path["question_map"]:
+            question_table(path["question_map"])
     related = steps["related_stocks"]
     if related.get("relationships"):
         table(

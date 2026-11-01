@@ -170,6 +170,24 @@ revision was rejected. Forecast results evaluate selected factors; they do not e
 a causal answer to a business question. Missing business variables must not be described
 as tested merely because a price proxy ran.
 
+For a nonempty question, each Codex/API hypothesis returns a bounded `question_map`
+with one to four claims: `claim`, selected `factor_ids`, `rationale` and `limitations`.
+An unmeasured part uses an empty factor list and explains the missing inputs. The
+validator rejects bindings to unselected or invented factors before fitting. The
+researcher chooses the factors; the user need not name recipes or prescribe a revision.
+The live hypothesis node shows **proposed inputs**. After each completed fit, the
+prediction node and report check those IDs against the recorded model columns and show
+**inputs fitted**, **inputs not fitted**, or **no measured input**. These labels describe
+execution, not support for a causal claim. Claims and limitations remain explicitly
+attributed to the LLM, whose interpretation can be wrong. Catalog inputs marked
+unavailable, including business variables, retain their recorded reasons in the
+evidence path instead of disappearing from the explanation.
+
+The final report puts the selected attempt's map next to the question, while retaining
+maps for rejected rounds below. This uses the existing hypothesis calls and adds no
+training or selection step. Simulated researchers and older study records have no
+structured map; the report says so rather than inventing coverage or rewriting history.
+
 Cross-run feedback and remembered recipes use the same symbol, prediction horizon and
 exact trimmed question. Repeating a saved template continues that focus; changing its
 question starts a separate feedback scope and changes the new-evidence fingerprint.

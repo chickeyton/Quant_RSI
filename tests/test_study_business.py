@@ -238,6 +238,20 @@ def test_llm_business_revision_reaches_model_report_and_financial_ablation(
             hypothesis(business)
             | {
                 "hypothesis": "Compare reported business growth rates",
+                "question_map": [
+                    {
+                        "claim": "Inventory <growth> may reflect weaker demand",
+                        "factor_ids": [f"business.{business['name']}"],
+                        "rationale": "Compare supplied growth rates, then revise after feedback",
+                        "limitations": ["Arithmetic does not identify a causal demand change"],
+                    },
+                    {
+                        "claim": "An inventory surprise may matter",
+                        "factor_ids": [],
+                        "rationale": "The available inputs do not measure expectations",
+                        "limitations": ["Missing analyst inventory expectations"],
+                    },
+                ],
                 "event_signal": 0,
                 "evidence_news_ids": [payload["context"]["news"]["items"][0]["id"]],
                 "proposed_news_factors": [
@@ -255,8 +269,27 @@ def test_llm_business_revision_reaches_model_report_and_financial_ablation(
     monkeypatch.setattr(LLMHypothesizer, "_codex", codex)
     root = tmp_path / "study"
     flags = ["--external-drivers"] if mixed else []
-    assert main(command(root, "--llm", "codex", "--financials", "--model", model, *flags)) == 0
+    assert (
+        main(
+            command(
+                root,
+                "--llm",
+                "codex",
+                "--financials",
+                "--model",
+                model,
+                "--question",
+                "Could inventories explain returns?",
+                *flags,
+            )
+        )
+        == 0
+    )
     result = json.loads((root / "result.json").read_bytes())
+    report = (root / "report.html").read_text()
+    assert "Selected question map" in report and "Missing analyst inventory expectations" in report
+    assert "Inventory &lt;growth&gt;" in report and "Inventory <growth>" not in report
+    assert "inputs fitted" in report and "no measured input" in report
     assert result["runtime"]["counts"]["comparison_model_stages_completed"] == (2 if mixed else 1)
     assert len(calls) == 2
     assert len(matrices) == 2

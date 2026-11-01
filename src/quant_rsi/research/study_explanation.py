@@ -9,6 +9,20 @@ NEWS_NOTICE = (
 )
 
 
+def question_coverage(hypothesis, fitted_ids=None):
+    """LLM claims stay attributed; execution labels come from recorded fit columns."""
+    rows = []
+    for claim in hypothesis.get("question_map", []):
+        ids = claim["factor_ids"]
+        status = "no_measured_input"
+        if ids:
+            status = "proposed_inputs" if fitted_ids is None else "inputs_not_fitted"
+            if fitted_ids is not None and set(ids).issubset(fitted_ids):
+                status = "inputs_fitted"
+        rows.append({**claim, "status": status})
+    return rows
+
+
 def explain_prediction(prediction, hypothesis, factors, catalog, news):
     sources = {item["id"]: item for item in news.get("items", [])}
     definitions = {item["factor_id"]: item for item in catalog.get("definitions", [])}
@@ -27,16 +41,16 @@ def explain_prediction(prediction, hypothesis, factors, catalog, news):
         )
     support = prediction.get("news_feature_support") or {}
     for identity, definition in definitions.items():
-        if definition.get("kind") != "news" or identity in fitted:
-            continue
         unavailable = definition.get("runnable") is False
+        if identity in fitted or (definition.get("kind") != "news" and not unavailable):
+            continue
         reasons = definition.get("reasons") or [definition.get("availability_reason")]
-        if not any(reasons) and unavailable:
+        if not any(reasons) and unavailable and definition.get("kind") == "news":
             reasons = support.get("reasons", [])
         rows.append(
             {
                 "factor_id": identity,
-                "input_kind": definition.get("input_kind", "news"),
+                "input_kind": definition.get("input_kind", definition.get("kind", "unknown")),
                 "status": "unavailable" if unavailable else "not_selected",
                 "reason": "; ".join(str(r) for r in reasons if r)
                 or ("Insufficient historical input coverage" if unavailable else "Not chosen"),
@@ -44,6 +58,7 @@ def explain_prediction(prediction, hypothesis, factors, catalog, news):
         )
     return {
         "hypothesis": hypothesis.get("hypothesis"),
+        "question_map": question_coverage(hypothesis, fitted),
         "citations": [
             {
                 "id": identity,

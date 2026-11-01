@@ -3,7 +3,12 @@
 import math
 import re
 
-from quant_rsi.research.study_explanation import continuity, evidence_path, explain_prediction
+from quant_rsi.research.study_explanation import (
+    continuity,
+    evidence_path,
+    explain_prediction,
+    question_coverage,
+)
 
 
 def _pick(value, *keys):
@@ -423,6 +428,7 @@ def visual_output(stage, output, previous, symbol):
         return {
             "kind": "hypothesis",
             "text": output.get("hypothesis"),
+            "question_map": question_coverage(output),
             "factors": output.get("factor_ids", []),
             "evidence": _evidence(output.get("evidence_news_ids", []), previous),
             "feedback_used": output.get("feedback_used"),

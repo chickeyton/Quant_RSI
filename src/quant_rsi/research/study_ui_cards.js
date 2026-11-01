@@ -126,6 +126,14 @@ const StudyCards = (() => {
     if (item.reasons?.length) card.append(note(item.reasons.map(title).join('; ')));
     return card;
   }
+  function questionMap(rows) {
+    const wrap = el('div', 'question-map');
+    if (!rows?.length) return wrap;
+    wrap.append(el('h3', 'view-section-title', 'Question → measured inputs'));
+    wrap.append(table(['Claim (LLM)', 'Bound factors', 'Execution', 'Rationale (LLM)', 'Limitations (LLM)'], rows.map(row => [row.claim, row.factor_ids.join(', ') || 'No measured input', title(row.status), row.rationale, row.limitations.join('; ')])));
+    wrap.append(note('Claims and limitations are the researcher’s assessment. Inputs fitted does not confirm a claim or establish causality.'));
+    return wrap;
+  }
   function evidencePath(view) {
     const wrap = el('div', 'evidence-path');
     wrap.append(el('h3', 'view-section-title', 'News → hypothesis → fitted inputs'));
@@ -135,6 +143,7 @@ const StudyCards = (() => {
     if (view.hypothesis) rationale.append(el('p', 'hypothesis-text', view.hypothesis));
     if (view.citations.length) rationale.append(table(['Cited source', 'Role'], view.citations.map(c => [link(c.url, c.title) || c.title, 'Hypothesis context'])));
     wrap.append(rationale);
+    wrap.append(questionMap(view.question_map));
     wrap.append(table(['Factor', 'Input', 'Execution', 'Reason'], view.factors.map(f => [f.factor_id, title(f.input_kind), badge(title(f.status), f.status === 'fitted' ? 'good' : 'caution'), title(f.reason)])));
     const coverage = view.news_coverage || {};
     if (coverage.original_training_rows !== undefined) wrap.append(note(`Headline history coverage · ${coverage.available_training_rows}/${coverage.original_training_rows} training rows · ${coverage.available_evaluation_rows}/${coverage.original_evaluation_rows} development rows. Coverage is measured before factor selection.`));
@@ -290,6 +299,7 @@ const StudyCards = (() => {
       content.append(articles(view.items),note(`Showing ${view.items.length} of ${view.count} items. Current news is context, not backdated training evidence.`));
     } else if(view.kind==='hypothesis'){
       content.append(badge('Research hypothesis'),el('p','hypothesis-text',view.text||'No hypothesis text provided.'),el('h3','view-section-title','Candidate factors'),pills(view.factors));
+      content.append(questionMap(view.question_map));
       if(view.feedback_used)content.append(note('This revision uses development feedback.'));
       content.append(el('h3','view-section-title','Supporting evidence'),articles(view.evidence));
     } else if(view.kind==='findings'){
