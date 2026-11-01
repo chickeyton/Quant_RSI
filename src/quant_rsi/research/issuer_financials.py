@@ -14,6 +14,7 @@ from pypdf.errors import PyPdfError
 
 from quant_rsi.core.artifacts import atomic_write, canonical, digest
 from quant_rsi.market.news_feed import NoRedirect
+from quant_rsi.research.issuer_spreadsheet import parse_spreadsheet, spreadsheet_date
 
 NOTICE = (
     "Official issuer earnings statements, reconstructed retrospectively from retained public "
@@ -22,7 +23,8 @@ NOTICE = (
     "subtraction or invented period starts. Inventory comes from explicit balance-sheet dates, "
     "not cash-flow changes. Date-only publication "
     "and PDF-declared revisions become usable at 05:00 UTC the following day. "
-    "PDF metadata is provenance, not proof that this exact version was historically observed. "
+    "A configured official spreadsheet can supply cached USD cells when PDFs are unusable. "
+    "Document metadata is provenance, not proof that this exact version was historically observed. "
     "Page maintenance dates are recorded separately; "
     "without PDF dates they are used conservatively."
 )
@@ -48,8 +50,6 @@ def statement_rows(text, profile, *, cashflow=False, balance=False):
     lines = [" ".join(line.split()) for line in text.splitlines() if line.strip()]
     if not any(profile["statement_title"].lower() in line.lower() for line in lines[:5]):
         return None
-    if not any("in millions" in line.lower() for line in lines[:6]):
-        raise ValueError("Statement currency scale is not explicitly millions")
     periods = {
         "Three Months Ended": 3,
         "Six Months Ended": 6,
@@ -79,8 +79,15 @@ def statement_rows(text, profile, *, cashflow=False, balance=False):
         return None  # Annual and YTD-only pages cannot supply quarterly facts.
     if len(lines) <= header + 2:
         raise ValueError("Missing quarterly statement column dates")
+    if not any("in millions" in line.lower() for line in lines[: header + 2]):
+        raise ValueError("Statement currency scale is not explicitly millions")
     months = re.findall(r"([A-Z][a-z]+ \d{1,2}),", lines[header + 1])
     years = re.findall(r"\b(20\d{2})\b", lines[header + 2])
+    if profile.get("shared_month_day") and not balance:
+        # Some issuer tables print one month/day above each current/prior-year pair.
+        if len(years) != 2 * len(months):
+            raise ValueError("Ambiguous shared statement column dates")
+        months = [month for month in months for _ in range(2)]
     if len(months) != len(years) or len(years) not in {2, 4}:
         raise ValueError("Ambiguous quarterly statement column dates")
     ends = [
@@ -93,6 +100,38 @@ def statement_rows(text, profile, *, cashflow=False, balance=False):
         raise ValueError("Quarterly columns are not comparable year-over-year periods")
     rows = []
     for field, label in profile["rows"].items():
+        if isinstance(label, dict):
+            components = label.get("sum", [])
+            if (
+                not balance
+                or field != "inventory"
+                or set(label) != {"sum"}
+                or not isinstance(components, list)
+                or not 2 <= len(components) <= 4
+                or any(not isinstance(item, str) or not item.strip() for item in components)
+                or len({"".join(item.split()).casefold() for item in components}) != len(components)
+            ):
+                raise ValueError("Inventory requires two to four distinct balance-sheet components")
+            parts = statement_rows(
+                text,
+                profile | {"rows": {str(i): item for i, item in enumerate(components)}},
+                balance=True,
+            )
+            for end in ends:
+                selected = [part for part in parts if part["end"] == str(end)]
+                rows.append(
+                    {
+                        "field": field,
+                        "tag": " + ".join(components),
+                        "end": str(end),
+                        "value": sum(part["value"] for part in selected),
+                        "period_kind": "reported_balance_instant",
+                        "components": [
+                            {"tag": part["tag"], "value": part["value"]} for part in selected
+                        ],
+                    }
+                )
+            continue
         # PDF glyph positioning can insert spaces inside words ("To t a l").
         # Match only the configured label, without relaxing numeric parsing.
         labels = [label] if isinstance(label, str) else label
@@ -215,6 +254,8 @@ def collect_issuer(symbol, directory, profile):
             raise ValueError("Financial document exceeds 8 MB")
         if extension == "pdf" and not raw.startswith(b"%PDF-"):
             raise ValueError("Expected a PDF financial statement")
+        if extension == "xlsx" and not raw.startswith(b"PK\x03\x04"):
+            raise ValueError("Expected an XLSX financial statement")
         sha = digest(raw)
         file = f"{sha}.{extension}"
         atomic_write(directory / file, raw)
@@ -257,34 +298,62 @@ def collect_issuer(symbol, directory, profile):
         try:
             text = fetch(release, "html").decode("utf-8")
             published, page_modified = publication(text)
-            links = list(
-                dict.fromkeys(
-                    urljoin(release, link)
-                    for link in Page(text).links
-                    if re.search(source["pdf_pattern"], link, re.I)
-                )
-            )
-            if len(links) != 1:
-                raise ValueError("Expected one supported issuer financial PDF")
-            raw = fetch(links[0], "pdf")
-            rows = []
             sections = [("income", source)]
             if "cashflow" in source:
                 sections.append(("cashflow", source["cashflow"]))
             if "balance" in source:
                 sections.append(("balance", source["balance"]))
-            for section, definition in sections:
+            patterns = [(source["pdf_pattern"], "pdf")]
+            if "fallback_pdf_pattern" in source:
+                patterns.append((source["fallback_pdf_pattern"], "pdf"))
+            if "fallback_xlsx_pattern" in source:
+                patterns.append((source["fallback_xlsx_pattern"], "xlsx"))
+            for pattern, extension in patterns:
+                rows = []
                 try:
-                    parsed, page_number = parse_statement(
-                        raw,
-                        definition,
-                        cashflow=section == "cashflow",
-                        balance=section == "balance",
+                    links = list(
+                        dict.fromkeys(
+                            urljoin(release, link)
+                            for link in Page(text).links
+                            if re.search(pattern, link, re.I)
+                        )
                     )
-                    rows.extend(row | {"page": page_number} for row in parsed)
-                except (ValueError, PyPdfError) as exc:
-                    failures.append({"release_url": release, "section": section, "error": str(exc)})
-            effective = statement_date(raw, published, page_modified)
+                    if len(links) != 1:
+                        raise ValueError(
+                            f"Expected one supported issuer financial {extension.upper()}"
+                        )
+                    raw = fetch(links[0], extension)
+                    parser = parse_spreadsheet if extension == "xlsx" else parse_statement
+                    for section, definition in sections:
+                        try:
+                            parsed, location = parser(
+                                raw,
+                                definition,
+                                cashflow=section == "cashflow",
+                                balance=section == "balance",
+                            )
+                            key = "sheet" if extension == "xlsx" else "page"
+                            rows.extend(row | {key: location} for row in parsed)
+                        except (ValueError, PyPdfError) as exc:
+                            failures.append(
+                                {
+                                    "release_url": release,
+                                    "source_url": links[0],
+                                    "section": section,
+                                    "error": str(exc),
+                                }
+                            )
+                    if rows:
+                        break  # Keep one statement/version per release, including partial coverage.
+                except (OSError, ValueError, KeyError, PyPdfError) as exc:
+                    rows = []
+                    failures.append(
+                        {"release_url": release, "pdf_pattern": pattern, "error": str(exc)}
+                    )
+            if not rows:
+                continue
+            date_reader = spreadsheet_date if extension == "xlsx" else statement_date
+            effective = date_reader(raw, published, page_modified)
             available = datetime.combine(
                 effective + timedelta(days=1), datetime.min.time(), timezone.utc
             ) + timedelta(hours=5)
