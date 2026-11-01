@@ -77,6 +77,11 @@ def main(argv: list[str] | None = None) -> int:
         demo.add_argument("--prices-dir", type=Path, help="retained daily collection directory")
         if study:
             demo.add_argument(
+                "--news-snapshot",
+                type=Path,
+                help="reuse a retained issuer RSS snapshot without fetching RSS again",
+            )
+            demo.add_argument(
                 "--history-dir", type=Path, help="shared study receipts, outcomes and news archive"
             )
             demo.add_argument(

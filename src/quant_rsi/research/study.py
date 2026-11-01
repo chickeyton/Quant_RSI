@@ -46,6 +46,7 @@ from quant_rsi.research.study_iterations import validate_limits
 from quant_rsi.research.study_news import (
     NewsHistory,
     load_archive,
+    load_snapshot,
     retain_snapshot,
     simulated_history,
 )
@@ -131,6 +132,12 @@ def _configuration(args):
         raise ValueError("Keep study artifacts outside the source checkout")
     if args.news_archive and args.news_archive.resolve().is_relative_to(checkout):
         raise ValueError("Keep news snapshots outside the source checkout")
+    if getattr(args, "news_snapshot", None):
+        if args.news != "issuer-rss":
+            raise ValueError("--news-snapshot requires --news issuer-rss")
+        args.news_snapshot = args.news_snapshot.resolve()
+        if args.news_snapshot.is_relative_to(checkout):
+            raise ValueError("Keep news snapshots outside the source checkout")
     if getattr(args, "financials_dir", None):
         if not getattr(args, "financials", False):
             raise ValueError("--financials-dir requires --financials")
@@ -339,14 +346,19 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         lambda: (profile_related if args.related == "profile" else simulated_related)(symbol),
     )
     news_context = {"symbol": symbol, "related": related}
+    snapshot_path = getattr(args, "news_snapshot", None)
+
+    def collect_current_news():
+        if snapshot_path:
+            return load_snapshot(snapshot_path, symbol, limit=args.news_limit)
+        if args.news == "issuer-rss":
+            return issuer_news(news_context, limit=args.news_limit)
+        return simulated_news(news_context)
+
     current_news = cache.call(
         "issuer_news",
-        news_context,
-        lambda: (
-            issuer_news(news_context, limit=args.news_limit)
-            if args.news == "issuer-rss"
-            else simulated_news(news_context)
-        ),
+        news_context | {"retained_snapshot": str(snapshot_path)} if snapshot_path else news_context,
+        collect_current_news,
     )
     archive = args.news_archive or (
         args.history_dir
@@ -394,7 +406,14 @@ def _run(args, symbol, root, configuration, record, progress, cache):
             "related_prices_file": "related_prices.json",
         },
     )
-    progress.finish("collect_news_context", {"related": related, "news": current_news})
+    progress.finish(
+        "collect_news_context",
+        {
+            "related": related,
+            "news": current_news,
+            "acquisition": "retained_snapshot" if snapshot_path else "provider",
+        },
+    )
     business = None
     if getattr(args, "financials", False):
         from quant_rsi.research.study_financials import (

@@ -142,6 +142,8 @@ def evidence(tmp_path, monkeypatch):
         manifest = json.loads((task / "task.json").read_bytes())
         receipt, args = trigger.refresh_evidence(task, manifest)
         assert "--prices-dir" in args and "--financials-dir" in args
+        assert args[args.index("--news-snapshot") + 1] == str(task / "preflight/news.json")
+        assert json.loads((task / "preflight/news.json").read_bytes()) == state["news"]
         return task, receipt
 
     return state, check

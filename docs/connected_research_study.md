@@ -1262,6 +1262,32 @@ content and preserves each source's original `received_at`. Limits are 512 files
 authenticated timestamps. The run also saves its original snapshot bundle in
 `news_history.json`; no additional ledger is created.
 
+The workbench's new-evidence check passes its prepared RSS snapshot to the study,
+just as it passes prepared price and financial collections. The trigger decision,
+initial hypothesis and revision therefore share the same selected news. There is
+one initial RSS acquisition per prepared task, not another fetch when research
+starts. Explicit `--news-research` searches and article reads still run normally.
+
+To reuse a retained RSS context directly:
+
+```bash
+quant-rsi research-study KO --news issuer-rss \
+  --news-snapshot /tmp/ko-prepared-news.json --output /tmp/ko-reused-news
+```
+
+Use the JSON snapshot saved by preparation or a matching issuer RSS archive entry
+that includes the original headline `text`. The target must match; the snapshot
+must contain target news and remain within the normal 512 KiB bound and the
+configured per-issuer `--news-limit`. Oversized selections are rejected rather
+than truncated. All original source/item receipt timestamps and selected items
+are preserved. `--news-snapshot` cannot be combined with simulated news.
+
+The existing acquisition checkpoint retains the loaded snapshot. Continuing a
+failed study reuses that completed acquisition even if the external input file
+has since changed or been removed. To use newer news, start a new study. This
+does not change historical news availability or refresh old receipts to the
+current time. The collection stage records `acquisition: retained_snapshot`.
+
 ### Issuer guidance as an executable business factor
 
 `--news-research` also makes one bounded structured extraction call over the selected

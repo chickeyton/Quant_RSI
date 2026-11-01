@@ -75,6 +75,7 @@ def resume_arguments(root, *, ui=False):
         "related_prices_dir",
         "history_dir",
         "news_archive",
+        "news_snapshot",
         "financials_dir",
     ):
         if config.get(name) is not None:
