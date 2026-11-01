@@ -2,7 +2,27 @@
   "symbol": "AAPL",
   "cik": "320193",
   "fields": {
-    "revenue": ["RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet"],
-    "operating_income": ["OperatingIncomeLoss"]
+    "revenue": [
+      "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "SalesRevenueNet"
+    ],
+    "operating_income": [
+      "OperatingIncomeLoss"
+    ]
+  },
+  "issuer": {
+    "archive": "q4_public_feed",
+    "index_url": "https://investor.apple.com/investor-relations/",
+    "allowed_hosts": [
+      "investor.apple.com",
+      "www.apple.com",
+      "s2.q4cdn.com"
+    ],
+    "pdf_pattern": "Consolidated_Financial_Statements\\.pdf$",
+    "statement_title": "CONDENSED CONSOLIDATED STATEMENTS OF OPERATIONS",
+    "rows": {
+      "revenue": "Total net sales",
+      "operating_income": "Operating income"
+    }
   }
 }

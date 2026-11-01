@@ -148,7 +148,17 @@ quant-rsi research-study AAPL --financials --llm simulated --prices synthetic \
   --news simulated --related simulated --model ridge --no-ui --output /tmp/aapl-business-offline
 ```
 
-`--financials` collects the official [SEC company-facts API](https://www.sec.gov/search-filings/edgar-application-programming-interfaces).
+`--financials-source auto` (default with `--financials`) tries the official
+[SEC company-facts API](https://www.sec.gov/search-filings/edgar-application-programming-interfaces),
+then the configured official issuer archive if SEC fails. `sec` and `issuer` explicitly
+require that provider. A snapshot uses one provider; rows are never silently mixed.
+KO uses its [financial information archive](https://investors.coca-colacompany.com/financial-information);
+AAPL uses the public financial-report feed linked by its
+[investor relations site](https://investor.apple.com/investor-relations/).
+The bounded collector retains up to eight releases and extracts only the explicitly
+reported three-month revenue and operating-income columns from their financial PDFs.
+It ignores YTD columns, rejects ambiguous numbers and keeps per-release failures.
+The PDF reader and font decoder are installed by the normal dependency lock.
 `instruments/US/{KO,AAPL}/financials.json` holds company CIK and ordered US-GAAP tag
 mappings. The shared implementation computes `financial.revenue_yoy`,
 `financial.operating_margin` and `financial.operating_margin_yoy` (year-over-year margin
@@ -159,28 +169,56 @@ explicitly marked fixtures through the same parser/calculations.
 
 The collector retains `financials/snapshot.json`: raw company facts, content hash, mapping,
 provider URL and receipt time. `--financials-dir PATH` reuses that retained snapshot after
-symbol/CIK/mapping/hash validation. It requires `--financials` and a path outside the
+symbol/CIK/mapping/hash validation. Issuer snapshots additionally retain content-addressed
+HTML/PDF resources, normalized records, statement page numbers and resource hashes.
+Every retained resource hash is checked before reuse. `source_attempts.json` records
+failed source requests even when neither provider succeeds. It requires `--financials` and a path outside the
 checkout. `financial_features.json` records per-session values, chosen fact accessions,
 reporting periods, filing dates, cutoff and missing reasons. Runtime/configuration
 identity and completed receipts follow the existing resume contract.
 
-Only directly reported 70–110 day USD quarters from 10-Q/10-K filings and amendments
-are eligible. Annual/YTD values are not converted, so Q4 may be absent. A date-only
+For SEC, only directly reported 70–110 day USD quarters from 10-Q/10-K filings and
+amendments are eligible. Annual/YTD values are not converted, so Q4 may be absent. A date-only
 filing becomes available at **05:00 UTC the following day**, after the entire Eastern
 filing date; fiscal-period end is never treated as publication time. Later amendments
 cannot affect earlier cutoffs. The latest visible quarter must be no more than 270 days
 old; the comparable prior-year period must match within 15 days (350–380 days apart).
-Revenue/income used for a margin must share the period and accession. Ambiguous values
+Revenue/income used for a margin must share the period and accession or issuer PDF. Ambiguous values
 are unavailable. No quarterly interpolation, row dropping or zero imputation is used.
 
 The fixed train/development rows determine each ratio's eligibility. Missing terminal
 or latest values retain the existing unavailable-prediction behavior. This is a
-retrospective reconstruction from today's retained SEC dataset, **not** a complete
+retrospective reconstruction from today's retained public documents, **not** a complete
 point-in-time vendor archive or independent evidence of predictive gain. Restatements,
-tag coverage and missing reported quarters limit coverage. Unsupported stocks or SEC
-access errors (including 403) produce an explicit unavailable financial section; the
+tag coverage and missing reported quarters limit coverage. Unsupported stocks or failure of all requested
+sources produce an explicit unavailable financial section; the
 ordinary study can continue without those columns. In new-evidence mode, a failed
 preflight source check fails that task instead of treating missing data as unchanged.
+
+Issuer availability is the day after the later of the release date and PDF-declared
+creation/modification dates, at 05:00 UTC. Website maintenance dates are stored separately;
+if PDF dates are absent, the page's disclosed revision date is used conservatively.
+For example, Apple historical pages can share a site-wide maintenance date while their
+financial PDFs retain distinct publication-day metadata. PDF metadata is provenance,
+**not proof of historical first receipt**. Current PDFs could differ from an original
+release; this source is unsuitable for claiming an independently verified point-in-time
+benchmark. Quarterly starts are not invented. Current publication dates are never replaced
+by fiscal-period ends.
+
+### Check inputs before research
+
+```bash
+quant-rsi research-study AAPL --financials --financials-source issuer --check-inputs \
+  --no-ui --output /tmp/aapl-input-check
+```
+
+The CLI and workbench **Check inputs** action save `input_report.json` and an HTML table.
+They collect target prices/current issuer news and compute financial coverage on the fixed
+training/development rows, without constructing an LLM client, fitting a model, or registering
+a forecast. Peer prices, active searches and article reads are explicitly outside this check.
+The action is not a successful research receipt and cannot suppress a later research task.
+Normal studies also compute and display this check before their first LLM request. Missing
+financial data is visible and does not masquerade as a complete business-data study.
 
 After selection, if the selected fit contains financial and nonfinancial columns, one
 additional diagnostic fit removes only the financial columns, retaining identical
@@ -199,6 +237,48 @@ two hypothesis calls over simulated prices/news/financials with real Ridge fits:
 selected revenue growth initially and margin change after feedback, then retained
 the initial round because development MAE worsened. The separate financial-column
 removal diagnostic also completed. This is mixed-mode integration evidence only.
+
+### Real-service acceptance (2026-11-01)
+
+Two retained runs used public daily prices through 2026-10-30, official issuer
+financial PDFs, current RSS, active news search/read, Codex session authentication,
+and real LightGBM fits. Each completed two research fits, one revision attempt and
+one additional financial-removal diagnostic. All three financial definitions covered
+the fixed 45 training and 20 development rows for both symbols.
+
+| Stock | Initial financial factor | Revised financial factor | Initial / revised price MAE | Unchanged-price MAE | Selected round |
+|---|---|---|---:|---:|---:|
+| KO | Operating-margin YoY change | Revenue YoY growth | 1.4078 / 2.6096 | 0.9460 | 1 |
+| AAPL | Revenue YoY growth | Operating-margin YoY change | 7.2904 / 7.3042 | 6.9440 | 1 |
+
+Both revisions worsened development MAE and were rejected. The selected development
+net Sharpe was -0.9308 for KO and 3.0171 for AAPL, each over only 24 daily returns;
+these short retrospective samples do not establish long-term performance. Each
+reserved terminal evaluation used 10 observations without refitting; those tasks are
+still retrospective and their current news/LLM knowledge is not historically isolated.
+
+KO completed seven LLM calls, two searches and two successful article reads out of four;
+AAPL completed seven LLM calls, two searches and four reads out of six. Failed article
+reads remained visible. Financial factors appeared in the selected model's numerical
+feature values, and the removal diagnostic completed for each. This validates execution,
+not an advantage over the unchanged-price forecast or a causal effect of a news story.
+
+Local retained evidence (not repository fixtures):
+
+- `/tmp/quant-rsi-issuer-live-v3/{KO,AAPL}/snapshot.json`: eight release PDFs per stock,
+  32 normalized fact records each, no rejected statements. Earlier auto-source probes
+  retained the SEC 403 before successful issuer fallback.
+- `/tmp/quant-rsi-{ko,aapl}-issuer-study/report.html`: complete reports; `result.json`,
+  `financial_features.json`, raw source directories and checkpoint identities preserve
+  the corresponding inputs/runtime. Runs reused collected target prices and financial
+  snapshots; their approximately 199/206 seconds exclude those earlier collections.
+- `/tmp/quant-rsi-issuer-browser/`: browser acceptance screenshots. A simulated-input
+  watchlist completed two input checks followed by two observations and two real Ridge
+  studies, with no browser script errors. Input checks produced no forecasts or research
+  deduplication receipts. This browser exercise is engineering evidence, not market evidence.
+
+These paths are machine-local evidence, not files shipped with the package. Automated
+regressions use small original offline fixtures rather than downloading issuer documents.
 
 ## Nasdaq example: AAPL
 

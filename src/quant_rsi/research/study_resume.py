@@ -24,6 +24,8 @@ def binding(configuration):
     if configuration.get("catalog"):
         files.append(Path(configuration["catalog"]).resolve())
     dependencies = ["numpy", "lightgbm", "pydantic"]
+    if configuration.get("financials"):
+        dependencies += ["pypdf", "fonttools"]
     if configuration.get("compare_qlib"):
         dependencies += ["pyqlib", "mlflow", "pandas"]
     return {

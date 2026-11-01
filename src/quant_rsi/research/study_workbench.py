@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import webbrowser
+from html import escape
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from importlib.resources import files
 from pathlib import Path
@@ -134,6 +135,8 @@ class Workbench:
             "force": force,
             "arguments": study_arguments(task, self.root, symbol, options),
         }
+        if action == "check_inputs":
+            manifest["arguments"].append("--check-inputs")
         atomic_write(task / "task.json", canonical(manifest))
         return task
 
@@ -146,12 +149,12 @@ class Workbench:
         self.tick()
         return self.item(task)
 
-    def batch(self, symbols, options, *, plan_id=None, force=False):
+    def batch(self, symbols, options, *, plan_id=None, force=False, check_inputs=False):
         symbols, options = watchlist(symbols), study_options(options)
         batch_id = secrets.token_hex(12)
         tasks = []
         for symbol in symbols:
-            for action in ("observe", "research"):
+            for action in ("check_inputs",) if check_inputs else ("observe", "research"):
                 task = self._enqueue(
                     symbol, options, action=action, plan_id=plan_id, batch_id=batch_id, force=force
                 )
@@ -382,6 +385,21 @@ def make_server(workbench, token, port=0):
                         }
                     if route.endswith("/state"):
                         self.respond(200, state)
+                    elif item.get("action") == "check_inputs" and item["status"] == "completed":
+                        self.respond(
+                            200, (task / "study/input_report.html").read_text(), "text/html"
+                        )
+                    elif item.get("action") == "check_inputs":
+                        self.respond(
+                            200,
+                            '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" '
+                            'content="3"><title>Input check</title><h1>Input check</h1><p>'
+                            + escape(
+                                f"{item['symbol']}: {item['status']}. {item.get('error') or ''}"
+                            )
+                            + "</p><p>No LLM calls or fits. This page refreshes automatically.</p>",
+                            "text/html",
+                        )
                     else:
                         self.respond(200, page(state, live=True), "text/html")
                 else:
@@ -405,11 +423,13 @@ def make_server(workbench, token, port=0):
                 if route == "tasks":
                     result = workbench.start(options)
                 elif (
-                    route == "batches"
+                    route in {"batches", "checks"}
                     and isinstance(options, dict)
                     and set(options) == {"symbols", "options"}
                 ):
-                    result = workbench.batch(options["symbols"], options["options"])
+                    result = workbench.batch(
+                        options["symbols"], options["options"], check_inputs=route == "checks"
+                    )
                     workbench.tick()
                 elif route == "plans":
                     result = workbench.save_plan(options)

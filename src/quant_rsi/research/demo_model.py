@@ -602,7 +602,7 @@ class LightGBMDemo:
             )
             usage.append(
                 {
-                    "source": "filing_dated_financials",
+                    "source": "publication_dated_financials",
                     "status": "used" if ids else "not_selected",
                     "factor_ids": ids,
                     "reason": self.financial_features["notice"],

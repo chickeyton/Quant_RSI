@@ -2,7 +2,27 @@
   "symbol": "KO",
   "cik": "21344",
   "fields": {
-    "revenue": ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"],
-    "operating_income": ["OperatingIncomeLoss"]
+    "revenue": [
+      "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "Revenues",
+      "SalesRevenueNet"
+    ],
+    "operating_income": [
+      "OperatingIncomeLoss"
+    ]
+  },
+  "issuer": {
+    "archive": "html_links",
+    "index_url": "https://investors.coca-colacompany.com/financial-information",
+    "allowed_hosts": [
+      "investors.coca-colacompany.com"
+    ],
+    "release_pattern": "/press-releases/detail/\\d+/coca-cola-reports-.*quarter.*results",
+    "pdf_pattern": "/earnings_release/.*\\.pdf$",
+    "statement_title": "Consolidated Statements of Income",
+    "rows": {
+      "revenue": "Net Operating Revenues",
+      "operating_income": "Operating Income"
+    }
   }
 }

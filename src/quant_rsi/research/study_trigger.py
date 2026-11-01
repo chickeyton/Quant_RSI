@@ -28,11 +28,17 @@ def refresh_evidence(task, manifest):
             "selection_metric",
             "news_research",
             "financials",
+            "financials_source",
         )
     }
     arguments = list(manifest["arguments"])
     profile_root = arguments[arguments.index("--factor-root") + 1]
-    evidence = {"configuration": options, "runtime": binding({"factor_root": profile_root})}
+    evidence = {
+        "configuration": options,
+        "runtime": binding(
+            {"factor_root": profile_root, "financials": manifest.get("financials", False)}
+        ),
+    }
     if mode == "daily":
         prices = task / "preflight/prices"
         snapshot = collection_snapshot(symbol, prices)
@@ -56,8 +62,16 @@ def refresh_evidence(task, manifest):
         ]
         if manifest.get("financials"):
             directory = task / "preflight/financials"
-            snapshot = collect_financials(symbol, directory, profile_root)
-            evidence["financials"] = sorted(quarterly_records(snapshot), key=canonical)
+            snapshot = collect_financials(
+                symbol, directory, profile_root, manifest.get("financials_source", "auto")
+            )
+            evidence["financials"] = sorted(
+                [
+                    {k: v for k, v in row.items() if k != "page_modified_date"}
+                    for row in quarterly_records(snapshot)
+                ],
+                key=canonical,
+            )
             arguments += ["--financials-dir", str(directory)]
     evidence["matured"] = [
         {k: entry[k] for k in ("study_id", "status", "metrics")}
