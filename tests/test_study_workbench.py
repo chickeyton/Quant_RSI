@@ -10,6 +10,7 @@ from test_research_study import command
 
 from quant_rsi.cli import main
 from quant_rsi.research import study
+from quant_rsi.research.study_resume import run_lock
 from quant_rsi.research.study_workbench import Workbench, make_server
 
 
@@ -112,13 +113,47 @@ def test_http_origin_token_inputs_and_history(tmp_path):
                 json.dumps({"status": "failed", "error": "Interpreter unavailable"})
             )
             (task / "task.json").write_text(
-                json.dumps({"symbol": "KO", "created_at": 0, "queue_state": "dispatched"})
+                json.dumps(
+                    {
+                        "symbol": "KO",
+                        "created_at": 0,
+                        "queue_state": "dispatched",
+                        "llm": "simulated",
+                        "data": "synthetic",
+                        "question": "Demand?",
+                    }
+                )
             )
             with urlopen(base + f"tasks/{task.name}/state") as response:
                 state = json.load(response)
             assert state["runtime"]["status"] == "failed"
             assert state["symbol"] == "KO"
             assert state["failure"]["error"] == "Interpreter unavailable"
+            # Preparation is visible before the study runtime exists, including on reopen.
+            (task / "worker.json").write_text(
+                json.dumps({"status": "running", "stage": "collecting_financials"})
+            )
+            with run_lock(task):
+                with urlopen(base + f"tasks/{task.name}/state") as response:
+                    state = json.load(response)
+                assert state["preparation"] == "collecting_financials"
+                assert state["runtime"]["status"] == "running"
+                assert state["config"]["llm"] == "simulated"
+                assert state["config"]["prices"] == "synthetic"
+                assert state["config"]["question"] == "Demand?"
+            with urlopen(base + f"tasks/{task.name}/state") as response:
+                state = json.load(response)
+            assert state["preparation"] == "collecting_financials"
+            assert state["runtime"]["status"] == "failed"
+            (task / "study").mkdir()
+            (task / "study/runtime.json").write_text(
+                json.dumps({"status": "running", "current_stage": "first_prediction", "stages": []})
+            )
+            with run_lock(task):
+                with urlopen(base + f"tasks/{task.name}/state") as response:
+                    state = json.load(response)
+                assert "preparation" not in state
+                assert workbench.item(task)["stage"] == "first_prediction"
         finally:
             server.shutdown()
             thread.join(timeout=5)

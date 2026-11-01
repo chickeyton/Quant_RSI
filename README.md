@@ -34,8 +34,10 @@ forecast outcomes. API credentials stay in the server environment.
 The form can enable **publication-dated financial factors** and, by default for new form
 submissions, **research only on new evidence**. Unchanged prices, selected issuer news,
 quarterly filings and matured outcomes skip the study before paid calls; collection
-failures stay visible. Saved templates offer **Check & run** and **Force run**. Local
-completion/failure notices appear while the page is open. Existing saved options keep
+failures stay visible. Saved templates offer **Check & run** and **Force run**.
+Before research starts, the task list and live view show price, news and financial
+collection followed by the new-evidence check. Failed preparations retain their last stage.
+Local completion/failure notices appear while the page is open. Existing saved options keep
 their previous behavior until edited.
 See [task operations and recovery](docs/connected_research_study.md#local-workbench-and-recovery).
 

@@ -44,6 +44,14 @@ and offers **Continue study** and cancellation of queued tasks. One worker runs 
 per workbench; additional tasks wait durably. Failed workers do not block the queue.
 This is a local single-user tool, not a hosted job service.
 
+Before a new-evidence research task starts its study, the task card and live view
+show **collecting prices**, **collecting news**, **collecting financials** (when enabled),
+and **checking new evidence**. These stages come from the worker's existing status file
+and survive reopening the workbench. They describe the current operation, not a
+percentage or a download heartbeat. Research nodes take over when the study starts;
+skipped/completed tasks clear the preparation stage. A failed or interrupted preparation
+retains its last stage alongside the error, without claiming that research has begun.
+
 **Queue research** starts one watchlist cycle. **Save template** persists its name,
 watchlist, settings and optional 1–168 hour recurring interval. **Check & run** starts a
 saved template immediately and respects its evidence setting; **Force run** repeats

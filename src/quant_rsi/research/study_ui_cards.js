@@ -316,7 +316,7 @@ const StudyCards = (() => {
     }
     else if(view.kind==='facts'){content.append(table(['Field','Value'],Object.entries(view.facts).map(([k,v])=>[title(k),valueText(v)])));if(view.note)content.append(note(view.note));}
     else content.append(note('A visual summary is not available for this stage. Inspect its raw data below.'));
-    if(view.coverage_gaps?.length){
+    if(view?.coverage_gaps?.length){
       const gaps=el('div','factor-grid');
       view.coverage_gaps.forEach(g=>{
         const card=el('article','factor-card coverage-gap-card');

@@ -149,6 +149,11 @@ def run_task(task):
     manifest = json.loads((task / "task.json").read_bytes())
     state = {"status": "running", "started_at": time.time()}
     atomic_write(task / "worker.json", canonical(state))
+
+    def preparation_stage(stage):
+        state["stage"] = stage
+        atomic_write(task / "worker.json", canonical(state))
+
     try:
         if manifest.get("action") == "observe":
             observe_task(task, manifest)
@@ -163,9 +168,10 @@ def run_task(task):
             ):
                 from quant_rsi.research.study_trigger import refresh_evidence
 
-                trigger, arguments = refresh_evidence(task, manifest)
+                trigger, arguments = refresh_evidence(task, manifest, on_stage=preparation_stage)
                 atomic_write(task / "trigger.json", canonical(trigger))
                 skip = bool(trigger["previous_completed_task"]) and not manifest.get("force", False)
+                preparation_stage(None)
             if skip:
                 state.update(status="skipped", reason="unchanged_evidence", exit_code=0)
                 atomic_write(task / "worker.json", canonical(state | {"finished_at": time.time()}))
