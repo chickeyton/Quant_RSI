@@ -137,6 +137,13 @@ def main(argv: list[str] | None = None) -> int:
             )
             demo.add_argument("--evaluation-sessions", type=int, default=20, choices=range(2, 21))
             demo.add_argument(
+                "--walk-forward-folds",
+                type=int,
+                default=0,
+                choices=(0, 2, 3),
+                help="post-selection chronological diagnostic (one extra fit per fold)",
+            )
+            demo.add_argument(
                 "--horizon-sessions",
                 type=int,
                 default=5,

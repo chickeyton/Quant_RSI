@@ -34,6 +34,7 @@ def study_options(options):
         "patience": None,
         "selection_metric": "mae",
         "horizon_sessions": 5,
+        "walk_forward_folds": 0,
     }
     if not isinstance(options, dict) or set(options) - defaults.keys():
         raise ValueError("Unexpected study options")
@@ -49,6 +50,12 @@ def study_options(options):
             raise ValueError("Unsupported provider, model, data mode or selection metric")
     if type(result["horizon_sessions"]) is not int or result["horizon_sessions"] not in (5, 20, 60):
         raise ValueError("Prediction horizon must be 5, 20 or 60 trading sessions")
+    if type(result["walk_forward_folds"]) is not int or result["walk_forward_folds"] not in (
+        0,
+        2,
+        3,
+    ):
+        raise ValueError("Walk-forward diagnostic needs 0, 2 or 3 folds")
     model = result["llm_model"]
     if (
         not isinstance(model, str)
@@ -98,6 +105,7 @@ def study_arguments(task, workspace, symbol, options):
         ("patience", "patience"),
         ("selection_metric", "selection-metric"),
         ("horizon_sessions", "horizon-sessions"),
+        ("walk_forward_folds", "walk-forward-folds"),
     ):
         if options[key] is not None:
             arguments += ["--" + flag, str(options[key])]

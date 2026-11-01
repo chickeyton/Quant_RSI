@@ -88,8 +88,13 @@ def _confirm(journal, store, entry):
         )
 
 
-def collection_snapshot(symbol, directory, *, horizon_sessions=5):
-    data, info = load_daily_prices(symbol, directory, horizon_sessions=horizon_sessions)
+def collection_snapshot(symbol, directory, *, horizon_sessions=5, historical_sessions=None):
+    data, info = load_daily_prices(
+        symbol,
+        directory,
+        horizon_sessions=horizon_sessions,
+        historical_sessions=historical_sessions,
+    )
     root = Path(directory)
     return {
         "info": {key: value for key, value in info.items() if key != "collection_directory"},

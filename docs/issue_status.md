@@ -10,6 +10,10 @@ Rows for previously closed issues are retained below as historical ownership con
 The 2026-11-01 prediction-horizon follow-up updates the #7 row for the connected
 study only; it is not a new audit or completion of the registered forecast objective.
 
+The connected study also offers a post-selection frozen-recipe time-window
+diagnostic. It does not complete #11: registered C2/C5 fold-based candidate
+selection and independent final acceptance remain outstanding.
+
 The earlier #62 implementation added an explicitly selected frozen policy.
 It preserves the old policy and schema-3 recursive-cap semantics, production promotion
 restrictions, and historical run identities. See [exploration rules and verification](research_exploration.md).

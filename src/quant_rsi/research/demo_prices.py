@@ -17,8 +17,8 @@ def load_daily_prices(symbol, directory, *, horizon_sessions=5, historical_sessi
         raise ValueError("Prediction horizon must be 5, 20 or 60 trading sessions")
     required = HISTORY_SESSIONS + 3 * (horizon_sessions - 5)
     if historical_sessions is not None:
-        if type(historical_sessions) is not int or not required <= historical_sessions <= 285:
-            raise ValueError("Historical sessions must cover the horizon and not exceed 285")
+        if type(historical_sessions) is not int or not required <= historical_sessions <= 445:
+            raise ValueError("Historical sessions must cover the horizon and not exceed 445")
         required = historical_sessions
     root = Path(directory).resolve()
     if not root.exists() or not any(root.iterdir()):

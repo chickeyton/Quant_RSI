@@ -722,6 +722,90 @@ def render_study(result):
             )
         else:
             section("Financial comparison availability", financial["reason"])
+    walk_forward = result["study"].get("walk_forward")
+    if walk_forward:
+        section("Frozen-recipe time-window diagnostic", walk_forward["notice"])
+        section(
+            "Diagnostic coverage and cost",
+            f"{walk_forward['status']}; {walk_forward['extra_fits']} additional fits "
+            f"of {walk_forward['fit_budget']} allowed. Factor recipe from selected "
+            f"round {walk_forward['selected_round']}; no further LLM calls.",
+        )
+        rows, accounts = [], []
+        for fold in walk_forward["folds"]:
+            if fold["status"] != "completed":
+                rows.append(
+                    [fold["fold"], fold["first_origin"], fold["last_target"], "unavailable"]
+                    + ["—"] * 3
+                )
+                continue
+            evaluation = fold["evaluation"]
+            rows.append(
+                [
+                    fold["fold"],
+                    fold["first_origin"],
+                    fold["last_target"],
+                    len(fold["training_sessions"]),
+                    f"{evaluation['metrics']['mae_price']:.4f}",
+                    f"{evaluation['baselines']['unchanged_price']['metrics']['mae_price']:.4f}",
+                    f"{evaluation['baselines']['training_label_mean']['metrics']['mae_price']:.4f}",
+                ]
+            )
+            for key, label in (("strategy", "Selected recipe"), ("buy_and_hold", "Buy & hold")):
+                metrics = fold["strategy"][key]["metrics"]
+                sharpe = metrics["sharpe_ratio"]
+                accounts.append(
+                    [
+                        fold["fold"],
+                        label,
+                        f"{float(metrics['net_return']):.2%}",
+                        "N/A" if sharpe is None else f"{sharpe:.4f}",
+                        metrics["risk_statistics"]["daily_return_count"],
+                        f"{float(metrics['max_drawdown']):.2%}",
+                        f"{sum(float(v) for v in metrics['fees'].values()):.2f}",
+                    ]
+                )
+        table(
+            [
+                "Window",
+                "First origin",
+                "Last target",
+                "Training N / state",
+                "Price MAE",
+                "Flat-price MAE",
+                "Training-mean MAE",
+            ],
+            rows,
+        )
+        section(
+            "Per-window costed accounts",
+            "Independent initial cash per account; fees include commission, tax and slippage "
+            "in account currency. Sharpe uses daily net returns, 252 sessions/year and a 0% "
+            "risk-free rate. N/A means insufficient variation or observations, not zero risk.",
+        )
+        table(
+            ["Window", "Account", "Net return", "Sharpe", "Daily N", "Max drawdown", "Fees"],
+            accounts,
+        )
+        for fold in walk_forward["folds"]:
+            if fold["status"] == "unavailable":
+                section(f"Window {fold['fold']} unavailable", fold["reason"].replace("_", " "))
+            if fold["excluded_training_sessions"] or fold["missing_evaluation_sessions"]:
+                section(
+                    f"Window {fold['fold']} missing inputs",
+                    f"Excluded training rows: {len(fold['excluded_training_sessions'])}; "
+                    f"missing evaluation sessions: {fold['missing_evaluation_sessions']}. "
+                    "Missing evaluation inputs make the whole window unavailable.",
+                )
+        pooled = walk_forward["pooled_forecast_metrics"]
+        if pooled:
+            table(
+                ["All complete windows · forecast only", "Observations", "Price MAE", "MAPE %"],
+                [
+                    [name, m["sample_count"], f"{m['mae_price']:.4f}", f"{m['mape_percent']:.2f}"]
+                    for name, m in pooled.items()
+                ],
+            )
     comparison = result["study"].get("qlib_comparison")
     if comparison:
         section("Actual Qlib workflow comparison", comparison["notice"])

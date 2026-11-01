@@ -36,7 +36,10 @@ class LightGBMDemo:
         ridge_alpha=None,
         fit_cache=None,
         horizon_sessions=5,
+        walk_forward_folds=0,
     ):
+        from quant_rsi.research.study_walk_forward import extra_history, freeze_windows
+
         self.fit_cache = fit_cache
         self.model_configuration = model_configuration(
             estimator, ridge_alpha, horizon_sessions=horizon_sessions
@@ -79,13 +82,14 @@ class LightGBMDemo:
         if len(recipes) < 2:
             raise ValueError("LightGBM demo needs at least two numeric factors for one revision")
         self.horizon = horizon_sessions
+        extra_sessions = extra_history(walk_forward_folds, evaluation_sessions, self.horizon)
         self.price_info = None
         if prices is None:
-            self.origin = 100 + 2 * (self.horizon - 5)
+            self.origin = 100 + 2 * (self.horizon - 5) + extra_sessions
             self.data = synthetic_data(
                 DataSpec(
                     source="synthetic",
-                    sessions=128 + 3 * (self.horizon - 5),
+                    sessions=128 + 3 * (self.horizon - 5) + extra_sessions,
                     instruments=1,
                     train_cutoff=self.origin,
                     seed=7,
@@ -102,15 +106,21 @@ class LightGBMDemo:
             # Development labels AND account valuations end before the terminal window.
             self.origin = int(self.terminal_origins[0]) - self.horizon - 1
         self.origins = np.arange(self.origin - evaluation_sessions + 1, self.origin + 1)
+        self.walk_forward_plan = freeze_windows(
+            self.data, self.origin, self.horizon, evaluation_sessions, walk_forward_folds
+        )
         if evaluation_sessions == 1:
             # Keep the original demonstration's window and output unchanged.
             self.train = np.arange(
-                max(recipe.window for recipe in recipes), self.origin - self.horizon + 1
+                max(recipe.window for recipe in recipes) + extra_sessions,
+                self.origin - self.horizon + 1,
             )
         else:
             # Reserve enough history for every safe proposed window (1..30).
             # No training label reaches even the first evaluation origin.
-            self.train = np.arange(30, self.origins[0] - self.horizon)
+            # Additional older rows belong only to the optional diagnostic. Merely
+            # enabling it must not enlarge the research fit's training allowance.
+            self.train = np.arange(30 + extra_sessions, self.origins[0] - self.horizon)
         if len(self.train) < 12:
             raise ValueError("Insufficient mature training rows for the selected price window")
         self._planned_development_end = self.data.dates[self.origins[-1] + self.horizon]
