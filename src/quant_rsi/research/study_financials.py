@@ -3,6 +3,7 @@
 import json
 import math
 import os
+from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -395,6 +396,73 @@ def inventory_at_cutoff(records, cutoff):
     return values, evidence | {"values": values}
 
 
+GAP_GUIDANCE = {
+    "no_visible_reported_quarter": (
+        "No usable revenue quarter was visible at the required cutoff.",
+        "Check supported income tags, source failures and earlier publication-dated statements.",
+    ),
+    "latest_reported_quarter_stale": (
+        "The latest usable income quarter was more than 270 days old.",
+        "Collect more recent supported income statements with their original publication dates.",
+    ),
+    "no_comparable_income_quarter": (
+        "The visible income quarter lacks a comparable prior-year quarter.",
+        "Collect the comparable prior-year quarterly revenue and income, not annual totals.",
+    ),
+    "missing_or_incompatible_margin_facts": (
+        "Required operating income is missing, ambiguous or incompatible with revenue.",
+        "Check revenue and operating income from the same filing for each required quarter.",
+    ),
+    "no_visible_cashflow_period": (
+        "No supported cash-flow period was visible at the required cutoff.",
+        "Check supported cash-flow tags, source failures and earlier reported duration facts.",
+    ),
+    "ambiguous_or_stale_cashflow_period": (
+        "The latest cash-flow period is ambiguous or more than 270 days old.",
+        "Inspect conflicting periods or collect newer statements; do not fall back silently.",
+    ),
+    "no_unique_comparable_cashflow_period": (
+        "There is no unique prior-year cash-flow period with the same reported duration.",
+        "Check comparable 3/6/9/12-month statements; do not mix durations or subtract YTD values.",
+    ),
+    "missing_or_incompatible_cashflow_values": (
+        "Required cash-flow values are missing, conflicting, incompatible or have a zero base.",
+        "Inspect operating cash flow and, for free cash flow, same-filing capital expenditure "
+        "in both periods. A zero comparison base remains unavailable.",
+    ),
+    "no_visible_inventory_balance": (
+        "No reported inventory balance was visible at the required cutoff.",
+        "Check supported inventory tags and earlier balance sheets, not cash-flow adjustments.",
+    ),
+    "ambiguous_or_stale_inventory_balance": (
+        "The latest inventory balance is ambiguous or more than 270 days old.",
+        "Inspect conflicting balance facts or collect newer publication-dated balance sheets.",
+    ),
+    "no_unique_comparable_inventory_balance": (
+        "There is no unique comparable prior-year inventory balance.",
+        "Collect a balance 350–380 days before the current balance; the prior fiscal year-end "
+        "is not automatically comparable.",
+    ),
+    "ambiguous_or_nonpositive_prior_inventory": (
+        "The comparable prior inventory is ambiguous, zero or negative.",
+        "Inspect the prior balance and conflicting filings. A nonpositive base remains "
+        "unavailable; collecting more history cannot guarantee a usable ratio.",
+    ),
+}
+
+
+def _gap_reason(metric, evidence):
+    if metric in {"operating_cashflow_yoy", "free_cashflow_yoy"}:
+        return evidence["cashflow"].get("reason", "missing_or_incompatible_cashflow_values")
+    if metric == "inventory_yoy":
+        return evidence["inventory"]["reason"]
+    if "reason" in evidence:
+        return evidence["reason"]
+    if metric.endswith("_yoy") and evidence["prior_year"] is None:
+        return "no_comparable_income_quarter"
+    return "missing_or_incompatible_margin_facts"
+
+
 def prepare_financials(snapshot, cutoffs, required):
     records = reported_records(snapshot)
     rows = []
@@ -408,7 +476,7 @@ def prepare_financials(snapshot, cutoffs, required):
                 evidence | {"cashflow": cash_evidence, "inventory": inventory_evidence},
             )
         )
-    columns, definitions = {}, []
+    columns, definitions, gaps = {}, [], []
     for metric, description in METRICS.items():
         identity = "financial." + metric
         values = [value.get(metric) for value, _ in rows]
@@ -429,8 +497,23 @@ def prepare_financials(snapshot, cutoffs, required):
                 else "missing_or_incompatible_reported_periods",
             }
         )
+        missing_rows = [int(i) for i in required if values[int(i)] is None]
+        reasons = [_gap_reason(metric, rows[i][1]) for i in missing_rows]
+        for reason, count in Counter(reasons).items():
+            description, next_step = GAP_GUIDANCE[reason]
+            gaps.append(
+                {
+                    "factor_id": identity,
+                    "reason": reason,
+                    "missing_required_rows": count,
+                    "example_cutoff": cutoffs[missing_rows[reasons.index(reason)]],
+                    "description": description,
+                    "next_step": next_step,
+                }
+            )
     return {
         "definitions": definitions,
+        "coverage_gaps": gaps,
         "columns": columns,
         "evidence": [e for _, e in rows],
         "notice": snapshot["notice"],

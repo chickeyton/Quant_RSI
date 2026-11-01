@@ -86,6 +86,28 @@ def input_report(root, symbol, model, news, financials):
         ],
     )
     body += "<p>" + escape(financials["notice"]) + "</p>"
+    if financials.get("coverage_gaps"):
+        body += "<h2>Why financial factors are unavailable</h2><div class='coverage-gaps'>" + table(
+            ["Factor", "Missing required rows", "Reason", "Example cutoff", "Next step"],
+            [
+                [
+                    g[k]
+                    for k in (
+                        "factor_id",
+                        "missing_required_rows",
+                        "description",
+                        "example_cutoff",
+                        "next_step",
+                    )
+                ]
+                for g in financials["coverage_gaps"]
+            ],
+        )
+        body += (
+            "</div><p>One primary reason per missing required row; source failures may coexist. "
+            "Suggestions do not guarantee coverage. Use a new collection and study; "
+            "do not fill missing values or move publication dates.</p>"
+        )
     body += "<h2>Data source attempts</h2>" + table(
         ["Provider", "Status", "Reason"],
         [
@@ -103,6 +125,7 @@ def input_report(root, symbol, model, news, financials):
 body{background:#0b1220;color:#e5edf9;font:16px system-ui;
 max-width:1100px;margin:40px auto;padding:20px}
 h1,h2{color:#72e3d1}p{line-height:1.6}table{width:100%;border-collapse:collapse;display:block;overflow:auto}
+.coverage-gaps{overflow:auto}.coverage-gaps table{min-width:760px}
 th,td{text-align:left;padding:12px;border-bottom:1px solid #334155;overflow-wrap:anywhere}
 th:first-child,td:first-child{min-width:150px}th:nth-child(2),td:nth-child(2){min-width:180px}
 th{color:#a7bbd8}h2{margin-top:32px;font-size:20px}</style><main>"""

@@ -115,7 +115,11 @@ quant-rsi research-study KO --financials --check-inputs --output /tmp/ko-input-c
 ```
 
 The workbench **Check inputs** button offers the same check for a watchlist. Its table
-shows data sources and missing required rows. It does not test LLM credentials, active
+shows data sources, missing required rows, grouped reasons and suggested next steps.
+The live financial/input nodes and final report show the same gaps; the final table also
+distinguishes selected factors from available factors the researcher did not select.
+These diagnostics do not change feature values or make missing inputs usable.
+The check does not test LLM credentials, active
 news searches or peer prices. Every ordinary study also saves `input_report.html` before
 its first LLM request. Checks produce no forecast and do not consume new-evidence research.
 

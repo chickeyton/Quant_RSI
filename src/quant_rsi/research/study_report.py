@@ -695,13 +695,47 @@ def render_study(result):
     if financial:
         section("Financial business factors", result["study"]["financial_data"]["notice"])
         table(
-            ["Factor", "Available", "Missing fixed rows", "Definition"],
+            ["Factor", "Use in selected model", "Missing fixed rows", "Definition"],
             [
-                [d["factor_id"], d["runnable"], d["missing_required_rows"], d["description"]]
+                [
+                    d["factor_id"],
+                    "Selected"
+                    if d["factor_id"] in selection["selected_factor_ids"]
+                    else "Available, not selected"
+                    if d["runnable"]
+                    else "Unavailable",
+                    d["missing_required_rows"],
+                    d["description"],
+                ]
                 for d in result["study"]["financial_data"]["definitions"]
             ],
         )
         data = result["study"]["financial_data"]
+        if data.get("coverage_gaps"):
+            section(
+                "Why financial factors are unavailable",
+                "One primary reason per missing required row; source failures may coexist. "
+                "Suggestions do not guarantee coverage. Use a new collection and study; "
+                "do not fill missing values or move publication dates.",
+            )
+            html.append("<div class='coverage-gaps'>")
+            table(
+                ["Factor", "Missing required rows", "Reason", "Example cutoff", "Next step"],
+                [
+                    [
+                        g[k]
+                        for k in (
+                            "factor_id",
+                            "missing_required_rows",
+                            "description",
+                            "example_cutoff",
+                            "next_step",
+                        )
+                    ]
+                    for g in data["coverage_gaps"]
+                ],
+            )
+            html.append("</div>")
         section("Financial source", data.get("provider", "unknown"))
         table(
             ["Source", "Status", "Reason"],
@@ -946,6 +980,7 @@ def render_study(result):
         ".eyebrow{color:#147d79;letter-spacing:.1em;font-size:12px;font-weight:bold}"
         ".table{overflow:auto;margin:18px 0}"
         "table{width:100%;border-collapse:collapse;background:white}"
+        ".coverage-gaps table{min-width:760px}"
         "td,th{text-align:left;vertical-align:top;padding:10px;border-bottom:1px solid #d8e1e7;"
         "overflow-wrap:anywhere;min-width:80px}th{background:#e4eeed}a{color:#086b79}"
         "svg{width:100%;height:auto;background:white}"

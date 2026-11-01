@@ -232,12 +232,14 @@ def visual_output(stage, output, previous, symbol):
                     for d in financials["definitions"]
                 },
             },
+            "coverage_gaps": financials.get("coverage_gaps", []),
             "note": output["notice"] + " " + financials["notice"],
         }
     if stage == "load_financials":
         return {
             "kind": "factors",
             "factors": _factors(output.get("definitions", [])),
+            "coverage_gaps": output.get("coverage_gaps", []),
             "catalog": True,
             "note": output["notice"]
             + " Source: "
