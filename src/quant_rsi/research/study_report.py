@@ -741,6 +741,31 @@ def render_study(result):
             ],
         )
         data = result["study"]["financial_data"]
+        if data.get("sample_coverage"):
+            section(
+                "Financial variation on research rows",
+                "Counts use the frozen research rows only. Repeated daily values are not "
+                "independent financial observations; distinct values are not a count of filings. "
+                "A constant training feature cannot explain differences between training rows. "
+                "Coverage does not establish predictive value.",
+            )
+            table(
+                [
+                    "Factor",
+                    "Available training rows",
+                    "Distinct training values",
+                    "Distinct development values",
+                ],
+                [
+                    [
+                        r["factor_id"],
+                        f"{r['training_available_rows']} / {r['training_rows']}",
+                        r["training_distinct_values"],
+                        r["development_distinct_values"],
+                    ]
+                    for r in data["sample_coverage"]
+                ],
+            )
         if data.get("coverage_gaps"):
             section(
                 "Why financial factors are unavailable",

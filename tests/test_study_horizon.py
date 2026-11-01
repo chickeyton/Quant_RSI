@@ -92,7 +92,9 @@ HOLIDAYS_2025 = {
 }
 
 
-def long_collection(tmp_path, monkeypatch, last, horizon, *, archived=False, nasdaq=False):
+def long_collection(
+    tmp_path, monkeypatch, last, horizon, *, archived=False, nasdaq=False, historical_sessions=None
+):
     # Explicit fixture calendar and price history, not fetched market evidence.
     calendar = (
         "<h4>All NYSE markets observe the following holidays.</h4>"
@@ -144,7 +146,9 @@ def long_collection(tmp_path, monkeypatch, last, horizon, *, archived=False, nas
 
     monkeypatch.setattr(daily_data, "urlopen", sources)
     monkeypatch.setattr(market_contracts, "trusted_now", lambda: now)
-    return study_history.collection_snapshot("KO", tmp_path, horizon_sessions=horizon)
+    return study_history.collection_snapshot(
+        "KO", tmp_path, horizon_sessions=horizon, historical_sessions=historical_sessions
+    )
 
 
 @pytest.mark.parametrize("horizon", [20, 60])

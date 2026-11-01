@@ -103,13 +103,16 @@ def run_study(args, *, resume=False):
 
 def _configuration(args):
     from quant_rsi.research.demo import research_question
-    from quant_rsi.research.study_walk_forward import extra_history
+    from quant_rsi.research.study_walk_forward import price_history_sessions
 
     args.question = research_question(getattr(args, "question", ""))
     symbol = TypeAdapter(InstrumentId).validate_python(args.symbol.strip().upper())
     horizon = getattr(args, "horizon_sessions", 5)
     folds = getattr(args, "walk_forward_folds", 0)
-    extra_history(folds, args.evaluation_sessions, horizon)
+    requested_history = getattr(args, "historical_sessions", None)
+    price_history_sessions(horizon, args.evaluation_sessions, folds, requested_history)
+    if requested_history is not None and args.prices != "daily":
+        raise ValueError("--historical-sessions requires --prices daily")
     estimator_configuration = model_configuration(
         args.model, args.ridge_alpha, horizon_sessions=horizon
     )
@@ -260,14 +263,16 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         load_daily_prices(symbol, directory, **price_window)
         return str(directory.resolve())
 
-    from quant_rsi.research.study_walk_forward import extra_history
+    from quant_rsi.research.study_walk_forward import price_history_sessions
 
     horizon = getattr(args, "horizon_sessions", 5)
     folds = getattr(args, "walk_forward_folds", 0)
-    extra_sessions = extra_history(folds, args.evaluation_sessions, horizon)
+    history_sessions = price_history_sessions(
+        horizon, args.evaluation_sessions, folds, getattr(args, "historical_sessions", None)
+    )
     price_window = {"horizon_sessions": horizon}
-    if extra_sessions:
-        price_window["historical_sessions"] = 120 + 3 * (horizon - 5) + extra_sessions
+    if folds or getattr(args, "historical_sessions", None) is not None:
+        price_window["historical_sessions"] = history_sessions
     prices = (
         load_daily_prices(
             symbol,
@@ -419,6 +424,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         from quant_rsi.research.study_financials import (
             collect_financials,
             prepare_financials,
+            sample_coverage,
             simulated_financials,
         )
 
@@ -454,6 +460,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
             {"symbol": symbol, "cutoffs": cutoffs, "required": required},
             financial_inputs,
         )
+        business["sample_coverage"] = sample_coverage(business, model.train, model.origins)
         model.configure_financials(business)
         _write(root / "financial_features.json", business)
         progress.finish(

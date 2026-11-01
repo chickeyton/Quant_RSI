@@ -99,15 +99,39 @@ def test_partial_coverage_reaches_preflight_model_context_live_cards_and_report(
     assert data["coverage_gaps"][0]["reason"] == "no_visible_inventory_balance"
     for context in contexts:
         assert context["financial_features"]["coverage_gaps"] == data["coverage_gaps"]
+        assert context["financial_features"]["sample_coverage"] == data["sample_coverage"]
     for event in read_state(root)["events"]:
         if event["stage"] in {"load_financials", "check_inputs"}:
             assert event["view"]["coverage_gaps"] == data["coverage_gaps"]
+            assert event["view"]["sample_coverage"] == data["sample_coverage"]
     for name in ("input_report.html", "report.html", "report.md"):
         text = (root / name).read_text()
         assert "Why financial factors are unavailable" in text
         assert "No reported inventory balance was visible" in text
         assert "do not fill missing values" in text
+        assert "Financial variation on research rows" in text
+        assert "Distinct training values" in text
     assert "Available, not selected" in (root / "report.html").read_text()
     assert result["iterations"]["completed_fits"] == 2
     assert result["configuration"]["comparison_fit_budget"] == 1
     assert result["study"]["financial_comparison"]["status"] == "completed"
+
+
+def test_sample_coverage_excludes_terminal_values_and_does_not_count_missing_as_zero():
+    bundle = {
+        "definitions": [{"factor_id": "financial.inventory_yoy"}],
+        "columns": {"financial.inventory_yoy": [None, 0.0, 0.0, 2.0, 3.0, 4.0]},
+    }
+    original = deepcopy(bundle)
+    assert financials.sample_coverage(bundle, [0, 1, 2], [3, 4]) == [
+        {
+            "factor_id": "financial.inventory_yoy",
+            "training_rows": 3,
+            "training_available_rows": 2,
+            "training_distinct_values": 1,
+            "development_rows": 2,
+            "development_available_rows": 2,
+            "development_distinct_values": 2,
+        }
+    ]
+    assert bundle == original

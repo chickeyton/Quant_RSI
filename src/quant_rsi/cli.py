@@ -147,6 +147,11 @@ def main(argv: list[str] | None = None) -> int:
             )
             demo.add_argument("--evaluation-sessions", type=int, default=20, choices=range(2, 21))
             demo.add_argument(
+                "--historical-sessions",
+                type=int,
+                help="minimum daily-price history (up to 445 sessions); all retained rows are used",
+            )
+            demo.add_argument(
                 "--walk-forward-folds",
                 type=int,
                 default=0,

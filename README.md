@@ -83,6 +83,14 @@ horizon through prediction, strategy evaluation and later observation; history
 feedback is separated by horizon. Longer runs collect additional price history and
 require a published future calendar. See [prediction horizons](docs/connected_research_study.md#prediction-horizon).
 
+Use `--historical-sessions 252` with daily prices, or **Minimum price history** in the
+workbench, to request a longer input window. The horizon and optional time-window
+diagnostic set the minimum; the current maximum is 445 sessions. Existing longer
+collections are used in full and disclosed, while insufficient collections fail without
+being overwritten. Input checks and financial reports distinguish training rows from
+distinct financial values: repeating a quarterly value each day does not add independent
+financial observations. See [history and coverage](docs/connected_research_study.md#price-history-and-financial-variation).
+
 For a post-selection check across time windows, add `--walk-forward-folds 3`
 (or select two/three windows in the workbench). This freezes the selected recipe,
 refits on three chronological windows and reports forecast errors, costs, Sharpe,

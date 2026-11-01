@@ -276,6 +276,7 @@ class Workbench:
                     "model",
                     "selection_metric",
                     "horizon_sessions",
+                    "historical_sessions",
                     "walk_forward_folds",
                     "question",
                     "rounds",

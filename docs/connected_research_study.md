@@ -201,6 +201,41 @@ of reliable predictive gain. The completed run retains its development source id
 
 ## Prediction horizon
 
+### Price history and financial variation
+
+Use daily-price history independently of the prediction horizon:
+
+```bash
+quant-rsi research-study KO --historical-sessions 252 --financials --check-inputs \
+  --output /tmp/ko-year-input-check
+```
+
+The workbench exposes the same **Minimum price history** field and retains it in
+templates, queued tasks and resumed studies. Leave it blank for the existing automatic
+window. With an explicit value, the minimum is `120 + 3 * (horizon - 5)` plus
+`(folds - 1) * (evaluation_sessions + horizon)` when the time-window diagnostic is enabled.
+The maximum is 445 sessions, so a 60-session horizon with three diagnostic folds requires
+445. Invalid combinations fail before acquisition or paid work. Synthetic mode requires
+the automatic window.
+
+The value is a collection minimum, not a truncation instruction: a longer retained
+`--prices-dir` is used in full. A shorter retained collection is rejected with a fresh-directory
+instruction, preserving its files. Workbench evidence preparation requests the same window
+as the study. The source must still supply every required price and exchange-calendar
+session; this control does not repair corporate actions or extend financial/news coverage.
+
+Input checks show actual price sessions, frozen training rows and development rows. For
+each financial factor, the input report, live stages, researcher context and final report
+show available training rows and distinct training/development values. Counts exclude
+terminal/latest-forecast rows and do not alter factor admission, missing values or selection.
+Repeated daily values are not independent financial observations; distinct values are not
+a count of filings. A constant training feature cannot explain differences between training
+rows. A longer window may add financial changes, but neither coverage nor variation proves
+predictive value. Inspect coverage before running paid research; removing `--check-inputs`
+then runs the normal two-fit/revision flow with the same options.
+
+### Choose the prediction target
+
 The study supports one target horizon per run: 5 (default), 20 or 60 **trading
 sessions**. The workbench form, saved templates and task history expose the same
 setting. For example:

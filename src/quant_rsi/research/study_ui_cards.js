@@ -317,6 +317,11 @@ const StudyCards = (() => {
     }
     else if(view.kind==='facts'){content.append(table(['Field','Value'],Object.entries(view.facts).map(([k,v])=>[title(k),valueText(v)])));if(view.note)content.append(note(view.note));}
     else content.append(note('A visual summary is not available for this stage. Inspect its raw data below.'));
+    if(view?.sample_coverage?.length){
+      content.append(el('h3','view-section-title','Financial variation on research rows'),
+        table(['Factor','Available training rows','Distinct training values','Distinct development values'],view.sample_coverage.map(r=>[r.factor_id,`${r.training_available_rows} / ${r.training_rows}`,r.training_distinct_values,r.development_distinct_values])),
+        note('Repeated daily values are not independent financial observations; distinct values are not a count of filings. A constant training feature cannot explain differences between training rows. Coverage does not establish predictive value.'));
+    }
     if(view?.coverage_gaps?.length){
       const gaps=el('div','factor-grid');
       view.coverage_gaps.forEach(g=>{
