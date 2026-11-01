@@ -154,7 +154,7 @@ def _configuration(args):
         fit_budget=fit_budget,
         comparison_fit_budget=int(compare_external) + int(getattr(args, "financials", False)),
         walk_forward_fit_budget=folds,
-        generated_recipes="bounded_price_operators_and_retained_headline_counts",
+        generated_recipes="bounded_price_news_and_financial_expressions",
     )
     return symbol, root, configuration
 

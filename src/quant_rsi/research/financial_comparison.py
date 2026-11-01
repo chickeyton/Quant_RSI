@@ -10,6 +10,11 @@ from quant_rsi.research.study_estimators import StandardizedRidge
 def compare_financials(model, selected_round, prediction, policy):
     _, matrix, labels, ids = model._fits[selected_round - 1]
     financial_ids = {d["factor_id"] for d in model.financial_features["definitions"]}
+    financial_ids.update(
+        item["factor_id"]
+        for item in prediction.get("bound_factor_inputs", [])
+        if any(source["factor_id"] in financial_ids for source in item["inputs"])
+    )
     removed = [i for i, identity in enumerate(ids) if identity in financial_ids]
     kept = [i for i in range(len(ids)) if i not in removed]
     notice = (

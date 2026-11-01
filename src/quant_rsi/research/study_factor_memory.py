@@ -8,6 +8,7 @@ from quant_rsi.research.demo_proposals import (
     NewsFactorProposal,
     news_recipe_expired,
 )
+from quant_rsi.research.study_business import proposal_from_definition
 
 NOTICE = (
     "Recipes from the latest five studies of this symbol and prediction horizon, "
@@ -79,7 +80,11 @@ def reuse_recipes(library, memories):
             else:
                 try:
                     recipe = old.get("recipe", {})
-                    if identity.startswith("research."):
+                    if identity.startswith("business."):
+                        current = proposal_from_definition(old).definition(
+                            list(definitions.values())
+                        )
+                    elif identity.startswith("research."):
                         current = FactorProposal.model_validate(
                             recipe | {"description": old["description"]}
                         ).definition()
