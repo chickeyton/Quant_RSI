@@ -1,5 +1,6 @@
 """Local HTTP controls launch the same CLI and reuse its recoverable artifacts."""
 
+import fcntl
 import json
 import threading
 from urllib.error import HTTPError
@@ -10,7 +11,6 @@ from test_research_study import command
 
 from quant_rsi.cli import main
 from quant_rsi.research import study
-from quant_rsi.research.study_resume import run_lock
 from quant_rsi.research.study_workbench import Workbench, make_server
 
 
@@ -133,7 +133,10 @@ def test_http_origin_token_inputs_and_history(tmp_path):
             (task / "worker.json").write_text(
                 json.dumps({"status": "running", "stage": "collecting_financials"})
             )
-            with run_lock(task):
+            # The server also briefly probes this lock between requests. Wait for
+            # that probe while installing the fixture's simulated worker lease.
+            with (task / ".study.lock").open("a") as lease:
+                fcntl.flock(lease, fcntl.LOCK_EX)
                 with urlopen(base + f"tasks/{task.name}/state") as response:
                     state = json.load(response)
                 assert state["preparation"] == "collecting_financials"
@@ -149,7 +152,8 @@ def test_http_origin_token_inputs_and_history(tmp_path):
             (task / "study/runtime.json").write_text(
                 json.dumps({"status": "running", "current_stage": "first_prediction", "stages": []})
             )
-            with run_lock(task):
+            with (task / ".study.lock").open("a") as lease:
+                fcntl.flock(lease, fcntl.LOCK_EX)
                 with urlopen(base + f"tasks/{task.name}/state") as response:
                     state = json.load(response)
                 assert "preparation" not in state
