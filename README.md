@@ -128,6 +128,19 @@ quarterly USD facts; cash-flow factors compare matching reported
 facts disable the affected factor; they are not invented or filled with zero. Source failures and fallback choices remain visible. See the
 [financial data contract and offline example](docs/connected_research_study.md#financial-business-factors).
 
+For an energy-sector hypothesis, add **External drivers** in the workbench, or run:
+
+```bash
+quant-rsi research-study XOM --news-research --external-drivers \
+  --historical-sessions 252 --output /tmp/xom-industry-study
+```
+
+This offers three executable EIA weekly US petroleum inventory changes to the
+researcher. They are industry variables, not XOM inventory or oil prices. The
+researcher can select a different inventory factor after feedback; the report
+shows which columns were used. Archived release dates constrain availability,
+and source failures remain visible. See [external business drivers](docs/connected_research_study.md#external-business-drivers).
+
 Check target prices, current news and financial-factor coverage before any LLM calls or fits:
 
 ```bash

@@ -115,6 +115,16 @@ def simulated_hypothesis(context, library, *, previous=None, feedback=None):
                 " SIMULATED business hypothesis tests reported growth, then revises the "
                 "financial ratio after feedback."
             )
+        external = [
+            d
+            for d in library["definitions"]
+            if d.get("runnable") and d.get("recipe", {}).get("op") == "external"
+        ]
+        if external:
+            factors.append(external[-1 if previous else 0]["factor_id"])
+            reason += (
+                " SIMULATED hypothesis revises the selected industry inventory after feedback."
+            )
         peers = [
             item
             for item in library["definitions"]

@@ -92,7 +92,13 @@ the parent revision's CI run 41354176687, using the same two-process Linux/Pytho
 3.12 workflow. All tests and required checks remain enabled. Compare actual
 per-shard durations and test outcomes as well as the total; hosted-runner
 contention is uncontrolled, so one comparison cannot establish a stable speedup.
-The complete follow-up CI measurement is pending.
+The final [follow-up CI](https://github.com/natureofnature/Quant_RSI/actions/runs/41355481123)
+passed 1,671 core tests (12 optional skips) and 14 Qlib tests. Every parent case
+was retained exactly once; one scheduling regression was added. Core wall time
+fell from 2,156.72 to 1,480.61 seconds (31.35%); shard times changed from
+2,156.70 / 538.04 to 1,480.58 / 1,425.17 seconds. This comparison meets the target.
+Child CPU time increased from 2,229.65 to 2,756.98 seconds (23.65%), so it does
+not establish reduced total compute cost or a stable wall-time speedup.
 
 ### Original fixture-grouping change
 

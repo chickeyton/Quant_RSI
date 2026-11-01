@@ -214,6 +214,7 @@ def visual_output(stage, output, previous, symbol):
         }
     if stage == "check_inputs":
         financials = output["financials"]
+        external = output.get("external_drivers", {})
         return {
             "kind": "facts",
             "facts": {
@@ -230,14 +231,19 @@ def visual_output(stage, output, previous, symbol):
                     d["factor_id"]: "Available"
                     if d["runnable"]
                     else f"Unavailable: {d['missing_required_rows']} missing required rows"
-                    for d in financials["definitions"]
+                    for d in financials["definitions"] + external.get("definitions", [])
                 },
             },
             "coverage_gaps": financials.get("coverage_gaps", []),
-            "sample_coverage": financials.get("sample_coverage", []),
-            "note": output["notice"] + " " + financials["notice"],
+            "sample_coverage": financials.get("sample_coverage", [])
+            + external.get("sample_coverage", []),
+            "note": output["notice"]
+            + " "
+            + financials["notice"]
+            + " "
+            + external.get("notice", ""),
         }
-    if stage == "load_financials":
+    if stage in {"load_financials", "load_external_drivers"}:
         return {
             "kind": "factors",
             "factors": _factors(output.get("definitions", [])),
@@ -253,7 +259,9 @@ def visual_output(stage, output, previous, symbol):
                 for a in output.get("source_attempts", [])
             ),
         }
-    if stage == "financial_comparison":
+    if stage in {"financial_comparison", "external_comparison"}:
+        family = "financials" if stage == "financial_comparison" else "external_drivers"
+        label = "financials" if family == "financials" else "external drivers"
         return {
             "kind": "engine_comparison",
             "rows": [
@@ -264,8 +272,8 @@ def visual_output(stage, output, previous, symbol):
                     **_pick(output[key]["strategy"], "net_return", "sharpe_ratio", "max_drawdown"),
                 }
                 for key, label in (
-                    ("with_financials", "Selected + financials"),
-                    ("without_financials", "Financials removed"),
+                    (f"with_{family}", f"Selected + {label}"),
+                    (f"without_{family}", f"{label.capitalize()} removed"),
                 )
                 if output["status"] == "completed"
             ],

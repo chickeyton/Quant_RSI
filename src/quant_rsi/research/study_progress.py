@@ -68,10 +68,9 @@ class StudyProgress:
                 or (name.startswith("round_") and name.endswith("_prediction"))
             ),
         }
-        if any(item["stage"] in {"qlib_comparison", "financial_comparison"} for item in stages):
-            groups["comparison_model_stages"] = lambda name: (
-                name in {"qlib_comparison", "financial_comparison"}
-            )
+        comparisons = {"qlib_comparison", "financial_comparison", "external_comparison"}
+        if any(item["stage"] in comparisons for item in stages):
+            groups["comparison_model_stages"] = lambda name: name in comparisons
         for group, matches in groups.items():
             selected = [
                 item

@@ -721,6 +721,55 @@ def render_study(result):
         )
     else:
         section("Forecast availability", "Synthetic run: no real-market latest forecast.")
+    external = result["study"].get("external_data")
+    if external is not None:
+        section("External business drivers", external["notice"])
+        table(
+            ["Factor", "Use in selected model", "Missing fixed rows", "Definition"],
+            [
+                [
+                    d["factor_id"],
+                    "selected"
+                    if d["factor_id"] in selected["factor_ids"]
+                    else "available"
+                    if d["runnable"]
+                    else "unavailable",
+                    d["missing_required_rows"],
+                    d["description"],
+                ]
+                for d in external["definitions"]
+            ],
+        )
+        if external.get("failures"):
+            table(
+                ["Source", "Collection problem"],
+                [[f.get("url", external["provider"]), f["reason"]] for f in external["failures"]],
+            )
+        comparison = result["study"].get("external_comparison")
+        if comparison:
+            section("External-driver diagnostic", comparison["notice"])
+            if comparison["status"] == "completed":
+                table(
+                    ["Inputs", "Price MAE", "Net return", "Sharpe", "Max drawdown"],
+                    [
+                        [
+                            label,
+                            value["forecast"]["mae_price"],
+                            value["strategy"]["net_return"],
+                            value["strategy"]["sharpe_ratio"],
+                            value["strategy"]["max_drawdown"],
+                        ]
+                        for label, value in [
+                            ("Selected model", comparison["with_external_drivers"]),
+                            ("External drivers removed", comparison["without_external_drivers"]),
+                        ]
+                    ],
+                )
+            else:
+                section("External-driver comparison availability", comparison["reason"])
+            section(
+                "External-driver diagnostic cost", f"{comparison['extra_fits']} additional fits."
+            )
     financial = result["study"].get("financial_comparison")
     if financial:
         section("Financial business factors", result["study"]["financial_data"]["notice"])

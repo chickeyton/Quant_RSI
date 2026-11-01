@@ -731,6 +731,96 @@ Local retained evidence (not repository fixtures):
 These paths are machine-local evidence, not files shipped with the package. Automated
 regressions use small original offline fixtures rather than downloading issuer documents.
 
+## External business drivers
+
+`--external-drivers` connects the same research workflow to archived EIA weekly
+US petroleum inventory releases. The workbench exposes the same optional setting;
+saved templates and queued tasks preserve it. The normal researcher chooses whether
+to use it. After selection, a diagnostic removes the selected external columns and
+refits on the same rows and model settings (up to one additional fit, outside the
+research fit budget). Reports compare MAE, net return, Sharpe and drawdown. This
+diagnostic does not change selection or the latest forecast; it is not independent
+validation. If no external columns or no other controls were selected, no fit is
+performed and the report explains why.
+
+```bash
+quant-rsi research-study XOM --llm codex --news-research --external-drivers \
+  --historical-sessions 252 \
+  --question "Could changes in US petroleum inventories help explain XOM returns?" \
+  --output /tmp/xom-industry-study
+
+quant-rsi research-study XOM --external-drivers --historical-sessions 252 \
+  --check-inputs --output /tmp/xom-industry-input-check
+```
+
+The three available recipes calculate current / prior-week stocks minus one for
+commercial crude oil excluding the Strategic Petroleum Reserve, total motor
+gasoline, and distillate fuel oil. Both values come from the same release's
+[Table 4](https://www.eia.gov/petroleum/supply/weekly/archive/2026/2026_10_28/download/table4.pdf).
+These are US industry inventories in million barrels, not company financial
+inventory and not oil prices. They express candidate explanatory variables, not
+an established causal relationship or evidence of predictive improvement.
+
+The collector follows dated [EIA archive links](https://www.eia.gov/petroleum/supply/weekly/archive/)
+and verifies the page's publication date and the CSV's observation week. It
+supports both older `csv/` and newer `download/` layouts. Conflicting dates,
+missing fields, and failed downloads remain explicit failures. Each raw document
+and receipt time is retained; `--external-drivers-dir` reuses the original snapshot
+for the same requested date interval without refreshing it.
+
+Date-only releases become available at 05:00 UTC the following day. The latest
+published weekly change is usable for at most 14 days; subsequent missing data
+remain unavailable. Required training/development rows determine factor admission,
+without dropping rows or consulting terminal outcomes. A selected factor that
+expires before the latest forecast prevents that forecast while preserving
+completed development fits. Reports disclose missing inputs and selected factors.
+
+The source is a retrospective reconstruction from official archived documents,
+not proof that this exact file version was observed historically. Current news
+and LLM knowledge still influence hypothesis selection. Synthetic-price mode
+uses explicitly marked simulated inventory data. Financial and external-driver
+diagnostics remove their respective input families separately; requesting both
+can consume two additional diagnostic fits.
+
+Workbench preparation fingerprints the retained external records and failures,
+then passes that same snapshot to the study. A changed receipt time alone does
+not trigger new research. A first collection can require two requests per weekly
+release, plus the archive index; it is bounded to 104 releases. Existing retained
+inputs are reused within the task. There is no new cross-task shared source cache.
+
+### External-driver integration observation (2026-11-01)
+
+An XOM run on source `0b306c1` used 252 retained public daily observations,
+retained issuer RSS, real Codex calls, and the EIA archive. The explicit research
+question requested commercial-crude inventory with a momentum control first,
+then distillate inventory with the same control after feedback. This verifies
+prompted factor substitution, not autonomous discovery of the hypothesis.
+
+The retained collection contained 53 usable releases and two publication-date
+conflicts, which remained excluded. All three external columns covered the
+177 training and 20 development rows. Two Codex calls, two research fits and
+one diagnostic refit completed in 55.95 seconds with retained inputs; this
+duration excludes the initial archive collection. No active news search was
+requested. All 183 recorded source/configuration file hashes matched the run.
+
+| Development model | Price MAE | Net strategy return | Sharpe |
+|---|---:|---:|---:|
+| Initial: crude inventory + momentum | 4.6817 | — | — |
+| Revised: distillate inventory + momentum | 2.7388 | 9.18% | 5.2512 |
+| Diagnostic: revised model without inventory | 3.1692 | 6.00% | 2.7512 |
+
+These are small retrospective development comparisons after feedback, not
+independent gains. In particular, the Sharpe values are short-window diagnostics.
+Terminal evaluation was unavailable because the selected inventory feature had
+expired on October 15 after an earlier release was excluded for conflicting
+dates. No row was dropped and no replacement model was selected. The latest
+forecast was available, but its outcome was not observed.
+
+The machine-local report is
+`/tmp/quant-rsi-external-codex-ablation-study/report.html`; its separate audit is
+`/tmp/quant-rsi-external-codex-ablation-validation.json`. These artifacts are not
+shipped with the package. Offline regressions use original small fixtures.
+
 ## Nasdaq example: AAPL
 
 ```bash

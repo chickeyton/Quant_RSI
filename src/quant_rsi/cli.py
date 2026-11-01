@@ -120,6 +120,16 @@ def main(argv: list[str] | None = None) -> int:
                 action="store_true",
                 help="check target prices, news and financial coverage without LLM calls or fits",
             )
+            demo.add_argument(
+                "--external-drivers",
+                action="store_true",
+                help="EIA weekly US inventory factors with up to one extra diagnostic fit",
+            )
+            demo.add_argument(
+                "--external-drivers-dir",
+                type=Path,
+                help="retained EIA weekly petroleum snapshot directory",
+            )
             demo.add_argument("--model", choices=("lightgbm", "ridge"), default="lightgbm")
             demo.add_argument(
                 "--compare-qlib",

@@ -134,6 +134,36 @@ def test_preparation_progress_survives_reopen_and_failure_then_clears_on_handoff
         )
 
 
+def test_external_evidence_reuses_prepared_directory_and_changes_trigger(
+    evidence, tmp_path, monkeypatch
+):
+    from quant_rsi.research import eia_petroleum
+
+    value, collected, stages = [1.0], [], []
+
+    def collect(directory, since, through):
+        collected.append((directory, since, through))
+        return {"records": [{"value": value[0]}], "failures": []}
+
+    monkeypatch.setattr(eia_petroleum, "collect_petroleum", collect)
+    workbench = Workbench(tmp_path)
+    fingerprints = []
+    options = OFFLINE | {"data": "daily", "external_drivers": True}
+    for current in (1.0, 1.0, 2.0):
+        value[0] = current
+        task = workbench._enqueue("XOM", study_options(options))
+        manifest = json.loads((task / "task.json").read_bytes())
+        receipt, args = trigger.refresh_evidence(task, manifest, on_stage=stages.append)
+        assert "--external-drivers" in args
+        assert args[args.index("--external-drivers-dir") + 1] == str(
+            task / "preflight/external_drivers"
+        )
+        assert collected[-1] == (task / "preflight/external_drivers", "2024-04-29", "2024-04-29")
+        fingerprints.append(receipt["fingerprint"])
+    assert fingerprints[0] == fingerprints[1] != fingerprints[2]
+    assert stages.count("collecting_external_drivers") == 3
+
+
 @pytest.fixture
 def evidence(tmp_path, monkeypatch):
     state = {

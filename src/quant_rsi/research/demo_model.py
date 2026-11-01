@@ -65,6 +65,7 @@ class LightGBMDemo:
         self.peer_features = None
         self.profile_features = None
         self.financial_features = None
+        self.external_features = None
         self._has_predicted = False
         self.library = deepcopy(library)
         self.library["definitions"] = [
@@ -267,6 +268,16 @@ class LightGBMDemo:
             "missing rows are not filled or dropped."
         )
 
+    def configure_external(self, bundle):
+        if self._has_predicted or self.external_features is not None:
+            raise ValueError("External features must be configured once before prediction")
+        existing = {item["factor_id"] for item in self.library["definitions"]}
+        if existing.intersection(item["factor_id"] for item in bundle["definitions"]):
+            raise ValueError("External factor IDs overlap existing definitions")
+        self.external_features = deepcopy(bundle)
+        self.library["definitions"].extend(deepcopy(bundle["definitions"]))
+        self.library["execution_note"] += " " + bundle["notice"]
+
     def configure_profile(self, profile):
         if self._has_predicted or self.profile_features is not None:
             raise ValueError("Factor profile must be configured once before prediction")
@@ -345,6 +356,13 @@ class LightGBMDemo:
                 "latest_visible_facts": deepcopy(self.financial_features.get("evidence", [{}])[-1]),
                 "notice": self.financial_features["notice"],
             }
+        if self.external_features is not None:
+            result["external_features"] = {
+                "definitions": deepcopy(self.external_features["definitions"]),
+                "sample_coverage": deepcopy(self.external_features.get("sample_coverage", [])),
+                "failures": deepcopy(self.external_features.get("failures", [])),
+                "notice": self.external_features["notice"],
+            }
         return result
 
     def predict(self, context, factors, hypothesis):
@@ -387,20 +405,24 @@ class LightGBMDemo:
                     {dependency["factor_id"]: dependency for dependency in dependencies}
                 )
                 continue
-            if item.get("recipe", {}).get("op") == "financial":
+            source_op = item.get("recipe", {}).get("op")
+            if source_op in {"financial", "external"}:
+                bundle = (
+                    self.financial_features if source_op == "financial" else self.external_features
+                )
                 retained = next(
                     (
                         d
-                        for d in (self.financial_features or {}).get("definitions", [])
+                        for d in (bundle or {}).get("definitions", [])
                         if d["factor_id"] == item["factor_id"]
                     ),
                     None,
                 )
                 if retained is None or not retained["runnable"] or retained != item:
-                    raise ValueError("Financial factor lacks its exact retained usable source")
-                columns.append(
-                    np.asarray(self.financial_features["columns"][item["factor_id"]], dtype=float)
-                )
+                    raise ValueError(
+                        f"{source_op.title()} factor lacks its exact retained usable source"
+                    )
+                columns.append(np.asarray(bundle["columns"][item["factor_id"]], dtype=float))
                 continue
             if item["factor_id"] in bound:
                 retained = bound[item["factor_id"]]
@@ -554,17 +576,25 @@ class LightGBMDemo:
             result["bound_factor_inputs"] = bound_inputs
         if self.price_info:
             if not np.isfinite(matrix[-1:]).all():
+                external_factors = [
+                    item for item in factors if item["recipe"].get("op") == "external"
+                ]
                 peer_factors = [
                     item
                     for item in factors
                     if item["recipe"].get("op") in {"peer_return", "relative_return"}
                 ]
-                if not news_factors and not peer_factors and not bound_inputs:
+                if (
+                    not news_factors
+                    and not peer_factors
+                    and not bound_inputs
+                    and not external_factors
+                ):
                     raise ValueError("Non-finite numerical latest-forecast inputs")
                 result["latest_forecast_unavailable"] = {
                     "origin_session": self.data.dates[-1],
                     "reasons": ["latest_news_features_unavailable"]
-                    if not peer_factors and not bound_inputs
+                    if not peer_factors and not bound_inputs and not external_factors
                     else ["latest_selected_features_unavailable"],
                     "missing_factor_ids": [
                         item["factor_id"]
@@ -617,23 +647,24 @@ class LightGBMDemo:
                     for item in factors
                     if item["kind"] == "numeric"
                     and item["recipe"].get("op")
-                    not in {"peer_return", "financial", "financial_expression"}
+                    not in {"peer_return", "financial", "financial_expression", "external"}
                 ],
                 "reason": "target_labels_and_reference_prices",
             }
         ]
-        if self.financial_features is not None:
-            ids = sorted(
-                selected.intersection(
-                    d["factor_id"] for d in self.financial_features["definitions"]
-                )
-            )
+        for source, bundle in (
+            ("publication_dated_financials", self.financial_features),
+            ("publication_dated_external_drivers", self.external_features),
+        ):
+            if bundle is None:
+                continue
+            ids = sorted(selected.intersection(d["factor_id"] for d in bundle["definitions"]))
             usage.append(
                 {
-                    "source": "publication_dated_financials",
+                    "source": source,
                     "status": "used" if ids else "not_selected",
                     "factor_ids": ids,
-                    "reason": self.financial_features["notice"],
+                    "reason": bundle["notice"],
                 }
             )
         for peer in self.peer_features["support"]:
