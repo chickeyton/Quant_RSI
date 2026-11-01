@@ -273,6 +273,7 @@ class Workbench:
                     "data",
                     "model",
                     "selection_metric",
+                    "horizon_sessions",
                     "rounds",
                     "max_fits",
                     "error",

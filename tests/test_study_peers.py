@@ -32,7 +32,10 @@ def model_and_bundle(tmp_path, monkeypatch=None, missing_latest=False):
         monkeypatch.setattr(
             study_peers,
             "load_daily_prices",
-            lambda *a: (peer, {"provider": "public_daily_prices", "session_close_times": times}),
+            lambda *a, **kw: (
+                peer,
+                {"provider": "public_daily_prices", "session_close_times": times},
+            ),
         )
     bundle = prepare_related_prices(
         model.data,
@@ -134,7 +137,10 @@ def test_missing_historical_peer_rejects_selection_without_dropping_rows(tmp_pat
     monkeypatch.setattr(
         study_peers,
         "load_daily_prices",
-        lambda *a: (peer, {"provider": "public_daily_prices", "session_close_times": cutoffs}),
+        lambda *a, **kw: (
+            peer,
+            {"provider": "public_daily_prices", "session_close_times": cutoffs},
+        ),
     )
     before = model.train.copy(), model.origins.copy()
     bundle = prepare_related_prices(
@@ -162,7 +168,10 @@ def test_discovered_peer_is_usable_but_remains_unverified(tmp_path, monkeypatch)
     monkeypatch.setattr(
         study_peers,
         "load_daily_prices",
-        lambda *a: (peer, {"provider": "public_daily_prices", "session_close_times": cutoffs}),
+        lambda *a, **kw: (
+            peer,
+            {"provider": "public_daily_prices", "session_close_times": cutoffs},
+        ),
     )
     bundle = prepare_related_prices(
         model.data,
@@ -186,7 +195,7 @@ def test_failed_sources_budget_and_simulated_symbols_are_explicit(tmp_path, monk
     model, _ = model_and_bundle(tmp_path)
     calls = []
 
-    def unavailable(symbol, directory):
+    def unavailable(symbol, directory, **kwargs):
         calls.append(symbol)
         raise ValueError("Unsupported exchange")
 

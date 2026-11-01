@@ -70,6 +70,12 @@ each hypothesis and distinguish **fitted**, **not selected**, and **unavailable*
 Citations explain the research rationale, not the size of a source's effect on prediction.
 Current articles are never backdated into historical features.
 
+Choose a prediction horizon with `--horizon-sessions 5`, `20` or `60` (trading
+sessions; default: 5). The workbench provides the same selector. Each run keeps one
+horizon through prediction, strategy evaluation and later observation; history
+feedback is separated by horizon. Longer runs collect additional price history and
+require a published future calendar. See [prediction horizons](docs/connected_research_study.md#prediction-horizon).
+
 To let business hypotheses select revenue growth, operating-margin and cash-flow factors:
 
 ```bash
@@ -262,7 +268,7 @@ at a time.
 | Models in the product loop | LightGBM by default; `research-study --model ridge` uses a regularized linear alternative with training-only scaling on the same feature/maturity path. Two actual fits reuse development feedback; neither choice implies independent improvement |
 | Actual Qlib workflow | Optional `research-study --compare-qlib` runs upstream DatasetH/LGBModel on the selected common inputs, with one additional fit, local recorder and shared costed account comparisons. This does not compare Qlib's portfolio engine or autonomous research |
 | Study factor proposals | Momentum, mean return, local Qlib-style ROC/MA, trailing log-return volatility and eligible archived headline counts can enter the feature matrix. The LLM can also select related-price recipes from the run-local catalog; no arbitrary generated code |
-| Daily prices in the product loop | Collect once or reuse verified daily evidence; report development errors separately from the latest-bar five-session forecast, whose outcome is unobserved |
+| Daily prices in the product loop | Collect once or reuse verified daily evidence; report development errors separately from the latest-bar forecast at the selected horizon, whose outcome is unobserved |
 | Bounded research workflow | One profile runs bounded discovery, costed per-fold strategy/buy-and-hold reports and linked forecast/paper observation; feedback uses development forecast MAE only |
 | Five-session price forecasting | Available for explicitly supported sources/markets; includes collection, fixed-model research, model sealing and replay |
 | Prospective forecast observation | Offline registration and append-only outcome settlement from observed market receipts; real prospective accumulation and outcome-driven policy updates remain outstanding |

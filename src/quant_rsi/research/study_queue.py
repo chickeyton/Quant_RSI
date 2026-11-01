@@ -33,6 +33,7 @@ def study_options(options):
         "max_fits": None,
         "patience": None,
         "selection_metric": "mae",
+        "horizon_sessions": 5,
     }
     if not isinstance(options, dict) or set(options) - defaults.keys():
         raise ValueError("Unexpected study options")
@@ -46,6 +47,8 @@ def study_options(options):
     ):
         if not isinstance(result[key], str) or result[key] not in allowed:
             raise ValueError("Unsupported provider, model, data mode or selection metric")
+    if type(result["horizon_sessions"]) is not int or result["horizon_sessions"] not in (5, 20, 60):
+        raise ValueError("Prediction horizon must be 5, 20 or 60 trading sessions")
     model = result["llm_model"]
     if (
         not isinstance(model, str)
@@ -94,6 +97,7 @@ def study_arguments(task, workspace, symbol, options):
         ("max_fits", "max-fits"),
         ("patience", "patience"),
         ("selection_metric", "selection-metric"),
+        ("horizon_sessions", "horizon-sessions"),
     ):
         if options[key] is not None:
             arguments += ["--" + flag, str(options[key])]

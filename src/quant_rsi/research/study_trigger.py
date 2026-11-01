@@ -26,6 +26,7 @@ def refresh_evidence(task, manifest):
             "max_fits",
             "patience",
             "selection_metric",
+            "horizon_sessions",
             "news_research",
             "financials",
             "financials_source",
@@ -41,7 +42,9 @@ def refresh_evidence(task, manifest):
     }
     if mode == "daily":
         prices = task / "preflight/prices"
-        snapshot = collection_snapshot(symbol, prices)
+        snapshot = collection_snapshot(
+            symbol, prices, horizon_sessions=manifest.get("horizon_sessions", 5)
+        )
         observe_prices(history, symbol, snapshot)
         evidence["prices"] = {k: snapshot[k] for k in ("dates", "opens", "closes")}
         arguments += ["--prices-dir", str(prices)]
@@ -75,7 +78,9 @@ def refresh_evidence(task, manifest):
             arguments += ["--financials-dir", str(directory)]
     evidence["matured"] = [
         {k: entry[k] for k in ("study_id", "status", "metrics")}
-        for entry in mature_feedback(history, symbol)["entries"]
+        for entry in mature_feedback(
+            history, symbol, horizon_sessions=manifest.get("horizon_sessions", 5)
+        )["entries"]
     ]
     fingerprint = digest(canonical(evidence))
     previous = None

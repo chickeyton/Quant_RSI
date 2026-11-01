@@ -137,6 +137,91 @@ server cancellation or reconcile billing. A local response followed by interrupt
 before checkpoint commit may be requested again on explicit continuation. Completed
 checkpoints and previous attempt records remain intact; there is no exactly-once claim.
 
+## Prediction horizon
+
+The study supports one target horizon per run: 5 (default), 20 or 60 **trading
+sessions**. The workbench form, saved templates and task history expose the same
+setting. For example:
+
+```bash
+quant-rsi research-study KO --horizon-sessions 20 --news-research --financials \
+  --output /tmp/ko-20-session-study
+```
+
+The horizon reaches the LLM context, training labels, maturity exclusions,
+reserved-terminal split, latest target date, strategy replay and later outcome
+observation. Both native estimators and the optional Qlib comparison use it.
+The target is still close-to-close log return; changing the prediction horizon
+does not change factor lookback windows or make the strategy hold each trade for
+exactly that many sessions. Trades follow the existing next-open signal policy.
+
+Fresh daily collections retain 120, 165 or 285 completed sessions respectively.
+The extra history preserves the training allowance while separating training,
+development and terminal label intervals. Longer studies request two years of
+source bars and require a published exchange calendar covering the full future
+horizon. Missing 2025 historical sessions can use the official
+[NYSE archive table](https://ir.theice.com/press/news-details/2024/NYSE-Group-Announces-2025-2026-and-2027-Holiday-and-Early-Closings-Calendar/default.aspx)
+or [Nasdaq 2025 calendar](https://www.nasdaqtrader.com/content/technicalsupport/2025tradingcalendar.pdf).
+Both documents are downloaded and retained with their hashes. The Nasdaq grid's
+10 scheduled closures and three 13:00 early closes are a reviewed transcription
+bound to SHA-256 `fb761082d449ef76461d2ca8448ccebb79862a0acd124fad2e914469c9086037`;
+changed bytes require review. These annual schedules do not certify emergency
+closures; missing expected price sessions still fail. Each exchange uses its own
+source. The old Nasdaq URL containing `2025holidayandtradinghours.pdf` redirects
+to a 2026 document and is deliberately not used for historical dates.
+
+Unsupported calendar years or missing history fail explicitly. On 2026-11-01,
+real KO 60-session input checks succeeded with 285 bars; AAPL 60-session checks
+stopped because the current Nasdaq source did not cover the 2027 target year.
+This is an explicit data-coverage limit, not a synthetic fallback. Related-price
+features need the longer historical window but only the normal five-session future
+calendar, because they do not publish a separate long-horizon forecast.
+
+Old short collections are preserved; use a fresh output or `--prices-dir` for a
+longer study. Later observation receipts may use the normal one-year chart request
+and omit the registered historical-calendar download. Other endpoints and settings
+remain bound, and every session in the published forecast interval must still
+match its frozen calendar.
+
+Mature feedback and remembered recipes are filtered by symbol **and horizon**.
+The workbench still displays all studies, with their horizons labelled. Existing
+five-session artifacts keep their original identities. A resumed study uses its
+saved horizon and cannot switch it while reusing fits.
+
+This is configurable single-horizon research, not simultaneous multi-horizon
+optimization or a weighted score. Longer horizons do not establish better
+predictions. Quarterly business factors may motivate a longer target, but their
+usefulness still requires observation. Retrospective development and terminal
+results retain the existing news/LLM knowledge limitations.
+
+### Horizon integration observations (2026-11-01)
+
+A real Codex active-news study on KO used 285 public daily bars, retained official
+issuer financials and actual LightGBM fits at a 60-session horizon. It completed
+two news searches and read one of four attempted articles; failures remain in the
+report. The initial factors included operating-margin change and the KO/KOF
+composition. Feedback led to revenue growth, a moving-average recipe and
+20-session volatility while retaining the composition. Development MAE changed
+from 1.3902 to 1.3355 (unchanged-price baseline 6.4880), so round two was selected.
+Both strategies and buy-and-hold returned 5.89% with net Sharpe 0.9409 over the
+same 79 daily returns. The ten reserved-terminal observations had selected-model
+MAE 2.8089 versus 6.3300 for unchanged price. The latest forecast targets
+2027-01-28 from 2026-10-30 and remains unobserved.
+
+A separate AAPL 20-session study used a **simulated researcher**, actual issuer
+RSS/financial data, public prices and real native/Qlib fits. Initial and revised
+development MAE were 14.7887 and 15.7833; the initial model was retained. Its
+strategy return was -1.14% against 0.35% buy-and-hold, despite a better forecast
+MAE than unchanged price. The selected native and upstream Qlib predictions matched
+on both development and terminal rows. The common-input hash was
+`89af464581eca09f788efc706566ebfc7f04440ae997e5f0fdfe42038199c3cc`.
+
+These runs demonstrate the connected interfaces and preserve negative outcomes.
+They do not establish predictive gains: current news and pretrained LLM knowledge
+were not isolated from historical outcomes, and development feedback was reused.
+The Qlib comparison holds model and inputs equal; it is not an independent research
+strategy comparison. No elapsed-market outcome is claimed for either latest forecast.
+
 ## Financial business factors
 
 ```bash
@@ -437,7 +522,7 @@ moves development and training earlier, so results differ from older default stu
 
 The interval is written to `evaluation_plan.json` before news/LLM research. The last
 development label **and strategy account valuation** precede the first terminal origin;
-the five-session horizon is accounted for in the split. News/peer eligibility and
+the selected prediction horizon is accounted for in the split. News/peer eligibility and
 research masks use training/development availability, not terminal availability.
 
 After the last research decision, `selected_attempt.json` records the chosen round,
@@ -925,7 +1010,7 @@ quant-rsi research-study KO --output /tmp/ko-study-next --news-archive /tmp/ko-n
 ```
 
 The archive stores content-addressed JSON snapshots, deduplicates identical
-content and preserves each source's original `received_at`. Limits are 256 files,
+content and preserves each source's original `received_at`. Limits are 512 files,
 8 MiB total and 512 KiB per file. These recorded receipts are not independently
 authenticated timestamps. The run also saves its original snapshot bundle in
 `news_history.json`; no additional ledger is created.
@@ -1023,7 +1108,7 @@ the feature path; it does not establish news prediction value on market data.
    Recipes receive IDs such as `research.momentum_5`. News recipes follow the
    availability rules above and are recorded even when pending.
 2. Fit the configured model once. All training labels mature strictly before the first
-   evaluation origin. Predict the same set of matured five-session outcomes for
+   evaluation origin. Predict the same set of matured outcomes at the selected horizon for
    the initial and revised attempts.
 3. Report prediction errors against unchanged-price and training-label-mean
    baselines; run the corresponding long/cash strategy and buy-and-hold accounts.

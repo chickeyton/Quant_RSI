@@ -19,13 +19,16 @@ def evaluate_strategy(
     slippage_bps="5",
     initial_cash="10000",
     threshold=0.0,
+    horizon_sessions=5,
 ):
     """Review each supplied close signal; unchanged long signals preserve held units."""
     if symbol not in data.instruments or not predictions or not math.isfinite(threshold):
         raise ValueError("A supported symbol, predictions and finite threshold are required")
     column = data.instruments.index(symbol)
-    signals = _signals(data, column, predictions)
-    first, last = min(signals), max(signals) + 5
+    if type(horizon_sessions) is not int or horizon_sessions not in (5, 20, 60):
+        raise ValueError("Prediction horizon must be 5, 20 or 60 trading sessions")
+    signals = _signals(data, column, predictions, horizon_sessions)
+    first, last = min(signals), max(signals) + horizon_sessions
     costs = dict(commission_bps=commission_bps, tax_bps="0", slippage_bps=slippage_bps)
     rules = AccountRules(
         currency="USD",
@@ -83,9 +86,10 @@ def evaluate_strategy(
         "clock_basis": "MarketData.timestamp simulation, not live or durable submission evidence",
         "policy": "log_return_above_threshold_long_otherwise_cash; hold units until signal changes",
         "threshold": threshold,
-        "prediction_horizon_sessions": 5,
+        "prediction_horizon_sessions": horizon_sessions,
         "execution_note": (
-            "Five-session labels differ from next-open trade intervals. Account quotes are "
+            f"{horizon_sessions}-session labels differ from next-open trade intervals. "
+            "Account quotes are "
             "rounded half-even to 12 decimal places; original model prices are unchanged."
         ),
         "period": {"start": data.dates[first], "end": data.dates[last]},
@@ -94,7 +98,7 @@ def evaluate_strategy(
     }
 
 
-def _signals(data, column, predictions):
+def _signals(data, column, predictions, horizon_sessions=5):
     positions = {session: index for index, session in enumerate(data.dates)}
     result = {}
     for row in predictions:
@@ -112,7 +116,7 @@ def _signals(data, column, predictions):
         except (KeyError, TypeError, ValueError):
             raise ValueError("Invalid prediction fields or session alignment") from None
         if (
-            target != origin + 5
+            target != origin + horizon_sessions
             or (result and origin <= max(result))
             or not all(math.isfinite(value) for value in (reference, predicted, observed, score))
             or min(reference, predicted, observed) <= 0
@@ -121,7 +125,8 @@ def _signals(data, column, predictions):
             or not math.isclose(math.log(predicted / reference), score, abs_tol=1e-9)
         ):
             raise ValueError(
-                "Predictions must be chronological and match five-session price inputs"
+                "Predictions must be chronological and match "
+                f"{horizon_sessions}-session price inputs"
             )
         result[origin] = score
     return result

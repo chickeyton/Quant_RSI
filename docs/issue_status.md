@@ -7,6 +7,9 @@ bindings and finite compositions to the same study. These 11 issues retain their
 unfulfilled acceptance criteria; nearby product features are not substitutes for them.
 Rows for previously closed issues are retained below as historical ownership context.
 
+The 2026-11-01 prediction-horizon follow-up updates the #7 row for the connected
+study only; it is not a new audit or completion of the registered forecast objective.
+
 The earlier #62 implementation added an explicitly selected frozen policy.
 It preserves the old policy and schema-3 recursive-cap semantics, production promotion
 restrictions, and historical run identities. See [exploration rules and verification](research_exploration.md).
@@ -26,7 +29,7 @@ The closure recommendations take effect only after review, required CI and merge
 | [#4](https://github.com/natureofnature/Quant_RSI/issues/4) | Keep open | Confirmatory mode is still blocked as uncalibrated. Development MAE/Sharpe selection supplies no dependence-aware inference or repeated-comparison error budget. |
 | [#5](https://github.com/natureofnature/Quant_RSI/issues/5) | Closed after #62 | Registered `neighbor_exploration_v1` leaves a plateau/exhausted local neighborhood via a deterministic unvisited frontier. Existing checkpoint fields and the attempt/worker budget govern it; real-worker interrupted recovery and read-only replay are tested. Legacy and schema-3 cap policies remain unchanged. |
 | [#6](https://github.com/natureofnature/Quant_RSI/issues/6) | Close the real-data objective connection | Explicit market preparation feeds retained public daily inputs into the original recursive forecast worker and cumulative authority; #17 records a completed market execution, selected model and replay. Historical availability remains an assumption, its forecast was late, and no alpha or independent validation was established. |
-| [#7](https://github.com/natureofnature/Quant_RSI/issues/7) | Keep open | Five-session horizons remain fixed. A weighted multi-horizon task and maturity/mask/allowance rules are not implemented. |
+| [#7](https://github.com/natureofnature/Quant_RSI/issues/7) | Keep open | The connected study supports one preselected 5/20/60-session horizon through native/Qlib models, accounts and observation, subject to calendar coverage. The older registered forecast objective remains five-session; weighted multi-horizon scoring with shared maturity/mask/allowance rules is still missing. |
 | [#8](https://github.com/natureofnature/Quant_RSI/issues/8) | Keep open | Bounded expressions and #61 related-stock return columns are executable. The accompanying study implementation connects shared/local definitions, exact source bindings and instrument-owned compositions to model inputs. Learned intermediate predictors, general causal hierarchies and their evidence/training contracts remain missing. |
 | [#9](https://github.com/natureofnature/Quant_RSI/issues/9) | Keep open | Connected reports include costed target buy-and-hold. The older registered research utility still uses its cash comparator; a predeclared investable-index primary utility is a distinct change. |
 | [#10](https://github.com/natureofnature/Quant_RSI/issues/10) | Keep open | Study reports include daily-return Sharpe and #56 permits preselected Sharpe adoption. The requested C2/C5 risk-adjusted utility and explicit risk eligibility gates remain unimplemented. |

@@ -50,7 +50,7 @@ def test_current_receipt_is_retained_without_becoming_historical_training(tmp_pa
         "latest_target_session": "2020-07-03",
         "session_close_times": [data.timestamp(i, "close") for i in range(len(data.dates))],
     }
-    monkeypatch.setattr(study, "load_daily_prices", lambda *args: (data, info))
+    monkeypatch.setattr(study, "load_daily_prices", lambda *args, **kwargs: (data, info))
     monkeypatch.setattr(study, "issuer_news", lambda *args, **kwargs: deepcopy(current))
     archive = tmp_path / "news"
     for name in ("first", "second"):
@@ -111,7 +111,9 @@ def test_daily_study_rejects_simulated_archive_before_fitting(tmp_path, monkeypa
     data = replace(model.data, instruments=("KO",))
     archive = tmp_path / "simulated"
     retain_snapshot(archive, simulated_history(data, "KO")[0])
-    monkeypatch.setattr(study, "load_daily_prices", lambda *args: (data, {"currency": "USD"}))
+    monkeypatch.setattr(
+        study, "load_daily_prices", lambda *args, **kwargs: (data, {"currency": "USD"})
+    )
     monkeypatch.setattr(study, "issuer_news", lambda *args, **kwargs: {})
     output = tmp_path / "rejected"
     assert main(command(output, archive)) == 1

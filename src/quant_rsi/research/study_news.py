@@ -9,7 +9,8 @@ from urllib.parse import urlsplit
 from quant_rsi.core.artifacts import canonical, decode, digest
 from quant_rsi.market.market_contracts import timestamp, utc_text
 
-MAX_FILES, MAX_BYTES, MAX_FILE_BYTES = 256, 8 * 1024 * 1024, 512 * 1024
+# Longer-horizon studies need more than one trading year of daily snapshots.
+MAX_FILES, MAX_BYTES, MAX_FILE_BYTES = 512, 8 * 1024 * 1024, 512 * 1024
 
 
 def _time(value):

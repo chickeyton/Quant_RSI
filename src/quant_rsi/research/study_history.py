@@ -88,8 +88,8 @@ def _confirm(journal, store, entry):
         )
 
 
-def collection_snapshot(symbol, directory):
-    data, info = load_daily_prices(symbol, directory)
+def collection_snapshot(symbol, directory, *, horizon_sessions=5):
+    data, info = load_daily_prices(symbol, directory, horizon_sessions=horizon_sessions)
     root = Path(directory)
     return {
         "info": {key: value for key, value in info.items() if key != "collection_directory"},
@@ -129,9 +129,15 @@ def register_study(directory, run_root, result, snapshot=None):
             index = next(
                 i for i, s in enumerate(calendar) if s["session_id"] == forecast["origin_session"]
             )
-            sessions = calendar[index : index + 6]
-            if len(sessions) != 6 or sessions[-1]["session_id"] != forecast["target_session"]:
-                raise ValueError("Forecast differs from its retained five-session calendar")
+            horizon = forecast["horizon_sessions"]
+            if type(horizon) is not int or horizon not in (5, 20, 60):
+                raise ValueError("Unsupported forecast horizon")
+            sessions = calendar[index : index + horizon + 1]
+            if (
+                len(sessions) != horizon + 1
+                or sessions[-1]["session_id"] != forecast["target_session"]
+            ):
+                raise ValueError("Forecast differs from its retained horizon calendar")
             publication = {
                 "status": "forecast",
                 "issued_at": now,
@@ -147,6 +153,9 @@ def register_study(directory, run_root, result, snapshot=None):
             "study_id": study_id,
             "run_directory": run_root,
             "symbol": result["configuration"]["symbol"],
+            "horizon_sessions": result["configuration"].get(
+                "horizon_sessions", (forecast or {}).get("horizon_sessions", 5)
+            ),
             "issued_at": now,
             "selected_round": selected,
             "factor_ids": attempt["prediction"]["factor_ids"],
@@ -198,8 +207,25 @@ def _assessment(entry, original, received, now):
             raise ValueError("Observation changed the frozen source provider")
 
     def endpoints(source):
+        from quant_rsi.market.daily_data import NASDAQ_PAST_CALENDAR_URL, NYSE_PAST_CALENDAR_URL
+
         receipt = decode(source["source_files"]["collection_receipt.json"].encode())
-        return [(row["url"], row["response_url"]) for row in receipt["downloads"]]
+
+        # A longer study requests two years instead of one. Only that bounded
+        # range parameter may differ; hosts, paths and every other parameter stay bound.
+        def window_url(url):
+            return re.sub(r"(?<=[?&])range=(?:1y|2y)(?=&|$)", "range=retained_window", url)
+
+        return [
+            (window_url(row["url"]), window_url(row["response_url"]))
+            for row in receipt["downloads"]
+            # A later short receipt need not download the older calendar again.
+            # The full published prediction interval is still matched below.
+            if not (
+                row["url"] in {NASDAQ_PAST_CALENDAR_URL, NYSE_PAST_CALENDAR_URL}
+                and row["response_url"] == row["url"]
+            )
+        ]
 
     if endpoints(original) != endpoints(received):
         raise ValueError("Observation changed the frozen source endpoints")
@@ -230,7 +256,13 @@ def _assessment(entry, original, received, now):
         np.array(prices).reshape(-1, 1),
     )
     row = forecast | {"observed_price": prices[-1], "predicted_log_return": predicted_return}
-    strategy = evaluate_strategy(data, entry["symbol"], [row], **entry["strategy_parameters"])
+    strategy = evaluate_strategy(
+        data,
+        entry["symbol"],
+        [row],
+        horizon_sessions=forecast["horizon_sessions"],
+        **entry["strategy_parameters"],
+    )
     return outcome | {
         "status": "settled",
         "reason": None,
@@ -312,17 +344,26 @@ def history_view(directory, symbol=None):
                     key: latest.get(key)
                     for key in ("status", "reason", "metrics", "strategy", "observed_at")
                 }
-                | {"assessment_count": len(entry["observations"])}
+                | {
+                    "assessment_count": len(entry["observations"]),
+                    "horizon_sessions": entry.get("horizon_sessions", 5),
+                }
             )
         return {"entries": entries[-50:], "notice": NOTICE}
 
 
-def mature_feedback(directory, symbol):
+def mature_feedback(directory, symbol, *, horizon_sessions=5):
     view = history_view(directory, symbol)
+    view["entries"] = [
+        e for e in view["entries"] if e.get("horizon_sessions", 5) == horizon_sessions
+    ]
     return {
         "scope": "previously_issued_forecasts_observed_after_maturity; now_research_feedback",
         "notice": NOTICE,
-        "factor_memory": recent_factor_recipes(directory, symbol),
+        "horizon_sessions": horizon_sessions,
+        "factor_memory": recent_factor_recipes(
+            directory, symbol, horizon_sessions=horizon_sessions
+        ),
         "entries": [e for e in view["entries"] if e["status"] == "settled"][-20:],
         "history": {
             "entries": [
@@ -334,14 +375,18 @@ def mature_feedback(directory, symbol):
     }
 
 
-def recent_factor_recipes(directory, symbol):
+def recent_factor_recipes(directory, symbol, *, horizon_sessions=5):
     """Read selected recipes through retained artifact references, never mutable run paths."""
     if not (Path(directory) / "journal.sqlite").exists():
         return []
     from quant_rsi.research.study_factor_memory import selected_definitions
 
     with _ledger(directory) as (journal, store):
-        entries = [e for e in _entries(journal, store).values() if e["symbol"] == symbol]
+        entries = [
+            e
+            for e in _entries(journal, store).values()
+            if e["symbol"] == symbol and e.get("horizon_sessions", 5) == horizon_sessions
+        ]
         result = []
         for entry in reversed(entries[-5:]):
             definitions = entry.get("factor_definitions")

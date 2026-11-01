@@ -575,7 +575,8 @@ def render_study(result):
     section(
         "Prediction comparison",
         f"{dev['first_evaluation_session']} to "
-        f"{dev['last_evaluation_session']}: overlapping five-session labels, "
+        f"{dev['last_evaluation_session']}: overlapping "
+        f"{first['horizon_sessions']}-session labels, "
         "retrospective development observations. MAPE is price error percent; "
         "direction hit rate is a sample frequency, not confidence or independent accuracy. "
         "Current news and feedback influenced recipe selection. No independent holdout. "

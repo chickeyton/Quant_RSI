@@ -13,8 +13,9 @@ from quant_rsi.research.study_resume import StudyCache, run_lock
 
 
 @pytest.mark.parametrize("estimator", ["lightgbm", "ridge"])
+@pytest.mark.parametrize("horizon", [5, 60])
 def test_resume_keeps_first_fit_and_hypothesis_and_terminal_results(
-    tmp_path, monkeypatch, estimator
+    tmp_path, monkeypatch, estimator, horizon
 ):
     root = tmp_path / "study"
     calls, fits = [], []
@@ -44,7 +45,21 @@ def test_resume_keeps_first_fit_and_hypothesis_and_terminal_results(
             init(self, *args, **kwargs)
 
         monkeypatch.setattr(StandardizedRidge, "__init__", counted)
-    assert main(command(root, "--llm", "simulated", "--model", estimator, "--news-research")) == 1
+    assert (
+        main(
+            command(
+                root,
+                "--llm",
+                "simulated",
+                "--model",
+                estimator,
+                "--news-research",
+                "--horizon-sessions",
+                str(horizon),
+            )
+        )
+        == 1
+    )
     first = (root / "checkpoints/fit_1.json").read_bytes()
     failure = (root / "failure.json").read_bytes()
     assert calls == [False, True] and len(fits) == 1
