@@ -57,6 +57,7 @@ class LightGBMDemo:
         self.news_feature_support = None
         self.peer_features = None
         self.profile_features = None
+        self.financial_features = None
         self._has_predicted = False
         self.library = deepcopy(library)
         self.library["definitions"] = [
@@ -237,6 +238,19 @@ class LightGBMDemo:
             "Current company suggestions inform retrospective selection, not causal evidence."
         )
 
+    def configure_financials(self, bundle):
+        if self._has_predicted or self.financial_features is not None:
+            raise ValueError("Financial features must be configured once before prediction")
+        existing = {item["factor_id"] for item in self.library["definitions"]}
+        if existing.intersection(item["factor_id"] for item in bundle["definitions"]):
+            raise ValueError("Financial factor IDs overlap existing definitions")
+        self.financial_features = deepcopy(bundle)
+        self.library["definitions"].extend(deepcopy(bundle["definitions"]))
+        self.library["execution_note"] += (
+            " Financial ratios are computed from filing-dated retained facts; "
+            "missing rows are not filled or dropped."
+        )
+
     def configure_profile(self, profile):
         if self._has_predicted or self.profile_features is not None:
             raise ValueError("Factor profile must be configured once before prediction")
@@ -306,6 +320,12 @@ class LightGBMDemo:
             result["guidance_feature_support"] = deepcopy(self.guidance_support)
         if self.profile_features is not None:
             result["factor_profile"] = deepcopy(self.library["profile_resolution"])
+        if self.financial_features is not None:
+            result["financial_features"] = {
+                "definitions": deepcopy(self.financial_features["definitions"]),
+                "latest_visible_facts": deepcopy(self.financial_features.get("evidence", [{}])[-1]),
+                "notice": self.financial_features["notice"],
+            }
         return result
 
     def predict(self, context, factors, hypothesis):
@@ -340,6 +360,21 @@ class LightGBMDemo:
         effective = {item["factor_id"]: item for item in factors}
         bound_inputs = []
         for item in factors:
+            if item.get("recipe", {}).get("op") == "financial":
+                retained = next(
+                    (
+                        d
+                        for d in (self.financial_features or {}).get("definitions", [])
+                        if d["factor_id"] == item["factor_id"]
+                    ),
+                    None,
+                )
+                if retained is None or not retained["runnable"] or retained != item:
+                    raise ValueError("Financial factor lacks its exact retained usable source")
+                columns.append(
+                    np.asarray(self.financial_features["columns"][item["factor_id"]], dtype=float)
+                )
+                continue
             if item["factor_id"] in bound:
                 retained = bound[item["factor_id"]]
                 if (
@@ -553,11 +588,26 @@ class LightGBMDemo:
                 "factor_ids": [
                     item["factor_id"]
                     for item in factors
-                    if item["kind"] == "numeric" and item["recipe"].get("op") != "peer_return"
+                    if item["kind"] == "numeric"
+                    and item["recipe"].get("op") not in {"peer_return", "financial"}
                 ],
                 "reason": "target_labels_and_reference_prices",
             }
         ]
+        if self.financial_features is not None:
+            ids = sorted(
+                selected.intersection(
+                    d["factor_id"] for d in self.financial_features["definitions"]
+                )
+            )
+            usage.append(
+                {
+                    "source": "filing_dated_financials",
+                    "status": "used" if ids else "not_selected",
+                    "factor_ids": ids,
+                    "reason": self.financial_features["notice"],
+                }
+            )
         for peer in self.peer_features["support"]:
             used = sorted(selected.intersection(peer["factor_ids"]))
             usage.append(

@@ -293,7 +293,7 @@ def test_codex_discovery_enables_only_search_and_retains_only_tool_metadata(monk
             kwargs["stdout"].write(json.dumps({"type": "item.completed", "item": item}) + "\n")
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr(llm.subprocess, "run", run)
+    monkeypatch.setattr(llm, "run_provider", run)
     result = llm.LLMHypothesizer("codex").search("research", {})
     assert result["text"] == '{"test":true}'
     assert result["search_actions"] == [

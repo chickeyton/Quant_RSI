@@ -52,7 +52,7 @@ def test_codex_cli_runs_both_hypotheses_with_feedback_and_visible_mixed_mode(mon
         )
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr(llm.subprocess, "run", run)
+    monkeypatch.setattr(llm, "run_provider", run)
     assert (
         main(
             [
@@ -167,7 +167,7 @@ def test_codex_failures_stop_cli_without_simulated_fallback(monkeypatch, capsys,
     def run(*args, **kwargs):
         raise failure
 
-    monkeypatch.setattr(llm.subprocess, "run", run)
+    monkeypatch.setattr(llm, "run_provider", run)
     assert main(["research-demo", "--catalog", str(CATALOG), "--llm", "codex"]) == 1
     captured = capsys.readouterr()
     assert message in captured.err and not captured.out

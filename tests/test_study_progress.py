@@ -127,7 +127,7 @@ def test_codex_plain_request_reports_tokens_without_enabling_search(monkeypatch)
             kwargs["stdout"].write(json.dumps(event) + "\n")
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr(llm.subprocess, "run", run)
+    monkeypatch.setattr(llm, "run_provider", run)
     assert llm.LLMHypothesizer("codex", on_usage=events.append).structured("prompt", {}) == "{}"
     assert events == [
         {"mode": "codex", "input_tokens": 100, "cached_input_tokens": 80, "output_tokens": 5}

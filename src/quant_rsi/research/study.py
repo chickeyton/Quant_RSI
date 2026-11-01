@@ -122,6 +122,12 @@ def _configuration(args):
         raise ValueError("Keep study artifacts outside the source checkout")
     if args.news_archive and args.news_archive.resolve().is_relative_to(checkout):
         raise ValueError("Keep news snapshots outside the source checkout")
+    if getattr(args, "financials_dir", None):
+        if not getattr(args, "financials", False):
+            raise ValueError("--financials-dir requires --financials")
+        args.financials_dir = args.financials_dir.resolve()
+        if args.financials_dir.is_relative_to(checkout):
+            raise ValueError("Keep financial snapshots outside the checkout")
     if args.history_dir:
         args.history_dir = args.history_dir.resolve()
         if args.history_dir.is_relative_to(checkout) or args.history_dir == root:
@@ -137,7 +143,7 @@ def _configuration(args):
         model_configuration=estimator_configuration,
         research_rounds=args.rounds,
         fit_budget=fit_budget,
-        comparison_fit_budget=int(compare_external),
+        comparison_fit_budget=int(compare_external) + int(getattr(args, "financials", False)),
         generated_recipes="bounded_price_operators_and_retained_headline_counts",
     )
     return symbol, root, configuration
@@ -475,6 +481,44 @@ def _run(args, symbol, root, configuration, record, progress, cache):
     )
     progress.finish("load_related_prices", {"related": related})
 
+    if getattr(args, "financials", False):
+        from quant_rsi.research.study_financials import (
+            collect_financials,
+            prepare_financials,
+            simulated_financials,
+        )
+
+        progress.start("load_financials")
+        required = [int(i) for i in (*model.train, *model.origins)]
+
+        def financial_inputs():
+            if args.prices == "synthetic":
+                return simulated_financials(symbol, cutoffs, required)
+            try:
+                snapshot = collect_financials(
+                    symbol, args.financials_dir or root / "financials", args.factor_root
+                )
+                return prepare_financials(snapshot, cutoffs, required)
+            except (OSError, ValueError, KeyError) as exc:
+                return {
+                    "definitions": [],
+                    "columns": {},
+                    "notice": "Financial data unavailable: " + str(exc),
+                    "provider": "unavailable",
+                }
+
+        business = cache.call(
+            "financial_features",
+            {"symbol": symbol, "cutoffs": cutoffs, "required": required},
+            financial_inputs,
+        )
+        model.configure_financials(business)
+        _write(root / "financial_features.json", business)
+        progress.finish(
+            "load_financials",
+            {k: v for k, v in business.items() if k not in {"columns", "evidence"}},
+        )
+
     hypothesis_number = 0
 
     def cached_hypothesis(context, library, **kwargs):
@@ -740,6 +784,39 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         result["study"]["conclusion"] += (
             " " + terminal_summary(result["terminal_evaluation"])["text"]
         )
+    if getattr(args, "financials", False):
+        from quant_rsi.research.financial_comparison import compare_financials
+
+        chosen = selection["selected_round"]
+        progress.start("financial_comparison")
+        comparison = cache.call(
+            "financial_comparison",
+            model.comparison_inputs(chosen),
+            lambda: compare_financials(
+                model,
+                chosen,
+                attempts[chosen - 1]["prediction"],
+                {
+                    "commission_bps": args.commission_bps,
+                    "slippage_bps": args.slippage_bps,
+                    "initial_cash": args.initial_cash,
+                    "threshold": args.threshold,
+                },
+            ),
+        )
+        result["study"]["financial_comparison"] = comparison
+        result["study"]["conclusion"] += (
+            f" Financial-feature diagnostic: {comparison['extra_fits']} additional fits "
+            "outside the research fit budget; does not alter selection."
+        )
+        result["study"]["financial_data"] = {
+            k: v for k, v in model.financial_features.items() if k not in {"columns", "evidence"}
+        }
+        _write(root / "financial_comparison.json", comparison)
+        event = {"stage": "financial_comparison", "output": comparison}
+        record(event)
+        result["trace"].append(event)
+
     if getattr(args, "compare_qlib", False):
         from quant_rsi.research.study_qlib import compare_qlib
 

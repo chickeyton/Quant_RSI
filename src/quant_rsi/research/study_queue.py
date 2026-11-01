@@ -26,6 +26,8 @@ def study_options(options):
         "data": "daily",
         "llm_model": "",
         "news_research": True,
+        "financials": False,
+        "only_new_evidence": False,
         "rounds": 2,
         "max_fits": None,
         "patience": None,
@@ -49,8 +51,9 @@ def study_options(options):
         or (result["llm"] == "api" and not model.strip())
     ):
         raise ValueError("API mode requires a model name; credentials come from the environment")
-    if type(result["news_research"]) is not bool:
-        raise ValueError("news_research must be boolean")
+    for key in ("news_research", "financials", "only_new_evidence"):
+        if type(result[key]) is not bool:
+            raise ValueError(key + " must be boolean")
     if result["max_fits"] is None:
         result["max_fits"] = result["rounds"]
     for key in ("rounds", "max_fits", "patience"):
@@ -98,6 +101,8 @@ def study_arguments(task, workspace, symbol, options):
         arguments += ["--llm-model=" + options["llm_model"]]
     if options["news_research"]:
         arguments += ["--news-research"]
+    if options["financials"]:
+        arguments += ["--financials"]
     return arguments
 
 
@@ -130,7 +135,19 @@ def run_task(task):
             observe_task(task, manifest)
             code = 0
         else:
-            code = main(manifest["arguments"])
+            arguments = manifest["arguments"]
+            skip = False
+            if manifest.get("only_new_evidence") and arguments[0] == "research-study":
+                from quant_rsi.research.study_trigger import refresh_evidence
+
+                trigger, arguments = refresh_evidence(task, manifest)
+                atomic_write(task / "trigger.json", canonical(trigger))
+                skip = bool(trigger["previous_completed_task"]) and not manifest.get("force", False)
+            if skip:
+                state.update(status="skipped", reason="unchanged_evidence", exit_code=0)
+                atomic_write(task / "worker.json", canonical(state | {"finished_at": time.time()}))
+                return 0
+            code = main(arguments)
         state.update(status="completed" if code == 0 else "failed", exit_code=code)
     except Exception as exc:
         state.update(status="failed", error=str(exc), exit_code=1)

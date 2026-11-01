@@ -1,0 +1,8 @@
+{
+  "symbol": "AAPL",
+  "cik": "320193",
+  "fields": {
+    "revenue": ["RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet"],
+    "operating_income": ["OperatingIncomeLoss"]
+  }
+}

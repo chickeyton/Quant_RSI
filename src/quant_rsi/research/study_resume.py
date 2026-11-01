@@ -2,6 +2,7 @@
 
 import fcntl
 import json
+import os
 import platform
 import shutil
 from argparse import Namespace
@@ -11,6 +12,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 from quant_rsi.core.artifacts import atomic_write, canonical, digest
+from quant_rsi.research.provider_process import STUDY_ROOT, provider_lock
 
 
 def binding(configuration):
@@ -39,9 +41,15 @@ def run_lock(root):
             fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise ValueError("This study is already running") from None
+        token = None
         try:
+            probe = provider_lock(root)
+            os.close(probe)
+            token = STUDY_ROOT.set(root)
             yield
         finally:
+            if token is not None:
+                STUDY_ROOT.reset(token)
             fcntl.flock(stream, fcntl.LOCK_UN)
 
 
@@ -65,6 +73,7 @@ def resume_arguments(root, *, ui=False):
         "related_prices_dir",
         "history_dir",
         "news_archive",
+        "financials_dir",
     ):
         if config.get(name) is not None:
             config[name] = Path(config[name])

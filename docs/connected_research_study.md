@@ -42,8 +42,9 @@ per workbench; additional tasks wait durably. Failed workers do not block the qu
 This is a local single-user tool, not a hosted job service.
 
 **Queue research** starts one watchlist cycle. **Save template** persists its name,
-watchlist, settings and optional 1–168 hour recurring interval. **Run now** starts a
-saved template immediately, even if its schedule is paused. Saving/enabling/editing
+watchlist, settings and optional 1–168 hour recurring interval. **Check & run** starts a
+saved template immediately and respects its evidence setting; **Force run** repeats
+research even on unchanged evidence. Both work while scheduling is paused. Saving/enabling/editing
 schedules the next cycle one interval from that action; it does not run immediately.
 Recurring runs can consume real service/API budgets and require explicit enablement.
 **Pause schedule** stops future cycles; cancel already queued tasks separately if needed.
@@ -63,7 +64,22 @@ inputs are never treated as real matured outcomes. Collection failures remain fa
 tasks and do not manufacture outcomes or block research/other symbols. The existing
 study path also observes its freshly collected prices and passes only settled outcomes
 to the LLM as prior feedback. A later news/LLM failure cannot erase completed observations.
-Research still runs when no forecasts have matured; its context retains the pending states.
+New-evidence mode checks prices (including revisions), the newest selected target/related
+issuer RSS items, quarterly financial facts when enabled, and settled forecast outcomes.
+It also fingerprints research settings, source/profile files and runtime dependencies.
+Receipt timestamps and new pending forecasts alone do not trigger research. A matching
+previous **completed** task causes a visible `skipped / unchanged_evidence` result before
+LLM calls or fits; failed tasks do not consume the trigger. Source-check failures remain
+failed tasks, never false "unchanged" results. `trigger.json` and `preflight/` retain the
+decision evidence; checked prices/financials are reused by that study. RSS is fetched
+again by the ordinary research path and may change in between.
+
+This setting defaults on in the new browser form, off for legacy API/options/templates.
+It is a periodic public-data check, not a trading-calendar close event or an exhaustive
+web-news monitor. New web-only articles outside the selected RSS window may require
+**Force run**. Observation still runs before this gate. Local notices show the latest
+five completion, failure, interruption or skip transitions while the page is open;
+they do not send email, push notifications or monitor a stopped server.
 
 The comparison table shows each selected round's development MAE, unchanged-price MAE,
 net Sharpe with daily sample count, net return, buy-and-hold and terminal availability.
@@ -103,6 +119,86 @@ The fit allowance bounds logical candidate fits, not failed transport/fit attemp
 Completed runs are immutable. Runs from older versions without checkpoints cannot be resumed;
 code, profile, configuration or bound-input changes require a fresh study. Keep the original
 checkout/runtime available to continue an old interrupted run after an upgrade.
+
+### Local Codex operation ownership
+
+On Linux, each local Codex request has a small guardian process holding a separate
+`.provider.lock`. Normal study unlock, Ctrl-C and owner SIGKILL cannot release that
+operation's ownership. A continuation refuses while the guardian is cleaning up.
+Timeout/owner loss terminate the provider process group and adopted detached descendants;
+TERM escalates to KILL after 250 ms. Offline fixtures must disappear within five seconds.
+If the OS cannot reap a process, the guardian keeps ownership rather than allowing an
+overlapping retry. This does not provide a distributed lease or protection against
+independently killing the guardian itself.
+
+`provider_attempts/*.json` retains local start/finish/failure state without prompts or
+credentials. `remote_completion` remains `unknown`: local termination cannot prove
+server cancellation or reconcile billing. A local response followed by interruption
+before checkpoint commit may be requested again on explicit continuation. Completed
+checkpoints and previous attempt records remain intact; there is no exactly-once claim.
+
+## Financial business factors
+
+```bash
+# Real public sources; identify your application/contact to SEC where required:
+export SEC_USER_AGENT='Your application and contact address'
+quant-rsi research-study KO --news-research --financials --output /tmp/ko-business-study
+# Same pipeline, explicitly simulated inputs, real model fits:
+quant-rsi research-study AAPL --financials --llm simulated --prices synthetic \
+  --news simulated --related simulated --model ridge --no-ui --output /tmp/aapl-business-offline
+```
+
+`--financials` collects the official [SEC company-facts API](https://www.sec.gov/search-filings/edgar-application-programming-interfaces).
+`instruments/US/{KO,AAPL}/financials.json` holds company CIK and ordered US-GAAP tag
+mappings. The shared implementation computes `financial.revenue_yoy`,
+`financial.operating_margin` and `financial.operating_margin_yoy` (year-over-year margin
+change), adds runnable definitions to the existing LLM factor library, executes selected
+columns in the existing model, and allows revision after the same error/strategy feedback.
+The LLM selects ratios; it does not invent their numerical values. Synthetic mode uses
+explicitly marked fixtures through the same parser/calculations.
+
+The collector retains `financials/snapshot.json`: raw company facts, content hash, mapping,
+provider URL and receipt time. `--financials-dir PATH` reuses that retained snapshot after
+symbol/CIK/mapping/hash validation. It requires `--financials` and a path outside the
+checkout. `financial_features.json` records per-session values, chosen fact accessions,
+reporting periods, filing dates, cutoff and missing reasons. Runtime/configuration
+identity and completed receipts follow the existing resume contract.
+
+Only directly reported 70–110 day USD quarters from 10-Q/10-K filings and amendments
+are eligible. Annual/YTD values are not converted, so Q4 may be absent. A date-only
+filing becomes available at **05:00 UTC the following day**, after the entire Eastern
+filing date; fiscal-period end is never treated as publication time. Later amendments
+cannot affect earlier cutoffs. The latest visible quarter must be no more than 270 days
+old; the comparable prior-year period must match within 15 days (350–380 days apart).
+Revenue/income used for a margin must share the period and accession. Ambiguous values
+are unavailable. No quarterly interpolation, row dropping or zero imputation is used.
+
+The fixed train/development rows determine each ratio's eligibility. Missing terminal
+or latest values retain the existing unavailable-prediction behavior. This is a
+retrospective reconstruction from today's retained SEC dataset, **not** a complete
+point-in-time vendor archive or independent evidence of predictive gain. Restatements,
+tag coverage and missing reported quarters limit coverage. Unsupported stocks or SEC
+access errors (including 403) produce an explicit unavailable financial section; the
+ordinary study can continue without those columns. In new-evidence mode, a failed
+preflight source check fails that task instead of treating missing data as unchanged.
+
+After selection, if the selected fit contains financial and nonfinancial columns, one
+additional diagnostic fit removes only the financial columns, retaining identical
+training/development sessions, labels, estimator settings and cost policy. The report
+compares price MAE, net return and Sharpe, saves `financial_comparison.json`, and declares
+the extra fit separately from `--max-fits`. It does not alter selection, the frozen
+terminal evaluation or the latest forecast. No applicable selected columns means zero
+extra fits and an explicit reason. `--compare-qlib` remains independent and can add its
+own declared fit.
+
+Validation for this addition uses offline fixture data and actual Ridge/LightGBM fits,
+actual CLI/Codex-transport fault fixtures, and a two-stock workbench repeat/force cycle.
+Live SEC requests for both KO and AAPL returned HTTP 403 in the implementation environment;
+no successful live SEC-to-model result is claimed. A real Codex session did complete
+two hypothesis calls over simulated prices/news/financials with real Ridge fits: it
+selected revenue growth initially and margin change after feedback, then retained
+the initial round because development MAE worsened. The separate financial-column
+removal diagnostic also completed. This is mixed-mode integration evidence only.
 
 ## Nasdaq example: AAPL
 
