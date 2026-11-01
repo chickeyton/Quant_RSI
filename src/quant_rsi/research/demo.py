@@ -96,6 +96,18 @@ def simulated_hypothesis(context, library, *, previous=None, feedback=None):
         ]
         if guidance and previous is None:
             factors.append(guidance[0]["factor_id"])
+        business = [
+            d
+            for d in library["definitions"]
+            if d.get("runnable") and d.get("recipe", {}).get("op") == "financial"
+        ]
+        if business:
+            chosen = business[-1] if previous else business[0]
+            factors.append(chosen["factor_id"])
+            reason += (
+                " SIMULATED business hypothesis tests reported growth, then revises the "
+                "financial ratio after feedback."
+            )
         peers = [
             item
             for item in library["definitions"]

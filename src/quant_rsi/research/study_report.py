@@ -78,7 +78,8 @@ def render_study(result):
     )
     section(
         "What ran",
-        f"{iterations['completed_fits'] if iterations else 2} model fits and a fixed development "
+        f"{iterations['completed_fits'] if iterations else 2} research model fits "
+        "and a fixed development "
         "window. Results include failed or missing source coverage. No orders were sent.",
     )
     if iterations:
@@ -642,6 +643,36 @@ def render_study(result):
         )
     else:
         section("Forecast availability", "Synthetic run: no real-market latest forecast.")
+    financial = result["study"].get("financial_comparison")
+    if financial:
+        section("Financial business factors", result["study"]["financial_data"]["notice"])
+        table(
+            ["Factor", "Available", "Missing fixed rows", "Definition"],
+            [
+                [d["factor_id"], d["runnable"], d["missing_required_rows"], d["description"]]
+                for d in result["study"]["financial_data"]["definitions"]
+            ],
+        )
+        section("With / without financial factors", financial["notice"])
+        section("Financial diagnostic cost", f"{financial['extra_fits']} additional fits.")
+        if financial["status"] == "completed":
+            table(
+                ["Model inputs", "Price MAE", "Net return", "Sharpe"],
+                [
+                    [
+                        label,
+                        financial[key]["forecast"]["mae_price"],
+                        financial[key]["strategy"]["net_return"],
+                        financial[key]["strategy"]["sharpe_ratio"],
+                    ]
+                    for key, label in (
+                        ("with_financials", "Selected + financials"),
+                        ("without_financials", "Same model settings, financials removed"),
+                    )
+                ],
+            )
+        else:
+            section("Financial comparison availability", financial["reason"])
     comparison = result["study"].get("qlib_comparison")
     if comparison:
         section("Actual Qlib workflow comparison", comparison["notice"])

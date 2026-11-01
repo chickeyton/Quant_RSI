@@ -1,0 +1,8 @@
+{
+  "symbol": "KO",
+  "cik": "21344",
+  "fields": {
+    "revenue": ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"],
+    "operating_income": ["OperatingIncomeLoss"]
+  }
+}

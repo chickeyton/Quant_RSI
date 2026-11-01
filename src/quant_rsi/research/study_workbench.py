@@ -80,6 +80,8 @@ class Workbench:
             and status in {"failed", "interrupted"}
             and (study / "checkpoints/identity.json").exists(),
             "reused_operations": runtime.get("reused_operations", 0),
+            "reason": worker.get("reason"),
+            "finished_at": worker.get("finished_at"),
             "observation_reason": _read_json(task / "observation.json", {}).get("reason"),
         }
 
@@ -116,7 +118,9 @@ class Workbench:
             # Do not LOCK_UN: the child owns the same open file description.
             os.close(fd)
 
-    def _enqueue(self, symbol, options, *, action="research", plan_id=None, batch_id=None):
+    def _enqueue(
+        self, symbol, options, *, action="research", plan_id=None, batch_id=None, force=False
+    ):
         task = self.tasks / secrets.token_hex(12)
         task.mkdir()
         manifest = options | {
@@ -127,6 +131,7 @@ class Workbench:
             "queue_state": "queued",
             "plan_id": plan_id,
             "batch_id": batch_id,
+            "force": force,
             "arguments": study_arguments(task, self.root, symbol, options),
         }
         atomic_write(task / "task.json", canonical(manifest))
@@ -141,14 +146,14 @@ class Workbench:
         self.tick()
         return self.item(task)
 
-    def batch(self, symbols, options, *, plan_id=None):
+    def batch(self, symbols, options, *, plan_id=None, force=False):
         symbols, options = watchlist(symbols), study_options(options)
         batch_id = secrets.token_hex(12)
         tasks = []
         for symbol in symbols:
             for action in ("observe", "research"):
                 task = self._enqueue(
-                    symbol, options, action=action, plan_id=plan_id, batch_id=batch_id
+                    symbol, options, action=action, plan_id=plan_id, batch_id=batch_id, force=force
                 )
                 tasks.append(self.item(task))
         return {"batch_id": batch_id, "tasks": tasks}
@@ -190,7 +195,7 @@ class Workbench:
         atomic_write(self.plans_file, canonical(plans))
         return plan
 
-    def run_plan(self, plan_id):
+    def run_plan(self, plan_id, *, force=False):
         plans = self.plans()
         plan = next((p for p in plans if p["id"] == plan_id), None)
         if plan is None:
@@ -200,7 +205,7 @@ class Workbench:
             for t in self.listing()
         ):
             raise ValueError("This template already has unfinished queued or running tasks")
-        batch = self.batch(plan["symbols"], plan["options"], plan_id=plan_id)
+        batch = self.batch(plan["symbols"], plan["options"], plan_id=plan_id, force=force)
         plan.update(
             next_run=time.time() + plan["interval_hours"] * 3600, last_batch=batch["batch_id"]
         )
@@ -410,8 +415,13 @@ def make_server(workbench, token, port=0):
                     result = workbench.save_plan(options)
                 elif re.fullmatch(r"plans/[0-9a-f]{24}", route):
                     result = workbench.save_plan(options, route.split("/")[1])
-                elif re.fullmatch(r"plans/[0-9a-f]{24}/run", route) and options == {}:
-                    result = workbench.run_plan(route.split("/")[1])
+                elif re.fullmatch(r"plans/[0-9a-f]{24}/run", route) and options in (
+                    {},
+                    {"force": True},
+                ):
+                    result = workbench.run_plan(
+                        route.split("/")[1], force=options.get("force", False)
+                    )
                     workbench.tick()
                 elif re.fullmatch(r"tasks/[0-9a-f]{24}/retry", route) and options == {}:
                     result = workbench.retry(route.split("/")[1])

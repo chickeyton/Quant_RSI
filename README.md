@@ -29,6 +29,12 @@ requires the workbench server to stay running; closing the browser is fine.
 The durable queue, history and **Continue study** controls survive reopening the
 same workspace. Comparison tables keep development metrics separate from matured
 forecast outcomes. API credentials stay in the server environment.
+The form can enable **filing-dated financial factors** and, by default for new form
+submissions, **research only on new evidence**. Unchanged prices, selected issuer news,
+quarterly filings and matured outcomes skip the study before paid calls; collection
+failures stay visible. Saved templates offer **Check & run** and **Force run**. Local
+completion/failure notices appear while the page is open. Existing saved options keep
+their previous behavior until edited.
 See [task operations and recovery](docs/connected_research_study.md#local-workbench-and-recovery).
 
 
@@ -54,6 +60,20 @@ failures and recovery queries stay visible. The UI and report connect cited news
 each hypothesis and distinguish **fitted**, **not selected**, and **unavailable** factors.
 Citations explain the research rationale, not the size of a source's effect on prediction.
 Current articles are never backdated into historical features.
+
+To let business hypotheses select revenue growth and operating-margin factors:
+
+```bash
+quant-rsi research-study KO --news-research --financials --output /tmp/ko-business-study
+```
+
+KO and AAPL have SEC company-facts mappings; calculations are shared. The report shows
+availability, selected factors, MAE/Sharpe and a same-row diagnostic with financial
+columns removed (up to **one additional fit**, separate from the research budget).
+Only reported quarterly USD facts available by each feature cutoff are used. Missing
+facts disable the affected factor; they are not invented or filled with zero. Access
+to SEC may be denied in some environments; that is reported as unavailable. See the
+[financial data contract and offline example](docs/connected_research_study.md#financial-business-factors).
 
 XOM also has a complete study configuration, using its official issuer RSS and
 a dated CVX business relationship. Run the same flow with
@@ -230,7 +250,7 @@ at a time.
 | Candidate factor execution | Opt-in [Qlib ROC and MA close-price adapters](docs/candidate_factor_runtime.md) feed bounded discovery; the remaining survey candidates are not executable |
 | Dynamic event factors | Registered title instances, observed lifecycle transitions, decay and archival; KO RSS observations can enter this path |
 | Multi-branch factor discovery | CALM is a worked specification; its factor tree is not executable |
-| News and financial evidence | Retained KO title indicators can enter opt-in comparisons/discovery; other evidence remains sidecar-only |
+| News and financial evidence | Retained title/guidance features and opt-in filing-dated KO/AAPL revenue/margin factors can enter connected-study training; availability and current-context-only evidence are disclosed |
 | News collection and extraction | [Bounded KO official RSS observations](docs/news_collection.md), retained-title extraction and revision tracking; the study adds current search/page text for hypotheses. The [first news-factor slice](docs/news_factor_slice.md) is implemented; general historical text-feature extraction remains under #8/#39 B |
 | Statistical confirmation and promotion | Incomplete; protected evaluation is engineering-only and retains the incumbent |
 | Intraday bars, model and IBKR paper trading | Standalone, offline-tested: IBKR adapter with a paper-only guard, intraday snapshots, fixed LightGBM development evaluation, replay simulator and paper-account episodes. Not yet wired into the C2/C4/C5 controller or `quant-rsi`; see the [intraday guide](docs/intraday_ibkr.md) |

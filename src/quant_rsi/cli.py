@@ -96,6 +96,12 @@ def main(argv: list[str] | None = None) -> int:
                 type=Path,
                 help="root of retained daily peer collections, one subdirectory per symbol",
             )
+            demo.add_argument(
+                "--financials",
+                action="store_true",
+                help="SEC financial features plus at most one diagnostic ablation fit",
+            )
+            demo.add_argument("--financials-dir", type=Path, help="retained SEC snapshot directory")
             demo.add_argument("--model", choices=("lightgbm", "ridge"), default="lightgbm")
             demo.add_argument(
                 "--compare-qlib",

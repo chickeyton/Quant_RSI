@@ -58,7 +58,7 @@ function group(name){
  if(/^round_\d+_feedback$/.test(name))return 6;
  if(/^round_\d+_(hypothesis|factor_library|factors)$/.test(name))return 7;
  if(/^round_\d+_(prediction|decision)$/.test(name))return 8;
- if(['load_prices','observe_prior_forecasts'].includes(name))return 0;
+ if(['load_prices','load_financials','observe_prior_forecasts'].includes(name))return 0;
  if(['collect_news_context','load_related_prices','target','related_stocks'].includes(name))return 1;
  if(['news','extract_guidance'].includes(name)||/^(news_search_|article_reads_|news_review_)/.test(name))return 2;
  if(name==='initial_hypothesis')return 3;

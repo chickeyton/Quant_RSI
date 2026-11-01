@@ -197,6 +197,31 @@ def _terminal_view(output):
 
 
 def visual_output(stage, output, previous, symbol):
+    if stage == "load_financials":
+        return {
+            "kind": "factors",
+            "factors": _factors(output.get("definitions", [])),
+            "catalog": True,
+            "note": output["notice"],
+        }
+    if stage == "financial_comparison":
+        return {
+            "kind": "engine_comparison",
+            "rows": [
+                {
+                    "window": "development",
+                    "engine": label,
+                    "mae": output[key]["forecast"]["mae_price"],
+                    **_pick(output[key]["strategy"], "net_return", "sharpe_ratio", "max_drawdown"),
+                }
+                for key, label in (
+                    ("with_financials", "Selected + financials"),
+                    ("without_financials", "Financials removed"),
+                )
+                if output["status"] == "completed"
+            ],
+            "note": output["notice"] + f" Additional fits: {output['extra_fits']}.",
+        }
     if stage == "qlib_comparison":
         rows = []
         for segment, values in output["segments"].items():
