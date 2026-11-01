@@ -1,6 +1,7 @@
 """Exercise the real profiling command with tiny offline pytest modules."""
 
 import json
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -9,6 +10,25 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "examples/profile_validation.py"
+
+
+def test_slow_modules_are_separated_without_splitting_or_losing_selected_tests():
+    shard = runpy.run_path(str(SCRIPT))["grouped_shards"]
+    heavy = "tests/test_enhanced_forecast_workflow.py"
+    other_heavy = "tests/test_forecast_usability.py"
+    selectors = [
+        f"{heavy}::first",
+        "tests/test_factor_discovery.py",
+        other_heavy,
+        f"{heavy}::second",
+    ]
+    shards = shard(selectors, 2)
+    assert sorted(sum(shards, [])) == sorted(selectors)
+    owner = next(group for group in shards if f"{heavy}::first" in group)
+    assert f"{heavy}::second" in owner
+    assert other_heavy not in owner
+    assert shard(selectors, 1) == [[selectors[0], selectors[3], selectors[1], selectors[2]]]
+    assert shard([], 2) == []
 
 
 def run_profile(output, *selectors):

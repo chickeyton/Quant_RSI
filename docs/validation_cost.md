@@ -35,8 +35,15 @@ With no selectors, all repository `test_*.py` and `*_test.py` modules under `tes
 are included. Explicit file or node selectors produce focused evidence only.
 Selectors belonging to the same file stay in one process, even if interleaved on
 the command line. If only one module is selected, only one process is needed.
-There is no cross-run fixture cache or duration-based scheduling. Shards can be
-imbalanced; compare measured CPU/setup work as well as wall time.
+Parallel runs schedule whole modules by estimated duration, placing the longest
+first into the least-loaded shard. Thirteen modules have rounded timing hints
+from [successful CI 41346746509](https://github.com/natureofnature/Quant_RSI/actions/runs/41346746509);
+other modules use three seconds, the rounded mean of modules below 30 seconds in
+that run. Hints affect placement only: no tests are omitted and module fixtures
+remain together. Single-process runs preserve selector-group order. There is no
+cross-run fixture cache. Estimates can become stale, and focused node selections
+may take less time than their whole-module hint; compare actual shard durations,
+CPU/setup work and wall time before updating the hints.
 
 CI runs the complete suite through the same command with `--shards 2`, keeping
 each module in one process. This aims to reduce wall time, not total CPU work.
@@ -71,6 +78,23 @@ under five minutes; expensive real-workflow exceptions need actual measurements,
 not a misleading global timeout. Do not translate local timing to a portable SLA.
 
 ## Initial observations
+
+### Whole-module balancing follow-up
+
+The successful calibration run above spent 1,750 and 743 seconds in its two
+shards. A subsequent full run (41350144193, which failed one workbench fixture)
+spent 2,413 and 810 seconds. Reassigning their recorded module times using the
+same hints projects a 27–31% reduction in the longest shard's summed test time.
+This is a scheduling projection, not measured wall-time improvement.
+
+The follow-up target is at least 20% lower full-suite profiling wall time against
+the parent revision's CI run 41354176687, using the same two-process Linux/Python
+3.12 workflow. All tests and required checks remain enabled. Compare actual
+per-shard durations and test outcomes as well as the total; hosted-runner
+contention is uncontrolled, so one comparison cannot establish a stable speedup.
+The complete follow-up CI measurement is pending.
+
+### Original fixture-grouping change
 
 Earlier two-process full runs took about 28 minutes but alternated individual
 node IDs between processes. That repeats module-scoped real-worker fixtures in
