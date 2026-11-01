@@ -14,6 +14,10 @@ const StudyCards = (() => {
   const fmt = (value, digits = 4) => number(value) === null ? 'N/A' : number(value).toFixed(digits);
   const pct = value => number(value) === null ? 'N/A' : `${(number(value) * 100).toFixed(2)}%`;
   const title = key => String(key).replaceAll('_', ' ');
+  const utcTime = value => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Invalid recorded time' : `${date.toISOString().slice(0,16).replace('T',' ')} UTC`;
+  };
   const valueText = value => value == null ? 'Not provided' : Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value) : String(value);
   const note = text => el('p', 'view-note', text || '');
   const badge = (text, cls = '') => el('span', `view-badge ${cls}`, text);
@@ -107,6 +111,11 @@ const StudyCards = (() => {
     const parameters = Object.entries(item.recipe || {}).filter(([key]) => !['op','expression'].includes(key));
     if (parameters.length) card.append(table(['Parameter', 'Value'], parameters.map(([key, value]) => [title(key), key === 'window_days' ? `${value} calendar days` : key === 'window' ? `${value} sessions` : valueText(value)])));
     if (item.input_kind) card.append(note(`Input · ${title(item.input_kind)}`));
+    if (item.reuse_lifetime) card.append(table(['Event recipe lifetime','Value'],[
+      ['First admitted',utcTime(item.reuse_lifetime.created_at)],
+      ['Reuse until',utcTime(item.reuse_lifetime.expires_at)],
+      ['Original news evidence',(item.reuse_lifetime.evidence_news_ids || []).join(', ')]
+    ]));
     if (item.definition_owner) card.append(note(`${title(item.definition_scope)} · ${item.definition_owner} · ${item.definition_id}`));
     if (item.source) card.append(table(['Source','Entity','Field'],[[item.source.source_id,item.source.entity,item.source.field]]));
     if (item.recipe?.expression?.nodes) card.append(table(['Node','Operation','Inputs'],item.recipe.expression.nodes.map(n=>[n.name,n.op,n.leaf || (n.inputs||[]).join(', ')])));

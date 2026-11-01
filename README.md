@@ -41,7 +41,9 @@ Shared study history also retains selected factor recipes. A later study can sel
 those price/news recipes again after checking current inputs; financial, peer and
 composed factors still require their current configured data/bindings. The report shows
 which historical candidates were available and selected again. This is recipe reuse,
-not proof that a previous factor was effective.
+not proof that a previous factor was effective. News proposals may declare a finite
+reuse lifetime for an event-specific hypothesis. New studies exclude expired recipes;
+re-selection never renews the deadline, and old reports and feature values remain intact.
 
 
 

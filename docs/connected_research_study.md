@@ -589,8 +589,8 @@ report table record the source study/result reference, input mode, recipe hash,
 current availability and whether the recipe was selected again. Pending/unavailable
 forecast statuses are shown without invented outcome metrics; only the existing mature
 outcome path supplies observed errors. Unselected candidates remain in retained history.
-This is not a global factor deletion/TTL policy, automatic promotion, or an independent
-assessment of factor effectiveness. Studies without shared history remain isolated.
+This is not global factor deletion, automatic promotion, or an independent assessment
+of factor effectiveness. Studies without shared history remain isolated.
 New memory alone does not count as new external evidence for scheduled research.
 
 A real-service check on 2026-11-01 registered the retained KO study from the financial
@@ -607,6 +607,64 @@ not that reuse improves prediction. Local artifacts are
 `/tmp/quant-rsi-ko-factor-memory-study/` and `/tmp/quant-rsi-factor-memory-real-history/`.
 Offline tests additionally verify unavailable news, recipe conflicts, symbol isolation,
 legacy artifact recovery and unchanged completed study files.
+
+#### Event-specific recipe lifetimes
+
+News proposals declare `reuse_for_hours`: `null` keeps a recurring headline recipe
+reusable; an integer from 1 to 720 limits an event-specific hypothesis. For example,
+the LLM can propose a short-lived hypothesis about a particular earnings release:
+
+```json
+{
+  "name": "release_demand",
+  "keywords": ["demand", "earnings"],
+  "window_days": 7,
+  "description": "Test the demand hypothesis motivated by the supplied release.",
+  "reuse_for_hours": 48
+}
+```
+
+The study freezes `recipe_as_of` in its existing operation cache after collecting
+inputs and before proposing factors. The first admitted definition records this
+clock, its deadline and the hypothesis's supplied news evidence IDs. These IDs document
+the hypothesis context; they do not turn current articles into historical observations.
+`window_days` still controls the historical headline count independently of this
+lifetime. The numerical feature and its receipt-time checks are unchanged.
+
+A new study at or after the original deadline marks that recipe `expired_event_recipe`
+and excludes it from selection, even if current news coverage is complete. Repeated
+selection retains the original deadline. Within the current catalog, re-proposing the same ID cannot change its
+recipe or lifetime, and cannot reactivate it. A new event hypothesis requires a distinct
+name and an explicit proposal with supplied news evidence; automatic semantic identity
+or source-retraction detection is not implemented. The latest-five-study memory
+is not a permanent global reservation of factor names; a separately proposed instance
+after a recipe falls outside that memory has its own recorded admission and evidence. The LLM is instructed not to rename
+an expired recipe just to extend it.
+
+Existing records without a declared lifetime keep their prior behavior. Unselected
+recipes and expired definitions remain in immutable history; no old result, feature
+column or forecast is deleted or rewritten. Resuming an already-admitted study uses
+its original clock and completed fits, including after the deadline, rather than
+changing that study's frozen experiment. A new study checks the current clock again.
+Expiry controls research candidate admission, not broker positions or quality promotion.
+It does not itself trigger scheduled research. Reports and live factor cards show the
+original deadline and expired candidates. These are engineering controls, not proof
+that an event's market effect lasts for the chosen number of hours.
+
+Acceptance on 2026-11-01 used two real Codex sessions with synthetic prices/news and
+actual Ridge training. The recurring-demand fixture selected `reuse_for_hours: null`.
+A separately labelled, fictional two-day plant-maintenance fixture caused Codex to
+propose a 48-hour event recipe, select it for the first fit, and omit it after feedback.
+Both sessions completed two hypothesis calls and two fits. These are transport and
+execution checks, not real company news or market-performance evidence. Artifacts:
+`/tmp/quant-rsi-event-recipe-codex-study/` and
+`/tmp/quant-rsi-event-recipe-codex-fixture-study/`.
+Controlled-clock tests additionally run complete studies across the deadline, preserve
+old results, reject renewal, and resume an interrupted study without changing its
+clock or completed fit. Browser checks cover the lifetime card and expired-candidate
+report table. Actual elapsed-market expiry is not claimed by these fixtures.
+
+#### Source retention and later observations
 
 With shared history, issuer RSS snapshots default to
 `HISTORY/news_archive/real/SYMBOL`; synthetic-price history uses a separate `simulated`

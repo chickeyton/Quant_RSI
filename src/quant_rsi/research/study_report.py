@@ -3,6 +3,7 @@
 import json
 from html import escape
 
+from quant_rsi.market.market_contracts import timestamp
 from quant_rsi.research.study_explanation import continuity, evidence_path
 
 
@@ -14,6 +15,15 @@ def _number(value, percent=False):
     if value is None:
         return "N/A"
     return f"{float(value) * (100 if percent else 1):.4f}" + ("%" if percent else "")
+
+
+def _reuse_deadline(lifetime):
+    if not lifetime or not lifetime.get("expires_at"):
+        return "No expiry declared"
+    try:
+        return timestamp(lifetime["expires_at"]).strftime("%Y-%m-%d %H:%M UTC")
+    except (TypeError, ValueError):
+        return "Invalid recorded deadline"
 
 
 def render_study(result):
@@ -418,11 +428,19 @@ def render_study(result):
     if memory.get("entries"):
         section("Recipes from previous studies", memory["notice"])
         table(
-            ["Factor", "Current availability", "Selected again", "Previous inputs", "Source study"],
+            [
+                "Factor",
+                "Current availability",
+                "Reuse until",
+                "Selected again",
+                "Previous inputs",
+                "Source study",
+            ],
             [
                 [
                     e["factor_id"],
                     e["status"].replace("_", " "),
+                    _reuse_deadline(e.get("reuse_lifetime")),
                     "Yes" if e["selected_in_this_study"] else "No",
                     e["source_input_mode"],
                     e["source_study_id"][:12],
@@ -519,13 +537,14 @@ def render_study(result):
             [[key, value] for key, value in support.items() if key.endswith("rows")],
         )
         table(
-            ["Proposed factor", "Keywords", "Days", "State"],
+            ["Proposed factor", "Keywords", "Days", "State", "Reuse until"],
             [
                 [
                     item["factor_id"],
                     ", ".join(item["recipe"]["keywords"]),
                     item["recipe"]["window_days"],
                     "eligible" if item["runnable"] else "pending",
+                    _reuse_deadline(item.get("reuse_lifetime")),
                 ]
                 for item in news_factors["definitions"]
             ],

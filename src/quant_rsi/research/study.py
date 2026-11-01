@@ -539,8 +539,10 @@ def _run(args, symbol, root, configuration, record, progress, cache):
     )
     progress.finish("load_related_prices", {"related": related})
 
+    from quant_rsi.market.market_contracts import trusted_now
     from quant_rsi.research.study_factor_memory import reuse_recipes
 
+    model.library["recipe_as_of"] = cache.call("recipe_as_of", symbol, trusted_now)
     model.library, factor_memory = reuse_recipes(
         model.library, (prior_outcomes or {}).get("factor_memory", [])
     )

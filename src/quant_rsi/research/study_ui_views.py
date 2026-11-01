@@ -69,6 +69,7 @@ def _factors(items):
             "description",
             "input_kind",
             "recipe",
+            "reuse_lifetime",
             "runnable",
             "availability_reason",
             "reasons",
@@ -200,7 +201,15 @@ def visual_output(stage, output, previous, symbol):
     if stage == "restore_factor_recipes":
         return {
             "kind": "facts",
-            "facts": {e["factor_id"]: e["status"].replace("_", " ") for e in output["entries"]},
+            "facts": {
+                e["factor_id"]: e["status"].replace("_", " ")
+                + (
+                    " · reuse until " + e["reuse_lifetime"]["expires_at"]
+                    if e.get("reuse_lifetime") and "expires_at" in e["reuse_lifetime"]
+                    else ""
+                )
+                for e in output["entries"]
+            },
             "note": output["notice"],
         }
     if stage == "check_inputs":

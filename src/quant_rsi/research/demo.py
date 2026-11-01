@@ -143,6 +143,10 @@ def select_factors(library, hypothesis):
     unknown = set(ids) - definitions.keys()
     if unknown:
         raise ValueError(f"hypothesis selected unknown factors: {sorted(unknown)}")
+    if any(definitions[key].get("availability_reason") == "event_recipe_expired" for key in ids):
+        raise ValueError(
+            "Selected event recipe has expired; its original deadline cannot be renewed"
+        )
     if any(definitions[key].get("runnable") is False for key in ids):
         raise ValueError("Selected factor is pending: insufficient usable historical inputs")
     return [deepcopy(definitions[key]) for key in ids]

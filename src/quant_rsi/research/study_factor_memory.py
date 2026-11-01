@@ -3,14 +3,20 @@
 from copy import deepcopy
 
 from quant_rsi.core.artifacts import canonical, digest
-from quant_rsi.research.demo_proposals import FactorProposal, NewsFactorProposal
+from quant_rsi.research.demo_proposals import (
+    FactorProposal,
+    NewsFactorProposal,
+    news_recipe_expired,
+)
 
 NOTICE = (
     "Recipes from the latest five studies of this symbol, including unobserved forecasts. "
     "Prior selection is not evidence that a factor works. Only settled forecast outcomes "
     "supply observed error feedback. Availability is checked against current inputs; "
     "old feature values and historical runnable flags are never reused. "
-    "Unselected recipes remain historical candidates, not globally deleted factors."
+    "Unselected recipes remain historical candidates, not globally deleted factors. "
+    "Event recipes expire at their original deadline for admission to new studies; "
+    "reuse never renews that deadline or rewrites historical features or forecasts."
 )
 
 
@@ -44,6 +50,9 @@ def reuse_recipes(library, memories):
                 "source_issued_at": memory["issued_at"],
                 "source_outcome_status": memory["outcome_status"],
                 "source_input_mode": memory.get("input_mode", "unknown"),
+                "reuse_lifetime": deepcopy(old.get("reuse_lifetime"))
+                if isinstance(old.get("reuse_lifetime"), dict)
+                else None,
                 "status": "requires_current_binding",
             }
             current = definitions.get(identity)
@@ -51,10 +60,21 @@ def reuse_recipes(library, memories):
                 entry["status"] = (
                     "definition_conflict"
                     if current.get("recipe") != old.get("recipe")
+                    or current.get("reuse_lifetime") != old.get("reuse_lifetime")
                     else "unavailable_current_inputs"
                     if current.get("runnable") is False
                     else "available_in_current_catalog"
                 )
+                if entry["status"] != "definition_conflict":
+                    try:
+                        if news_recipe_expired(current, library.get("recipe_as_of")):
+                            current["runnable"] = False
+                            current["availability_reason"] = "event_recipe_expired"
+                            entry["status"] = "expired_event_recipe"
+                    except (KeyError, TypeError, ValueError):
+                        current["runnable"] = False
+                        current["availability_reason"] = "invalid_event_recipe_lifetime"
+                        entry["status"] = "unsupported_or_invalid_recipe"
             else:
                 try:
                     recipe = old.get("recipe", {})
@@ -66,25 +86,35 @@ def reuse_recipes(library, memories):
                         identity.startswith("news.")
                         and recipe.get("op") == "headline_keyword_count"
                     ):
+                        lifetime = old.get("reuse_lifetime") or {}
+                        if not isinstance(lifetime, dict):
+                            raise ValueError("Invalid remembered news recipe lifetime")
                         current = NewsFactorProposal.model_validate(
                             {
                                 "name": identity.removeprefix("news.").rsplit("_", 1)[0],
                                 "keywords": recipe["keywords"],
                                 "window_days": recipe["window_days"],
                                 "description": old["description"],
+                                "reuse_for_hours": lifetime.get("hours"),
                             }
                         ).definition(library.get("news_feature_support", {}).get("runnable", False))
+                        if old.get("reuse_lifetime") is not None:
+                            current["reuse_lifetime"] = deepcopy(old["reuse_lifetime"])
                     if current is not None:
                         if current["factor_id"] != identity or current["kind"] != old["kind"]:
                             raise ValueError("Remembered identity differs from its bounded recipe")
-                        definitions[identity] = current
                         entry["status"] = (
                             "unavailable_current_inputs"
                             if current.get("runnable") is False
                             else "restored_candidate"
                         )
+                        if news_recipe_expired(current, library.get("recipe_as_of")):
+                            current["runnable"] = False
+                            current["availability_reason"] = "event_recipe_expired"
+                            entry["status"] = "expired_event_recipe"
+                        definitions[identity] = current
                 except (KeyError, TypeError, ValueError):
                     entry["status"] = "unsupported_or_invalid_recipe"
             entries.append(entry)
     library["definitions"] = list(definitions.values())
-    return library, {"notice": NOTICE, "entries": entries}
+    return library, {"notice": NOTICE, "as_of": library.get("recipe_as_of"), "entries": entries}
