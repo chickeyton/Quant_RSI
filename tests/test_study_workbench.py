@@ -13,19 +13,34 @@ from quant_rsi.research import study
 from quant_rsi.research.study_workbench import Workbench, make_server
 
 
-def test_launcher_real_offline_process_history_and_duplicate_guard(tmp_path):
+def test_launcher_real_offline_process_history_and_durable_serial_queue(tmp_path):
     workbench = Workbench(tmp_path)
     item = workbench.start({"symbol": "AAPL", "llm": "simulated", "data": "synthetic"})
-    with pytest.raises(ValueError, match="already running"):
-        workbench.start({"symbol": "KO"})
+    queued = workbench.start({"symbol": "KO", "llm": "simulated", "data": "synthetic"})
+    assert queued["status"] == "queued"
+    # Reopening while the child starts must not dispatch another worker.
+    reopened = Workbench(tmp_path)
+    reopened.tick()
+    assert reopened.item(reopened.task(item["id"]))["status"] == "running"
+    assert not reopened.children
     process = workbench.children[item["id"]]
     assert process.wait(timeout=30) == 0
     restarted = Workbench(tmp_path)
-    saved = restarted.listing()[0]
+    saved = restarted.item(restarted.task(item["id"]))
     assert saved["status"] == "completed" and saved["symbol"] == "AAPL"
     with pytest.raises(ValueError, match="Only an interrupted"):
         restarted.retry(item["id"])
     assert (restarted.task(item["id"]) / "study/report.html").is_file()
+    restarted.tick()
+    assert restarted.children[queued["id"]].wait(timeout=30) == 0
+    overview = restarted.overview()
+    assert len(overview["tasks"]) == 2
+    assert all(t["development"]["sample_count"] == 20 for t in overview["tasks"])
+    assert all(t["terminal"]["status"] == "completed" for t in overview["tasks"])
+    # A worker dying after publication must not make an immutable completed study resumable.
+    (restarted.task(item["id"]) / "worker.json").write_text('{"status":"running"}')
+    assert restarted.item(restarted.task(item["id"]))["status"] == "completed"
+    assert not restarted.item(restarted.task(item["id"]))["resumable"]
 
 
 def test_retry_in_new_process_reuses_completed_fit(tmp_path, monkeypatch):
@@ -72,6 +87,11 @@ def test_http_origin_token_inputs_and_history(tmp_path):
                 ("tasks", {"Origin": origin}, {"symbol": "../../escape"}),
                 ("tasks", {"Origin": origin}, {"symbol": "KO", "llm": []}),
                 ("tasks", {"Origin": origin}, {"symbol": "KO", "output": "/tmp/arbitrary"}),
+                ("batches", {"Origin": origin}, {"symbols": ["KO", "ko"], "options": {}}),
+                ("plans", {"Origin": origin}, {"enabled": True}),
+                ("plans", {"Origin": "https://other.example"}, {}),
+                ("plans/../../run", {"Origin": origin}, {}),
+                ("tasks/../../cancel", {"Origin": origin}, {}),
                 ("tasks/../../retry", {"Origin": origin}, {}),
             ):
                 request = Request(

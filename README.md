@@ -21,11 +21,15 @@ To start studies from the browser and return to previous tasks, open the local w
 quant-rsi research-ui --workspace /tmp/quant-rsi-workbench
 ```
 
-Enter a symbol, choose Codex/API or a simulated researcher, and start the study.
-The history list links to the same live graph and results, with **Continue study**
-for failed/interrupted runs. Closing the browser does not stop the worker; reopen
-this command with the same workspace to reconnect. API credentials stay in the
-server environment. See [task operations and recovery](docs/connected_research_study.md#local-workbench-and-recovery).
+Enter a watchlist (for example `KO, XOM, AAPL`), choose the researcher, model,
+rounds, fit budget and MAE/Sharpe selection, then queue a cycle. Each stock gets
+an observation task followed by a study; one failure does not block the next stock.
+Save these settings as a template and optionally enable recurring cycles. Scheduling
+requires the workbench server to stay running; closing the browser is fine.
+The durable queue, history and **Continue study** controls survive reopening the
+same workspace. Comparison tables keep development metrics separate from matured
+forecast outcomes. API credentials stay in the server environment.
+See [task operations and recovery](docs/connected_research_study.md#local-workbench-and-recovery).
 
 
 This connects configured company relationships, issuer news, daily prices, two
