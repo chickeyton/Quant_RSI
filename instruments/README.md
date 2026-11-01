@@ -25,6 +25,12 @@ These are connected-study configurations, not registered `forecast-workflow`
 campaign profiles. A new stock still needs supported public prices and reviewed
 source configuration; adding a symbol alone does not establish those inputs.
 
+KO, AAPL and XOM also have `financials.json` mappings for publication-dated business
+features. XOM's issuer mapping reads revenue and cash flow and sums the two reported
+inventory components. Operating margin remains unavailable. See the
+[XOM financial scope](../docs/connected_research_study.md#xom-business-data) for source
+selection, successor identity and missing-data limits.
+
 Profiles follow `instruments/<MARKET>/<SYMBOL>/forecast.json`. The current US examples explicitly bind SOXL/XSD/SPY and KO/XLP/SPY as target/industry/market roles. They also declare the supported source, calendar, history, horizon, price units, and availability assumption.
 
 To configure another supported instrument, copy a profile into its symbol directory and edit the explicit roles. Validate it with `forecast-workflow preflight` against a registered campaign. The profile must match the frozen campaign configuration; changing a JSON file does not modify an existing run. Use a new registered workflow identity when inputs change. See the [enhanced workflow guide](../docs/enhanced_forecast_workflow.md) for registration and supported contracts.

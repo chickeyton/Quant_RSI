@@ -385,8 +385,8 @@ A separate cash-flow section reads explicitly labelled 3/6/9/12-month operating 
 flow and purchases of property, plant and equipment. It preserves each reported
 duration, rejects ambiguous numbers and retains per-section failures; an unusable
 cash-flow section does not discard a usable income statement, or vice versa.
-The PDF reader and font decoder are installed by the normal dependency lock.
-`instruments/US/{KO,AAPL}/financials.json` holds company CIK and ordered US-GAAP tag
+The PDF reader, font decoder and spreadsheet reader are installed by the normal dependency lock.
+`instruments/US/{KO,AAPL,XOM}/financials.json` holds company CIK and ordered US-GAAP tag
 mappings. The shared implementation computes `financial.revenue_yoy`,
 `financial.operating_margin` and `financial.operating_margin_yoy` (year-over-year margin
 change), adds runnable definitions to the existing LLM factor library, executes selected
@@ -505,6 +505,59 @@ financial PDFs retain distinct publication-day metadata. PDF metadata is provena
 release; this source is unsuitable for claiming an independently verified point-in-time
 benchmark. Quarterly starts are not invented. Current publication dates are never replaced
 by fiscal-period ends.
+
+### XOM business data
+
+```bash
+quant-rsi research-study XOM --financials --financials-source issuer --news-research \
+  --question "Does inventory growth exceed revenue growth, and does cash flow support that hypothesis? Revise the factor after feedback." \
+  --output /tmp/xom-business-study
+```
+
+XOM uses the same financial-feature and business-expression execution path. Its
+[official financial-results archive](https://investor.exxonmobil.com/earnings/financial-results)
+links dated releases and financial PDFs. The collector first tries the earnings-release
+PDF; if it yields no usable configured sections, it tries the release's financial
+supplement PDF, then the explicitly linked Excel supplement. This supports the
+image-only second-quarter 2026 PDF without OCR. Each release contributes one
+document/version, with its own hash, PDF page or worksheet/cell references,
+publication and document revision dates. A partially usable primary document is retained
+without filling its missing sections from another version. Failed sections remain visible.
+
+The profile maps **sales and other operating revenue**, reported operating cash flow,
+and **additions to property, plant, and equipment**. Quarterly revenue is separate from
+YTD revenue; cash-flow features preserve their reported cumulative duration. Total
+inventory is the sum of **crude oil, products and merchandise** and **materials and
+supplies**, with both component values retained. A missing, negative or conflicting
+component makes the balance section unavailable; a partial total is never used.
+Prior-year inventory comes from a comparable balance date in an older release, not
+the previous December comparator printed beside an interim balance.
+
+The configured reports do not separately report operating income. Consequently XOM's
+operating-margin and margin-change factors remain unavailable; income before taxes
+and non-GAAP segment earnings are not substitutes. Oil prices, production volumes,
+refining margins and inventory quantities are not supplied by this profile. A dollar
+inventory growth rate is not an inventory-volume or demand measurement. If neither
+the configured PDFs nor the spreadsheet are readable, that release remains unavailable.
+
+The spreadsheet adapter reads the configured income, balance and cash-flow worksheets,
+with explicit dates and B/C current/prior columns. It reads cached numeric values;
+it does not evaluate formulas or follow external workbook links. XOM's cells store
+**raw USD** while number formats display millions. Both the dollar/millions heading
+and scaling formats are checked; values are not multiplied by a million again.
+Formula cells without cached values, text amounts, ambiguous dates and inconsistent
+units are rejected. Workbook creation/modification dates use the same conservative
+next-day availability rule as PDF metadata. Source failures remain in the report,
+even when the structured fallback succeeds.
+
+The SEC profile uses current parent CIK **2115436**. ExxonMobil's
+[successor registration filing](https://investor.exxonmobil.com/sec-filings/all-sec-filings/content/0001193125-26-292453/d54886dposasr.htm)
+records the July 1, 2026 redomiciliation and successor registrant. The SEC path does not
+combine company-facts payloads from predecessor CIK 34088. The issuer path uses the
+continuous archive and reported comparative figures linked above; it remains a
+retrospective reconstruction, not proof of historical first receipt. Choose `issuer`
+explicitly for that archive; `auto` retains the existing SEC-first behavior and can
+have less historical coverage when SEC succeeds with a shorter successor payload.
 
 ### Business factor expressions
 

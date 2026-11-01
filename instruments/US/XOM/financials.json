@@ -1,0 +1,42 @@
+{
+  "symbol": "XOM",
+  "cik": "2115436",
+  "fields": {
+    "revenue": ["SalesRevenueNet", "RevenueFromContractWithCustomerExcludingAssessedTax"],
+    "operating_cashflow": ["NetCashProvidedByUsedInOperatingActivities"],
+    "capital_expenditure": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+    "inventory": ["InventoryNet"]
+  },
+  "issuer": {
+    "archive": "html_links",
+    "index_url": "https://investor.exxonmobil.com/earnings/financial-results",
+    "allowed_hosts": ["investor.exxonmobil.com", "d1io3yog0oux5.cloudfront.net"],
+    "release_pattern": "/press-releases/detail/[0-9]+/exxonmobil-announces-.*results$",
+    "pdf_pattern": "/earnings_release/[^/]+\\.pdf$",
+    "fallback_pdf_pattern": "/supplement/[^/]+\\.pdf$",
+    "fallback_xlsx_pattern": "/supplement_xlsx_/[^/]+\\.xlsx$",
+    "statement_title": "CONDENSED CONSOLIDATED STATEMENT OF INCOME",
+    "spreadsheet_sheet": "Statement of Income",
+    "shared_month_day": true,
+    "rows": {"revenue": "Sales and other operating revenue"},
+    "cashflow": {
+      "statement_title": "CONDENSED CONSOLIDATED STATEMENT OF CASH FLOWS",
+      "spreadsheet_sheet": "Cash Flow",
+      "shared_month_day": true,
+      "rows": {
+        "operating_cashflow": "Net cash provided by operating activities",
+        "capital_expenditure": [
+          "Additions to property, plant, and equipment",
+          "Additions to property, plant and equipment"
+        ]
+      }
+    },
+    "balance": {
+      "statement_title": "CONDENSED CONSOLIDATED BALANCE SHEET",
+      "spreadsheet_sheet": "Balance Sheet",
+      "rows": {
+        "inventory": {"sum": ["Crude oil, products and merchandise", "Materials and supplies"]}
+      }
+    }
+  }
+}

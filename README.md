@@ -108,7 +108,7 @@ missing business data. The report displays their source bindings and operations,
 financial diagnostic removes these derived columns too. See
 [business expressions](docs/connected_research_study.md#business-factor-expressions).
 
-KO and AAPL support SEC company facts and official issuer earnings statements; calculations
+KO, AAPL and XOM support SEC company facts and official issuer earnings statements; calculations
 are shared. `--financials-source auto` (default) tries SEC, then the configured issuer
 archive if SEC is unavailable. Use `sec` or `issuer` to require a specific source. The report shows
 availability, selected factors, MAE/Sharpe and a same-row diagnostic with financial
@@ -140,6 +140,12 @@ XOM also has a complete study configuration, using its official issuer RSS and
 a dated CVX business relationship. Run the same flow with
 `quant-rsi research-study XOM --news-research --output /tmp/xom-active-study`.
 Its local factor combines XOM and CVX returns; the engine and model are shared.
+Add `--financials --financials-source issuer` to research revenue, cash-flow and
+inventory hypotheses using XOM's official statements, including a configured Excel
+fallback when its PDF statements are unreadable. Inventory combines
+both reported inventory components; operating-margin factors remain unavailable because
+the configured statements do not separately report operating income. See the
+[XOM financial-data scope](docs/connected_research_study.md#xom-business-data).
 See the [second-stock example](docs/connected_research_study.md#second-stock-example-xom)
 for coverage and evidence limits.
 
@@ -311,7 +317,7 @@ at a time.
 | Candidate factor execution | Opt-in [Qlib ROC and MA close-price adapters](docs/candidate_factor_runtime.md) feed bounded discovery; the remaining survey candidates are not executable |
 | Dynamic event factors | Registered title instances, observed lifecycle transitions, decay and archival; KO RSS observations can enter this path |
 | Multi-branch factor discovery | CALM is a worked specification; its factor tree is not executable |
-| News and financial evidence | Retained title/guidance features and opt-in filing-dated KO/AAPL revenue, margin, cash-flow and inventory factors can enter connected-study training; availability and current-context-only evidence are disclosed |
+| News and financial evidence | Retained title/guidance features and opt-in publication-dated KO/AAPL/XOM business factors can enter connected-study training; available fields, missing inputs and current-context-only evidence are disclosed |
 | News collection and extraction | [Bounded KO official RSS observations](docs/news_collection.md), retained-title extraction and revision tracking; the study adds current search/page text for hypotheses. The [first news-factor slice](docs/news_factor_slice.md) is implemented; general historical text-feature extraction remains under #8/#39 B |
 | Statistical confirmation and promotion | Incomplete; protected evaluation is engineering-only and retains the incumbent |
 | Intraday bars, model and IBKR paper trading | Standalone, offline-tested: IBKR adapter with a paper-only guard, intraday snapshots, fixed LightGBM development evaluation, replay simulator and paper-account episodes. Not yet wired into the C2/C4/C5 controller or `quant-rsi`; see the [intraday guide](docs/intraday_ibkr.md) |
