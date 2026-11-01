@@ -123,7 +123,8 @@ def test_active_news_resume_reuses_completed_searches_and_reads(tmp_path, monkey
     calls = {"search": 0, "read": 0, "review": 0}
     fail = True
 
-    def search(symbol, related, llm, query, articles):
+    def search(symbol, related, llm, query, articles, question=""):
+        assert question == "Inventory demand risk"
         calls["search"] += 1
         return active_news._simulated_search(symbol, query, 1 if query is None else 2)
 
@@ -131,7 +132,8 @@ def test_active_news_resume_reuses_completed_searches_and_reads(tmp_path, monkey
         calls["read"] += 1
         return active_news._simulated_read(url)
 
-    def review(symbol, related, articles, llm, followup_allowed):
+    def review(symbol, related, articles, llm, followup_allowed, question=""):
+        assert question == "Inventory demand risk"
         calls["review"] += 1
         if not followup_allowed and fail:
             raise ValueError("Review service unavailable")
@@ -149,6 +151,7 @@ def test_active_news_resume_reuses_completed_searches_and_reads(tmp_path, monkey
             on_stage=lambda e: None,
             reader=reader,
             cache=cache,
+            question="Inventory demand risk",
         )
 
     with pytest.raises(ValueError, match="Review service"):

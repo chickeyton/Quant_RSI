@@ -101,8 +101,10 @@ def run_study(args, *, resume=False):
 
 
 def _configuration(args):
+    from quant_rsi.research.demo import research_question
     from quant_rsi.research.study_walk_forward import extra_history
 
+    args.question = research_question(getattr(args, "question", ""))
     symbol = TypeAdapter(InstrumentId).validate_python(args.symbol.strip().upper())
     horizon = getattr(args, "horizon_sessions", 5)
     folds = getattr(args, "walk_forward_folds", 0)
@@ -313,7 +315,12 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         prior_outcomes = cache.call(
             "prior_outcomes",
             symbol,
-            lambda: mature_feedback(args.history_dir, symbol, horizon_sessions=model.horizon),
+            lambda: mature_feedback(
+                args.history_dir,
+                symbol,
+                horizon_sessions=model.horizon,
+                question=configuration["question"],
+            ),
         )
         _write(root / "prior_outcomes.json", prior_outcomes)
         progress.finish(
@@ -503,6 +510,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
             on_stage=record_research,
             on_start=progress.start,
             cache=cache,
+            question=configuration["question"],
         )
         _write(root / "news_research.json", discovery)
         current_news, related = attach_research(current_news, related, discovery, symbol)
@@ -591,6 +599,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
 
     def context(target):
         return model.context(target) | {
+            "research_question": configuration["question"],
             "prior_outcomes": {k: v for k, v in prior_outcomes.items() if k != "factor_memory"}
             if prior_outcomes
             else None,

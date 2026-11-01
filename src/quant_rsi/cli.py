@@ -126,6 +126,11 @@ def main(argv: list[str] | None = None) -> int:
             )
             demo.add_argument("--output", type=Path, required=True, help="new report directory")
             demo.add_argument(
+                "--question",
+                default="",
+                help="optional research focus (up to 1000 characters)",
+            )
+            demo.add_argument(
                 "--news-research",
                 action="store_true",
                 help="search/read current articles and suggest sourced company relationships",

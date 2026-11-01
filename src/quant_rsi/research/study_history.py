@@ -158,6 +158,7 @@ def register_study(directory, run_root, result, snapshot=None):
             "study_id": study_id,
             "run_directory": run_root,
             "symbol": result["configuration"]["symbol"],
+            "question": result["configuration"].get("question", ""),
             "horizon_sessions": result["configuration"].get(
                 "horizon_sessions", (forecast or {}).get("horizon_sessions", 5)
             ),
@@ -352,22 +353,26 @@ def history_view(directory, symbol=None):
                 | {
                     "assessment_count": len(entry["observations"]),
                     "horizon_sessions": entry.get("horizon_sessions", 5),
+                    "question": entry.get("question", ""),
                 }
             )
         return {"entries": entries[-50:], "notice": NOTICE}
 
 
-def mature_feedback(directory, symbol, *, horizon_sessions=5):
+def mature_feedback(directory, symbol, *, horizon_sessions=5, question=""):
     view = history_view(directory, symbol)
     view["entries"] = [
-        e for e in view["entries"] if e.get("horizon_sessions", 5) == horizon_sessions
+        e
+        for e in view["entries"]
+        if e.get("horizon_sessions", 5) == horizon_sessions and e.get("question", "") == question
     ]
     return {
         "scope": "previously_issued_forecasts_observed_after_maturity; now_research_feedback",
         "notice": NOTICE,
         "horizon_sessions": horizon_sessions,
+        "question": question,
         "factor_memory": recent_factor_recipes(
-            directory, symbol, horizon_sessions=horizon_sessions
+            directory, symbol, horizon_sessions=horizon_sessions, question=question
         ),
         "entries": [e for e in view["entries"] if e["status"] == "settled"][-20:],
         "history": {
@@ -380,7 +385,7 @@ def mature_feedback(directory, symbol, *, horizon_sessions=5):
     }
 
 
-def recent_factor_recipes(directory, symbol, *, horizon_sessions=5):
+def recent_factor_recipes(directory, symbol, *, horizon_sessions=5, question=""):
     """Read selected recipes through retained artifact references, never mutable run paths."""
     if not (Path(directory) / "journal.sqlite").exists():
         return []
@@ -390,7 +395,9 @@ def recent_factor_recipes(directory, symbol, *, horizon_sessions=5):
         entries = [
             e
             for e in _entries(journal, store).values()
-            if e["symbol"] == symbol and e.get("horizon_sessions", 5) == horizon_sessions
+            if e["symbol"] == symbol
+            and e.get("horizon_sessions", 5) == horizon_sessions
+            and e.get("question", "") == question
         ]
         result = []
         for entry in reversed(entries[-5:]):

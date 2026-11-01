@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from quant_rsi.core.artifacts import atomic_write, canonical
+from quant_rsi.research.demo import research_question
 from quant_rsi.research.study_history import collection_snapshot, history_view, observe_prices
 from quant_rsi.research.study_iterations import validate_limits
 
@@ -35,10 +36,12 @@ def study_options(options):
         "selection_metric": "mae",
         "horizon_sessions": 5,
         "walk_forward_folds": 0,
+        "question": "",
     }
     if not isinstance(options, dict) or set(options) - defaults.keys():
         raise ValueError("Unexpected study options")
     result = defaults | options
+    result["question"] = research_question(result["question"])
     for key, allowed in (
         ("llm", {"codex", "api", "simulated"}),
         ("model", {"lightgbm", "ridge"}),
@@ -113,6 +116,8 @@ def study_arguments(task, workspace, symbol, options):
         arguments += ["--news", "simulated", "--related", "simulated"]
     if options["llm_model"]:
         arguments += ["--llm-model=" + options["llm_model"]]
+    if options.get("question"):
+        arguments += ["--question=" + options["question"]]
     if options["news_research"]:
         arguments += ["--news-research"]
     if options["financials"]:

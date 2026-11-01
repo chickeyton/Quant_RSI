@@ -9,6 +9,13 @@ from pydantic import TypeAdapter
 from quant_rsi.factors.contracts import FactorCatalog, InstrumentId
 
 
+def research_question(value):
+    """One optional user focus, shared by CLI, queued tasks and research context."""
+    if not isinstance(value, str) or len(value.strip()) > 1000:
+        raise ValueError("Research question must be text of at most 1000 characters")
+    return value.strip()
+
+
 def load_catalog(path=Path("instruments/shared/equities.json")):
     """Reuse existing definitions as metadata, without making them executable."""
     catalog = FactorCatalog.model_validate_json(Path(path).read_bytes())

@@ -33,6 +33,9 @@ It accepts a comma-separated watchlist of up to 20 unique symbols, Codex/API/sim
 researcher, optional LLM model, LightGBM/Ridge, real/synthetic inputs, news-research switch,
 2–10 rounds, 2–10 fits per stock per cycle, optional patience and MAE/Sharpe selection.
 These limits use the same CLI iteration semantics (the smaller round/fit limit applies).
+The optional **Research question** field accepts up to 1,000 characters and applies to
+each stock in the cycle. It is preserved in saved templates, task cards, the live view,
+reports and forecast history. Loading an older template clears the field to general research.
 API mode requires a model name and
 `OPENAI_API_KEY` in the server environment; Codex uses the existing local login.
 No credentials are accepted or saved by the form. The page shows running/completed/failed
@@ -136,6 +139,57 @@ credentials. `remote_completion` remains `unknown`: local termination cannot pro
 server cancellation or reconcile billing. A local response followed by interruption
 before checkpoint commit may be requested again on explicit continuation. Completed
 checkpoints and previous attempt records remain intact; there is no exactly-once claim.
+
+## Research question
+
+```bash
+quant-rsi research-study KO --news-research --financials \
+  --question "Could inventory growth indicate weaker demand? Which available variables can test it?" \
+  --output /tmp/ko-inventory-question
+```
+
+The trimmed question is frozen in the study configuration. Active news search, article
+review and its bounded follow-up receive it, as do the initial hypothesis and every
+feedback-driven revision. The researcher is asked to consider contrary evidence and
+identify parts that cannot be measured with the supplied data. The existing factor
+catalog and enabled sources determine what can execute; a question does not invent
+new data or change the configured horizon, selection metric, tool permissions or budgets.
+No extra LLM call or model fit is added just to carry the question through the flow.
+Simulated providers still return fixture hypotheses; they do not interpret the question.
+
+Reports show the question and the **selected** hypothesis, including when a later
+revision was rejected. Forecast results evaluate selected factors; they do not establish
+a causal answer to a business question. Missing business variables must not be described
+as tested merely because a price proxy ran.
+
+Cross-run feedback and remembered recipes use the same symbol, prediction horizon and
+exact trimmed question. Repeating a saved template continues that focus; changing its
+question starts a separate feedback scope and changes the new-evidence fingerprint.
+Case and punctuation are retained. Blank questions and older records share the general
+research scope. All forecasts remain in the global history and can still be observed.
+Failed studies preserve the question on `research-resume`; changing it requires a new study.
+
+### Question-driven integration observation (2026-11-01)
+
+A real Codex run asked whether inventory growth indicated weaker Coca-Cola demand,
+using retained public daily prices and issuer financials plus current RSS and active
+news research. It completed two searches, one available article out of four attempted
+reads, two LightGBM research fits and one financial-removal diagnostic fit in about
+208 seconds. Unavailable pages remained explicit. Both hypotheses selected
+`financial.inventory_yoy`; the revision retained it and revenue growth while replacing
+margin change and ten-session volatility with momentum and twenty-session volatility.
+The researcher challenged the question's premise using the supplied declining inventory
+balance, considered contrary demand evidence and named missing turnover, sell-through
+and downstream inventory data. This demonstrates question propagation and execution,
+not independently verified business reasoning.
+
+Development price MAE changed from **1.0532 to 0.9148**, versus unchanged-price **0.9460**,
+so the existing MAE rule selected the revision. Its hypothetical net return was
+**-0.25%**, versus buy-and-hold **0.47%**; annualized Sharpe was **-2.1940** on only
+24 daily returns. The reserved retrospective window had ten observations, price MAE
+**1.9762** versus unchanged-price **2.0310**, and net return **1.39%** versus buy-and-hold
+**3.77%**. These observations are not causal findings, prospective validation or evidence
+of reliable predictive gain. The completed run retains its development source identity.
 
 ## Prediction horizon
 

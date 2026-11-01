@@ -28,6 +28,7 @@ def refresh_evidence(task, manifest):
             "selection_metric",
             "horizon_sessions",
             "walk_forward_folds",
+            "question",
             "news_research",
             "financials",
             "financials_source",
@@ -87,7 +88,10 @@ def refresh_evidence(task, manifest):
     evidence["matured"] = [
         {k: entry[k] for k in ("study_id", "status", "metrics")}
         for entry in mature_feedback(
-            history, symbol, horizon_sessions=manifest.get("horizon_sessions", 5)
+            history,
+            symbol,
+            horizon_sessions=manifest.get("horizon_sessions", 5),
+            question=manifest.get("question", ""),
         )["entries"]
     ]
     fingerprint = digest(canonical(evidence))
