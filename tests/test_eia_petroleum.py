@@ -226,6 +226,7 @@ def test_cli_runs_external_revision_and_exposes_input_check(tmp_path):
     assert external_ids[0] != external_ids[1]
     comparison = result["study"]["external_comparison"]
     assert comparison["status"] == "completed" and comparison["extra_fits"] == 1
+    assert result["runtime"]["counts"]["comparison_model_stages_completed"] == 1
     assert result["configuration"]["comparison_fit_budget"] == 1
     assert (
         comparison["removed_factor_ids"] == external_ids[result["iterations"]["selected_round"] - 1]
