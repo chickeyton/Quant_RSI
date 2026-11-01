@@ -123,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
             demo.add_argument(
                 "--external-drivers",
                 action="store_true",
-                help="include publication-dated EIA weekly US petroleum inventory factors",
+                help="EIA weekly US inventory factors with up to one extra diagnostic fit",
             )
             demo.add_argument(
                 "--external-drivers-dir",

@@ -735,8 +735,13 @@ regressions use small original offline fixtures rather than downloading issuer d
 
 `--external-drivers` connects the same research workflow to archived EIA weekly
 US petroleum inventory releases. The workbench exposes the same optional setting;
-saved templates and queued tasks preserve it. No additional model fit is charged
-just for enabling this source. The normal researcher chooses whether to use it.
+saved templates and queued tasks preserve it. The normal researcher chooses whether
+to use it. After selection, a diagnostic removes the selected external columns and
+refits on the same rows and model settings (up to one additional fit, outside the
+research fit budget). Reports compare MAE, net return, Sharpe and drawdown. This
+diagnostic does not change selection or the latest forecast; it is not independent
+validation. If no external columns or no other controls were selected, no fit is
+performed and the report explains why.
 
 ```bash
 quant-rsi research-study XOM --llm codex --news-research --external-drivers \
@@ -773,8 +778,9 @@ completed development fits. Reports disclose missing inputs and selected factors
 The source is a retrospective reconstruction from official archived documents,
 not proof that this exact file version was observed historically. Current news
 and LLM knowledge still influence hypothesis selection. Synthetic-price mode
-uses explicitly marked simulated inventory data. The normal financial ablation
-does not remove these industry factors; no external-factor ablation is implied.
+uses explicitly marked simulated inventory data. Financial and external-driver
+diagnostics remove their respective input families separately; requesting both
+can consume two additional diagnostic fits.
 
 Workbench preparation fingerprints the retained external records and failures,
 then passes that same snapshot to the study. A changed receipt time alone does

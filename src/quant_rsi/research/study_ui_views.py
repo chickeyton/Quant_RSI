@@ -259,7 +259,9 @@ def visual_output(stage, output, previous, symbol):
                 for a in output.get("source_attempts", [])
             ),
         }
-    if stage == "financial_comparison":
+    if stage in {"financial_comparison", "external_comparison"}:
+        family = "financials" if stage == "financial_comparison" else "external_drivers"
+        label = "financials" if family == "financials" else "external drivers"
         return {
             "kind": "engine_comparison",
             "rows": [
@@ -270,8 +272,8 @@ def visual_output(stage, output, previous, symbol):
                     **_pick(output[key]["strategy"], "net_return", "sharpe_ratio", "max_drawdown"),
                 }
                 for key, label in (
-                    ("with_financials", "Selected + financials"),
-                    ("without_financials", "Financials removed"),
+                    (f"with_{family}", f"Selected + {label}"),
+                    (f"without_{family}", f"{label.capitalize()} removed"),
                 )
                 if output["status"] == "completed"
             ],

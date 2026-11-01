@@ -213,6 +213,7 @@ def test_cli_runs_external_revision_and_exposes_input_check(tmp_path):
 
     from quant_rsi.cli import main
     from quant_rsi.research.study_ui import read_state
+    from quant_rsi.research.study_ui_views import visual_output
 
     root = tmp_path / "study"
     assert main(command(root, "--llm", "simulated", "--external-drivers", "--no-ui")) == 0
@@ -223,6 +224,18 @@ def test_cli_runs_external_revision_and_exposes_input_check(tmp_path):
         external_ids.append([x for x in prediction["factor_ids"] if x.startswith("external.")])
         assert external_ids[-1]
     assert external_ids[0] != external_ids[1]
+    comparison = result["study"]["external_comparison"]
+    assert comparison["status"] == "completed" and comparison["extra_fits"] == 1
+    assert result["configuration"]["comparison_fit_budget"] == 1
+    assert (
+        comparison["removed_factor_ids"] == external_ids[result["iterations"]["selected_round"] - 1]
+    )
+    assert comparison["kept_factor_ids"]
+    assert comparison["without_external_drivers"]["forecast"]["sample_count"] == 20
+    assert "External drivers removed" in (root / "report.html").read_text()
+    view = visual_output("external_comparison", comparison, {}, "KO")
+    assert len(view["rows"]) == 2
+    assert view["rows"][0]["mae"] == comparison["with_external_drivers"]["forecast"]["mae_price"]
     assert "SIMULATED" in result["study"]["external_data"]["notice"]
     assert "External business drivers" in (root / "report.html").read_text()
     check = json.loads((root / "input_report.json").read_bytes())

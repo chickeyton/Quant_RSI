@@ -20,7 +20,7 @@ textarea{width:100%;box-sizing:border-box;font:inherit;color:inherit;background:
 <label>Stop after rounds without improvement<input name="patience" type="number" min="1" max="10" placeholder="Optional"></label>
 <label class="check wide"><input type="checkbox" name="news_research" checked>Search and read news</label>
 <label class="check wide"><input type="checkbox" name="financials">Include publication-dated financial factors (KO / AAPL / XOM; up to one extra diagnostic fit)</label>
-<label class="check wide"><input type="checkbox" name="external_drivers">Include EIA US petroleum inventory drivers (industry data, especially relevant to energy research)</label>
+<label class="check wide"><input type="checkbox" name="external_drivers">Include EIA US petroleum inventory drivers (industry data; up to one extra diagnostic fit)</label>
 <label>Prediction horizon<select name="horizon_sessions"><option value="5">5 trading sessions</option><option value="20">20 trading sessions</option><option value="60">60 trading sessions</option></select></label>
 <label>Minimum price history<input type="number" name="historical_sessions" min="120" max="445" step="1" placeholder="Automatic for horizon / diagnostic"><small>Daily prices only; all retained rows are used. Up to 445 sessions.</small></label>
 <label>Time-window diagnostic<select name="walk_forward_folds"><option value="0">Disabled</option><option value="2">2 windows · up to 2 extra fits</option><option value="3">3 windows · up to 3 extra fits</option></select></label>

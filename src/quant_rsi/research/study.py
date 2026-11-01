@@ -168,7 +168,9 @@ def _configuration(args):
         model_configuration=estimator_configuration,
         research_rounds=args.rounds,
         fit_budget=fit_budget,
-        comparison_fit_budget=int(compare_external) + int(getattr(args, "financials", False)),
+        comparison_fit_budget=int(compare_external)
+        + int(getattr(args, "financials", False))
+        + int(getattr(args, "external_drivers", False)),
         walk_forward_fit_budget=folds,
         generated_recipes="bounded_price_news_and_financial_expressions",
     )
@@ -979,6 +981,37 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         result["study"]["external_data"] = {
             k: v for k, v in external.items() if k not in {"columns", "evidence"}
         }
+        from quant_rsi.research.financial_comparison import (
+            compare_external as compare_external_inputs,
+        )
+
+        chosen = selection["selected_round"]
+        progress.start("external_comparison")
+        comparison = cache.call(
+            "external_comparison",
+            model.comparison_inputs(chosen),
+            lambda: compare_external_inputs(
+                model,
+                chosen,
+                attempts[chosen - 1]["prediction"],
+                {
+                    "commission_bps": args.commission_bps,
+                    "slippage_bps": args.slippage_bps,
+                    "initial_cash": args.initial_cash,
+                    "threshold": args.threshold,
+                    "horizon_sessions": model.horizon,
+                },
+            ),
+        )
+        result["study"]["external_comparison"] = comparison
+        result["study"]["conclusion"] += (
+            f" External-driver diagnostic: {comparison['extra_fits']} additional fits "
+            "outside the research fit budget; does not alter selection."
+        )
+        _write(root / "external_comparison.json", comparison)
+        event = {"stage": "external_comparison", "output": comparison}
+        record(event)
+        result["trace"].append(event)
 
     if getattr(args, "compare_qlib", False):
         from quant_rsi.research.study_qlib import compare_qlib
