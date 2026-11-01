@@ -16,11 +16,14 @@ NOTICE = (
     "income values are silently converted. Cash-flow facts retain their reported 3/6/9/12-month "
     "durations and compare only matching year-over-year periods. Revisions are selected "
     "as of each cutoff."
+    " Inventory uses reported balance-sheet instants and comparable prior-year dates, "
+    "not cash-flow inventory changes or the previous fiscal year-end by default."
 )
 METRICS = {
     "revenue_yoy": "Quarterly revenue / comparable prior-year revenue - 1",
     "operating_margin": "Quarterly operating income / revenue",
     "operating_margin_yoy": "Quarterly operating margin minus comparable prior-year margin",
+    "inventory_yoy": "Reported inventory / comparable prior-year inventory - 1",
     "operating_cashflow_yoy": (
         "Reported cumulative operating cash flow change / absolute prior-year "
         "value; matching 3/6/9/12-month periods"
@@ -159,27 +162,29 @@ def reported_records(snapshot):
                 .get("units", {})
                 .get("USD", [])
             ):
-                if (
-                    fact.get("form") not in {"10-Q", "10-Q/A", "10-K", "10-K/A"}
-                    or "start" not in fact
-                ):
+                balance = field == "inventory"
+                if fact.get("form") not in {"10-Q", "10-Q/A", "10-K", "10-K/A"}:
                     continue
-                start, end, filed = (date.fromisoformat(fact[k]) for k in ("start", "end", "filed"))
+                if (balance and "start" in fact) or (not balance and "start" not in fact):
+                    continue
+                end, filed = (date.fromisoformat(fact[k]) for k in ("end", "filed"))
+                start = None if balance else date.fromisoformat(fact["start"])
                 value = fact.get("val")
                 months = next(
                     (
                         m
                         for m, (low, high) in DURATION_BOUNDS.items()
-                        if low <= (end - start).days <= high
+                        if start is not None and low <= (end - start).days <= high
                     ),
                     None,
                 )
                 if (
-                    months is None
-                    or (field not in CASHFLOW_FIELDS and months != 3)
+                    (not balance and months is None)
+                    or (not balance and field not in CASHFLOW_FIELDS and months != 3)
                     or end > filed
                     or type(value) not in {int, float}
                     or not math.isfinite(value)
+                    or (balance and value < 0)
                 ):
                     continue
                 available = datetime.combine(
@@ -190,7 +195,7 @@ def reported_records(snapshot):
                         "field": field,
                         "tag": tag,
                         "priority": priority,
-                        "start": str(start),
+                        "start": str(start) if start else None,
                         "end": str(end),
                         "filed": str(filed),
                         "available_at": available.isoformat(),
@@ -199,7 +204,9 @@ def reported_records(snapshot):
                         "unit": "USD",
                     }
                     | (
-                        {"period_months": months, "period_kind": "reported_cashflow_duration"}
+                        {"period_kind": "reported_balance_instant"}
+                        if balance
+                        else {"period_months": months, "period_kind": "reported_cashflow_duration"}
                         if field in CASHFLOW_FIELDS
                         else {}
                     )
@@ -227,7 +234,7 @@ def at_cutoff(records, cutoff):
     visible = [
         r
         for r in records
-        if r["field"] not in CASHFLOW_FIELDS
+        if r["field"] not in CASHFLOW_FIELDS | {"inventory"}
         and datetime.fromisoformat(r["available_at"]) <= instant
     ]
     periods = {}
@@ -354,13 +361,53 @@ def cashflow_at_cutoff(records, cutoff):
     return values, evidence | {"values": values}
 
 
+def inventory_at_cutoff(records, cutoff):
+    instant = datetime.fromisoformat(cutoff)
+    if instant.tzinfo is None:
+        raise ValueError("Financial cutoffs require a timezone")
+    periods = {}
+    for row in records:
+        if (
+            row["field"] == "inventory"
+            and row.get("period_kind") == "reported_balance_instant"
+            and datetime.fromisoformat(row["available_at"]) <= instant
+        ):
+            periods.setdefault(row["end"], []).append(row)
+    if not periods:
+        return {}, {"reason": "no_visible_inventory_balance"}
+    end = max(periods)
+    current = select_facts({"inventory": periods[end]}).get("inventory")
+    if current is None or (instant.date() - date.fromisoformat(end)).days > 270:
+        return {}, {"reason": "ambiguous_or_stale_inventory_balance"}
+    comparable = [
+        prior
+        for prior in periods
+        if 350 <= (date.fromisoformat(end) - date.fromisoformat(prior)).days <= 380
+    ]
+    evidence = {"current": current}
+    if len(comparable) != 1:
+        return {}, evidence | {"reason": "no_unique_comparable_inventory_balance"}
+    prior = select_facts({"inventory": periods[comparable[0]]}).get("inventory")
+    evidence["prior_year"] = prior
+    if prior is None or prior["value"] <= 0:
+        return {}, evidence | {"reason": "ambiguous_or_nonpositive_prior_inventory"}
+    values = {"inventory_yoy": current["value"] / prior["value"] - 1}
+    return values, evidence | {"values": values}
+
+
 def prepare_financials(snapshot, cutoffs, required):
     records = reported_records(snapshot)
     rows = []
     for cutoff in cutoffs:
         values, evidence = at_cutoff(records, cutoff)
         cash_values, cash_evidence = cashflow_at_cutoff(records, cutoff)
-        rows.append((values | cash_values, evidence | {"cashflow": cash_evidence}))
+        inventory_values, inventory_evidence = inventory_at_cutoff(records, cutoff)
+        rows.append(
+            (
+                values | cash_values | inventory_values,
+                evidence | {"cashflow": cash_evidence, "inventory": inventory_evidence},
+            )
+        )
     columns, definitions = {}, []
     for metric, description in METRICS.items():
         identity = "financial." + metric
@@ -410,6 +457,7 @@ def simulated_financials(symbol, cutoffs, required):
         ("OperatingIncomeLoss", 180),
         ("NetCashProvidedByUsedInOperatingActivities", 220),
         ("PaymentsToAcquirePropertyPlantAndEquipment", 50),
+        ("InventoryNet", 140),
     ):
         rows = []
         for year in range(last.year - 3, last.year + 1):
@@ -426,6 +474,8 @@ def simulated_financials(symbol, cutoffs, required):
                         "val": scale * (1 + 0.08 * (year - last.year + 3) + 0.01 * month),
                     }
                 )
+                if tag == "InventoryNet":
+                    rows[-1].pop("start")
         facts["facts"]["us-gaap"][tag] = {"units": {"USD": rows}}
     snapshot = {
         "symbol": symbol,
@@ -436,6 +486,7 @@ def simulated_financials(symbol, cutoffs, required):
                 "operating_income": ["OperatingIncomeLoss"],
                 "operating_cashflow": ["NetCashProvidedByUsedInOperatingActivities"],
                 "capital_expenditure": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+                "inventory": ["InventoryNet"],
             }
         },
         "companyfacts": facts,

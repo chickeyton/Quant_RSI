@@ -317,7 +317,7 @@ require that provider. A snapshot uses one provider; rows are never silently mix
 KO uses its [financial information archive](https://investors.coca-colacompany.com/financial-information);
 AAPL uses the public financial-report feed linked by its
 [investor relations site](https://investor.apple.com/investor-relations/).
-The bounded collector retains up to eight releases and extracts only the explicitly
+The bounded collector retains up to sixteen releases and extracts only the explicitly
 reported three-month revenue and operating-income columns from their financial PDFs.
 A separate cash-flow section reads explicitly labelled 3/6/9/12-month operating cash
 flow and purchases of property, plant and equipment. It preserves each reported
@@ -344,6 +344,48 @@ reported starts, which must also match the prior-year period. No YTD subtraction
 Zero prior amounts disable the corresponding ratio; negative amounts use the absolute
 prior-year denominator, so a transition from -100 to 150 is +2.5. Free cash flow requires
 operating cash flow and nonnegative capital expenditure from the same statement/version.
+
+`financial.inventory_yoy` extends this path with **reported inventory balances**:
+current inventory divided by comparable prior-year inventory, minus one. The SEC
+adapter accepts USD `InventoryNet` instants; KO/AAPL issuer profiles read the
+`Inventories` row only from the balance sheet. Cash-flow inventory adjustments are
+never substituted. Both printed balance-sheet dates are retained, but an interim
+balance compared with the previous fiscal year-end is not a year-over-year pair.
+The feature searches the collected releases for a date 350–380 days earlier.
+The larger release allowance supplies earlier balance-sheet comparisons for long
+training windows; an archive may still offer fewer releases or unreadable statements.
+
+As with other financial inputs, each value uses only versions available at the
+session cutoff. A missing, ambiguous, stale or nonpositive prior balance disables
+the factor for the affected rows; no zero fill, row dropping or price proxy is used.
+The report retains current/prior statements and per-session coverage. Inventory
+growth alone does not establish excess stock, demand strength or an expected share
+price direction; the researcher must justify its hypothesis using supplied evidence.
+No extra LLM call or model fit is introduced by making this factor available.
+
+Use the existing `--financials` option and a **fresh financial collection directory**
+to fetch the newly configured balance rows. Existing retained collections and completed
+studies are not rewritten. Collections must match their original profile; a collection
+made with an older profile cannot be silently upgraded by reusing its directory.
+
+Inventory integration was checked on 2026-11-01 with retained real KO/AAPL prices
+and newly collected issuer statements. Sixteen releases yielded 32 KO and 26 AAPL
+inventory rows; three older AAPL balance sections were rejected because PDF text
+extraction split numeric glyphs. Those section failures remain in the snapshots.
+The checked KO five-session and AAPL twenty-session study plans had no missing
+required inventory rows. The earlier eight-release KO collection was insufficient
+for the reused long price history; that run correctly excluded inventory and is
+preserved separately.
+
+A real Codex study with the expanded KO collection completed both hypotheses and
+LightGBM fits. Inventory was available but was not selected; Codex chose revenue and
+margin inputs, and retained round one when the revision worsened development MAE
+from 1.2108 to 1.4647. A separate **simulated-researcher, real-input** integration
+run explicitly selected inventory growth (feature value -0.085596 at its origin),
+then replaced it with operating-margin change after feedback. Both actual LightGBM
+fits completed; development MAE changed from 1.6747 to 1.1215, still worse than
+unchanged price at 0.9460. These are integration observations with exposed development
+selection, not evidence that inventory predicts prices or improves independent results.
 Issuer cash-outflow signs are normalized; missing, ambiguous or stale facts remain unavailable.
 
 The LLM selects ratios; it does not invent their numerical values. Synthetic mode uses

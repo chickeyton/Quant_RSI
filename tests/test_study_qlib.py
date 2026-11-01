@@ -171,9 +171,10 @@ def assert_upstream_comparison(root, terminal_sessions):
 
 
 @pytest.mark.parametrize(
-    "cashflow_factor", ["financial.operating_cashflow_yoy", "financial.free_cashflow_yoy"]
+    "business_factor",
+    ["financial.operating_cashflow_yoy", "financial.free_cashflow_yoy", "financial.inventory_yoy"],
 )
-def test_actual_upstream_receives_selected_cashflow_column(tmp_path, monkeypatch, cashflow_factor):
+def test_actual_upstream_receives_selected_business_column(tmp_path, monkeypatch, business_factor):
     pytest.importorskip("qlib", reason="optional upstream Qlib workflow environment is absent")
     pytest.importorskip("mlflow", reason="optional upstream Qlib workflow recorder is absent")
     from quant_rsi.research import study
@@ -181,11 +182,11 @@ def test_actual_upstream_receives_selected_cashflow_column(tmp_path, monkeypatch
 
     def researcher(context, catalog, **kwargs):
         result = simulated_hypothesis(context, catalog, **kwargs)
-        definition = next(d for d in catalog["definitions"] if d["factor_id"] == cashflow_factor)
+        definition = next(d for d in catalog["definitions"] if d["factor_id"] == business_factor)
         assert definition["runnable"]
         result["factor_ids"] = [
             key for key in result["factor_ids"] if not key.startswith("financial.")
-        ] + [cashflow_factor]
+        ] + [business_factor]
         return result
 
     monkeypatch.setattr(study, "simulated_hypothesis", researcher)
@@ -193,9 +194,9 @@ def test_actual_upstream_receives_selected_cashflow_column(tmp_path, monkeypatch
     assert main(command(root, "--financials")) == 0
     assert_upstream_comparison(root, 10)
     inputs = json.loads((root / "qlib-comparison/inputs.json").read_bytes())
-    column = inputs["factor_ids"].index(cashflow_factor)
+    column = inputs["factor_ids"].index(business_factor)
     values = [row[column] for row in inputs["segments"]["train"]["features"]]
     assert all(isinstance(value, float) and np.isfinite(value) for value in values)
     assert any(value != 0 for value in values)
     comparison = json.loads((root / "qlib-comparison/comparison.json").read_bytes())
-    assert cashflow_factor in comparison["factor_ids"]
+    assert business_factor in comparison["factor_ids"]

@@ -175,7 +175,7 @@ def test_cashflow_hypothesis_revised_through_actual_model_and_report(tmp_path, m
     assert "matching periods" in report
 
 
-@pytest.mark.parametrize("broken", [None, "income", "cashflow"])
+@pytest.mark.parametrize("broken", [None, "income", "cashflow", "balance"])
 def test_collector_keeps_usable_statement_when_other_section_fails(tmp_path, monkeypatch, broken):
     from datetime import date
     from io import BytesIO
@@ -199,12 +199,22 @@ def test_collector_keeps_usable_statement_when_other_section_fails(tmp_path, mon
     )
     monkeypatch.setattr(issuer_financials, "statement_date", lambda *a: date(2024, 10, 25))
 
-    def parse(raw, profile, *, cashflow=False):
-        section = "cashflow" if cashflow else "income"
+    def parse(raw, profile, *, cashflow=False, balance=False):
+        section = "balance" if balance else "cashflow" if cashflow else "income"
         if section == broken:
             raise ValueError("Unsupported fixture " + section)
         if cashflow:
             return issuer_financials.statement_rows(CASH_TEXT, CASH_PROFILE, cashflow=True), 3
+        if balance:
+            return [
+                {
+                    "field": "inventory",
+                    "value": 20,
+                    "end": "2024-09-30",
+                    "tag": "Inventories",
+                    "period_kind": "reported_balance_instant",
+                }
+            ], 2
         return [{"field": "revenue", "value": 100, "end": "2024-09-30", "tag": "Revenues"}], 1
 
     monkeypatch.setattr(issuer_financials, "parse_statement", parse)
@@ -216,12 +226,15 @@ def test_collector_keeps_usable_statement_when_other_section_fails(tmp_path, mon
             "release_pattern": "/release$",
             "pdf_pattern": r"\.pdf$",
             "cashflow": CASH_PROFILE,
+            "balance": {"rows": {"inventory": "Inventories"}},
         }
     }
     result = issuer_financials.collect_issuer("KO", tmp_path, profile)
-    assert {r["page"] for r in result["records"]} == (
-        {1, 3} if broken is None else {3} if broken == "income" else {1}
-    )
+    assert {r["page"] for r in result["records"]} == {
+        page
+        for section, page in (("income", 1), ("balance", 2), ("cashflow", 3))
+        if section != broken
+    }
     assert all(r["available_at"] == "2024-10-26T05:00:00+00:00" for r in result["records"])
     cash = [r for r in result["records"] if r["field"] == "operating_cashflow"]
     if broken != "cashflow":
