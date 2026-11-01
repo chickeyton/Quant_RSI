@@ -118,7 +118,7 @@ const StudyCards = (() => {
     ]));
     if (item.definition_owner) card.append(note(`${title(item.definition_scope)} · ${item.definition_owner} · ${item.definition_id}`));
     if (item.source) card.append(table(['Source','Entity','Field'],[[item.source.source_id,item.source.entity,item.source.field]]));
-    if (item.recipe?.op === 'financial_expression') card.append(table(['Input alias','Financial factor'],(item.recipe.inputs||[]).map(i=>[i.name,i.factor_id])));
+    if (['financial_expression','business_expression'].includes(item.recipe?.op)) card.append(table(['Input alias','Source factor'],(item.recipe.inputs||[]).map(i=>[i.name,i.factor_id])));
     if (item.recipe?.expression?.nodes) card.append(table(['Node','Operation','Inputs'],item.recipe.expression.nodes.map(n=>[n.name,n.op,n.leaf || (n.inputs||[]).join(', ')])));
     if (item.input_factor_ids) card.append(note(`Bound inputs · ${item.input_factor_ids.join(', ')}`));
     if (item.runnable === false) card.append(badge('Not executable in this path', 'caution'));

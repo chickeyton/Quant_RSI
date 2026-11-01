@@ -108,12 +108,13 @@ To focus that study on a concrete business question, add
 `--question "Could inventory growth indicate weaker demand? Which available variables can test it?"`.
 This guides the researcher; the chosen horizon and MAE/Sharpe selection remain fixed.
 
-With financial data enabled, Codex/API researchers can also propose bounded business
+With financial data or external drivers enabled, Codex/API researchers can also propose bounded business
 expressions, such as **inventory growth minus revenue growth**, execute them in the model,
-and revise their inputs or arithmetic after feedback. Expressions use existing financial
-factors and preserve their publication cutoffs and reporting periods; they cannot invent
+and revise their inputs or arithmetic after feedback. Expressions can also combine
+financial variables with EIA inventory changes, or compare two industry inventory changes.
+They preserve each source's publication cutoffs and periods; they cannot invent
 missing business data. The report displays their source bindings and operations, and the
-financial diagnostic removes these derived columns too. See
+source-removal diagnostics remove dependent derived columns too. See
 [business expressions](docs/connected_research_study.md#business-factor-expressions).
 
 KO, AAPL and XOM support SEC company facts and official issuer earnings statements; calculations
