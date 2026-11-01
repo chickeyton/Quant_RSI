@@ -274,6 +274,7 @@ class Workbench:
                     "model",
                     "selection_metric",
                     "horizon_sessions",
+                    "walk_forward_folds",
                     "rounds",
                     "max_fits",
                     "error",

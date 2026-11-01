@@ -76,6 +76,13 @@ horizon through prediction, strategy evaluation and later observation; history
 feedback is separated by horizon. Longer runs collect additional price history and
 require a published future calendar. See [prediction horizons](docs/connected_research_study.md#prediction-horizon).
 
+For a post-selection check across time windows, add `--walk-forward-folds 3`
+(or select two/three windows in the workbench). This freezes the selected recipe,
+refits on three chronological windows and reports forecast errors, costs, Sharpe,
+drawdown and buy-and-hold per window. It allows up to three additional fits and
+does not change adoption or publish a different forecast. See
+[time-window diagnostics](docs/connected_research_study.md#frozen-recipe-time-window-diagnostic).
+
 To let business hypotheses select revenue growth, operating-margin and cash-flow factors:
 
 ```bash

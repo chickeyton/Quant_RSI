@@ -84,6 +84,7 @@ def read_state(root):
                 "research_rounds",
                 "fit_budget",
                 "comparison_fit_budget",
+                "walk_forward_fit_budget",
             )
         },
         "iterations": {

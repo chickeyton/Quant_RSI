@@ -116,3 +116,28 @@ def test_failed_refresh_does_not_become_unchanged_evidence(evidence, monkeypatch
     monkeypatch.setattr(trigger, "issuer_news", unavailable)
     with pytest.raises(ValueError, match="RSS unavailable"):
         check()
+
+
+def test_diagnostic_preflight_collects_extra_history_before_worker(evidence, tmp_path, monkeypatch):
+    original, calls = trigger.collection_snapshot, []
+
+    def collect(*args, **kwargs):
+        calls.append(kwargs)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(trigger, "collection_snapshot", collect)
+    workbench = Workbench(tmp_path)
+    receipts = []
+    for folds in (0, 3):
+        options = OFFLINE | {"data": "daily", "horizon_sessions": 60, "walk_forward_folds": folds}
+        batch = workbench.batch(["KO"], options)
+        task = workbench.task(batch["tasks"][-1]["id"])
+        manifest = json.loads((task / "task.json").read_bytes())
+        receipt, args = trigger.refresh_evidence(task, manifest)
+        receipts.append(receipt)
+        assert args[args.index("--walk-forward-folds") + 1] == str(folds)
+    assert calls == [
+        {"horizon_sessions": 60, "historical_sessions": 285},
+        {"horizon_sessions": 60, "historical_sessions": 445},
+    ]
+    assert receipts[0]["fingerprint"] != receipts[1]["fingerprint"]

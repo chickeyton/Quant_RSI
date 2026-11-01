@@ -101,8 +101,12 @@ def run_study(args, *, resume=False):
 
 
 def _configuration(args):
+    from quant_rsi.research.study_walk_forward import extra_history
+
     symbol = TypeAdapter(InstrumentId).validate_python(args.symbol.strip().upper())
     horizon = getattr(args, "horizon_sessions", 5)
+    folds = getattr(args, "walk_forward_folds", 0)
+    extra_history(folds, args.evaluation_sessions, horizon)
     estimator_configuration = model_configuration(
         args.model, args.ridge_alpha, horizon_sessions=horizon
     )
@@ -147,6 +151,7 @@ def _configuration(args):
         research_rounds=args.rounds,
         fit_budget=fit_budget,
         comparison_fit_budget=int(compare_external) + int(getattr(args, "financials", False)),
+        walk_forward_fit_budget=folds,
         generated_recipes="bounded_price_operators_and_retained_headline_counts",
     )
     return symbol, root, configuration
@@ -243,14 +248,22 @@ def _run(args, symbol, root, configuration, record, progress, cache):
             from uuid import uuid4
 
             directory = root / "price_retries" / uuid4().hex
-        load_daily_prices(symbol, directory, horizon_sessions=getattr(args, "horizon_sessions", 5))
+        load_daily_prices(symbol, directory, **price_window)
         return str(directory.resolve())
 
+    from quant_rsi.research.study_walk_forward import extra_history
+
+    horizon = getattr(args, "horizon_sessions", 5)
+    folds = getattr(args, "walk_forward_folds", 0)
+    extra_sessions = extra_history(folds, args.evaluation_sessions, horizon)
+    price_window = {"horizon_sessions": horizon}
+    if extra_sessions:
+        price_window["historical_sessions"] = 120 + 3 * (horizon - 5) + extra_sessions
     prices = (
         load_daily_prices(
             symbol,
             cache.call("target_collection", symbol, collect_target),
-            horizon_sessions=getattr(args, "horizon_sessions", 5),
+            **price_window,
         )
         if args.prices == "daily"
         else None
@@ -275,7 +288,9 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         ridge_alpha=args.ridge_alpha,
         fit_cache=cache,
         horizon_sessions=getattr(args, "horizon_sessions", 5),
+        walk_forward_folds=folds,
     )
+    _write(root / "walk_forward_plan.json", model.walk_forward_plan)
     if prices is None:
         model.data = replace(model.data, instruments=(symbol,))
     _write(root / "evaluation_plan.json", model.terminal_plan())
@@ -914,6 +929,31 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         result["study"]["qlib_comparison"] = comparison
         result["study"]["external_engine"] = comparison["notice"]
         result["study"]["conclusion"] += " Actual Qlib comparison completed; see the engine table."
+    if folds:
+        from quant_rsi.research.study_walk_forward import evaluate_windows
+
+        progress.start("walk_forward")
+        diagnostic = evaluate_windows(
+            model,
+            selection["selected_round"],
+            {
+                "commission_bps": args.commission_bps,
+                "slippage_bps": args.slippage_bps,
+                "initial_cash": args.initial_cash,
+                "threshold": args.threshold,
+                "horizon_sessions": model.horizon,
+            },
+        )
+        _write(root / "walk_forward.json", diagnostic)
+        result["study"]["walk_forward"] = diagnostic
+        result["study"]["conclusion"] += (
+            f" Post-selection walk-forward diagnostic: {diagnostic['status']}, "
+            f"{len(diagnostic['folds'])} windows and {diagnostic['extra_fits']} extra fits. "
+            "Historical recipe selection remains exposed; this is not independent validation."
+        )
+        event = {"stage": "walk_forward", "output": diagnostic}
+        record(event)
+        result["trace"].append(event)
     # Freeze measured research time for the reports, but do not announce success yet.
     result["runtime"] = progress.snapshot("completed")
     cache.call("final_result", symbol, lambda: {"result": result, "prices": history_prices})

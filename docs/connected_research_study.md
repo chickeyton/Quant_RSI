@@ -222,6 +222,83 @@ were not isolated from historical outcomes, and development feedback was reused.
 The Qlib comparison holds model and inputs equal; it is not an independent research
 strategy comparison. No elapsed-market outcome is claimed for either latest forecast.
 
+## Frozen-recipe time-window diagnostic
+
+Add `--walk-forward-folds 2` or `3` to the same connected-study command, or select
+**Time-window diagnostic** in the workbench. The default is disabled. For example:
+
+```bash
+quant-rsi research-study KO --horizon-sessions 20 --news-research --financials \
+  --walk-forward-folds 3 --output /tmp/ko-time-windows
+```
+
+The windows are fixed in `walk_forward_plan.json` before hypothesis generation.
+After research selects a recipe, the diagnostic keeps exactly those factor columns
+and model settings. It trains an expanding-window model for each window using only
+labels that mature strictly before its first prediction origin. The final window
+ends at the planned development boundary; all diagnostic labels and account
+valuations remain before the reserved terminal window. No additional LLM calls,
+factor search, threshold changes or selection feedback occur in this stage.
+
+Each window contains the configured `--evaluation-sessions` origins (20 by
+default). The previous window's last target precedes the next window's first
+origin; overlapping labels within each window remain dependent. With three
+windows the run retains 170/245/445 price sessions for a 5/20/60-session horizon,
+respectively. Two windows require 145/205/365 sessions. The extra older history
+is excluded from the original research training allowance: with the same retained
+recent prices, enabling this diagnostic does not itself change the research fit.
+The diagnostic refits explicitly use the longer, expanding history.
+
+A short retained collection cannot serve this expanded plan; use a fresh output
+or `--prices-dir`. Published calendar and source-history coverage are still
+required. Related stocks collect matching historical coverage. A longer window
+can expose missing financial or news data: unavailable training rows are listed,
+and any missing evaluation row makes that entire window unavailable. No missing
+window is silently removed from a pooled score.
+
+The report and live view show each window's forecast errors and separate costed
+strategy/buy-and-hold accounts, including Sharpe and drawdown. `walk_forward.json`
+retains predictions, baseline predictions, exact training dates, exclusions and
+account evidence. Pooled **forecast** metrics are produced only if every window
+completes; account returns and Sharpe are never stitched or averaged into a
+purported continuous portfolio. Each account starts with the configured cash.
+
+The diagnostic allows at most one additional fit per window, separately from the
+research fit budget and optional financial/Qlib comparisons. Completed diagnostic
+fits use the existing checkpoint mechanism; `research-resume` reuses them after a
+later failure. A failed attempt remains recorded and can consume actual compute
+beyond the count of successful logical fits, as in the existing study recovery
+contract. The selected forecast and prospective history still belong to the
+original selected research model.
+
+This is **post-selection retrospective sensitivity analysis**, not independent
+out-of-sample research validation. The factor recipe was selected using later
+information, current news and potentially pretrained LLM knowledge. Chronological
+refitting prevents future labels entering a fit; it does not undo that recipe
+selection exposure. The older registered C2/C5 fold requirement in issue #11
+remains a separate unresolved contract.
+
+### Time-window integration observation (2026-11-01)
+
+A KO 60-session, three-window run used a **simulated researcher**, real retained
+public prices and issuer financials, and actual LightGBM fits. The selected recipe
+combined a moving-average price factor, free-cash-flow growth and CCEP relative
+return. All three chronological windows completed, with 45, 125 and 205 mature
+training rows and 20 prediction origins each. Three extra diagnostic fits were
+separate from the two research fits and one financial-removal comparison.
+
+| Account window | Model MAE | Unchanged-price MAE | Net strategy return | Net Sharpe | Buy-and-hold return |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 2025-08-08 to 2025-12-01 | 1.8553 | 2.3240 | 1.12% | 1.0760 | 2.24% |
+| 2025-12-02 to 2026-03-27 | 6.7685 | 6.6130 | 1.03% | 0.8469 | 6.66% |
+| 2026-03-30 to 2026-07-23 | 1.5157 | 6.4880 | 5.89% | 0.9409 | 5.89% |
+
+Each account has 79 daily returns and starts independently. Window two is worse
+than the unchanged-price forecast baseline; windows one and two trail buy-and-hold
+on strategy return. These are retained negative comparisons, not evidence of
+independent forecasting skill. The run preserves its development-worktree identity;
+later presentation changes do not rewrite that completed experiment.
+
 ## Financial business factors
 
 ```bash

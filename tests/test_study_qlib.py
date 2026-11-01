@@ -121,6 +121,23 @@ def test_actual_upstream_workflow_matches_frozen_inputs_and_common_accounts(
     assert inputs["horizon_sessions"] == horizon_sessions
 
 
+def test_qlib_and_walk_forward_keep_separate_budgets_and_selected_model(tmp_path):
+    pytest.importorskip("qlib", reason="optional upstream Qlib environment is absent")
+    pytest.importorskip("mlflow", reason="optional upstream recorder is absent")
+    root = tmp_path / "combined"
+    assert main(command(root, "--horizon-sessions", "60", "--walk-forward-folds", "2")) == 0
+    assert_upstream_comparison(root, 10)
+    result = json.loads((root / "result.json").read_bytes())
+    chosen = result["iterations"]["selected_round"]
+    selected = result["iterations"]["attempts"][chosen - 1]["prediction"]
+    diagnostic = result["study"]["walk_forward"]
+    assert diagnostic["status"] == "completed"
+    assert diagnostic["selected_round"] == chosen
+    assert diagnostic["extra_fits"] == result["configuration"]["walk_forward_fit_budget"] == 2
+    assert len(diagnostic["folds"][-1]["training_sessions"]) > selected["training_rows"]
+    assert result["study"]["qlib_comparison"]["selected_round"] == chosen
+
+
 def assert_upstream_comparison(root, terminal_sessions):
     result = json.loads((root / "result.json").read_text())
     comparison = result["study"]["qlib_comparison"]

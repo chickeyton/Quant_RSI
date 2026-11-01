@@ -490,8 +490,8 @@ def collect_daily(
     ticker, output_dir, *, historical_sessions=HISTORY_SESSIONS, future_sessions=5
 ) -> dict:
     """Collect into a fresh directory; errors preserve raw evidence and a failure receipt."""
-    if type(historical_sessions) is not int or not HISTORY_SESSIONS <= historical_sessions <= 285:
-        raise ValueError("Daily history must contain 120 through 285 sessions")
+    if type(historical_sessions) is not int or not HISTORY_SESSIONS <= historical_sessions <= 445:
+        raise ValueError("Daily history must contain 120 through 445 sessions")
     if type(future_sessions) is not int or not 5 <= future_sessions <= 60:
         raise ValueError("Future calendar must contain 5 through 60 sessions")
     output = Path(output_dir).absolute()

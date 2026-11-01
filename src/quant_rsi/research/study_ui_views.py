@@ -266,6 +266,30 @@ def visual_output(stage, output, previous, symbol):
             ],
             "note": output["notice"] + f" Additional fits: {output['extra_fits']}.",
         }
+    if stage == "walk_forward":
+        rows = []
+        for fold in output["folds"]:
+            for account in ("strategy", "buy_and_hold"):
+                completed = fold["status"] == "completed"
+                metrics = fold["strategy"][account]["metrics"] if completed else {}
+                rows.append(
+                    {
+                        "window": f"{fold['first_origin']} → {fold['last_target']}",
+                        "engine": account if completed else "unavailable",
+                        "mae": fold["evaluation"]["metrics"]["mae_price"]
+                        if completed and account == "strategy"
+                        else None,
+                        **_pick(metrics, "net_return", "sharpe_ratio", "max_drawdown"),
+                    }
+                )
+                if not completed:
+                    break
+        return {
+            "kind": "engine_comparison",
+            "rows": rows,
+            "extra_fits": output["extra_fits"],
+            "note": output["notice"] + f" Additional fits: {output['extra_fits']}.",
+        }
     if stage == "qlib_comparison":
         rows = []
         for segment, values in output["segments"].items():

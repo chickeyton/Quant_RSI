@@ -27,6 +27,7 @@ def refresh_evidence(task, manifest):
             "patience",
             "selection_metric",
             "horizon_sessions",
+            "walk_forward_folds",
             "news_research",
             "financials",
             "financials_source",
@@ -41,9 +42,16 @@ def refresh_evidence(task, manifest):
         ),
     }
     if mode == "daily":
+        from quant_rsi.research.study_walk_forward import extra_history
+
         prices = task / "preflight/prices"
+        horizon = manifest.get("horizon_sessions", 5)
+        extra_sessions = extra_history(manifest.get("walk_forward_folds", 0), 20, horizon)
         snapshot = collection_snapshot(
-            symbol, prices, horizon_sessions=manifest.get("horizon_sessions", 5)
+            symbol,
+            prices,
+            horizon_sessions=horizon,
+            historical_sessions=120 + 3 * (horizon - 5) + extra_sessions,
         )
         observe_prices(history, symbol, snapshot)
         evidence["prices"] = {k: snapshot[k] for k in ("dates", "opens", "closes")}
