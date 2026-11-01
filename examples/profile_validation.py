@@ -17,6 +17,23 @@ ROOT = Path(__file__).resolve().parents[1]
 THREAD_ENV = dict(
     PYTHONHASHSEED="0", OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1"
 )
+# Whole-module scheduling hints from green CI 41346746509 (2026-11-01).
+# Modules below 30 seconds averaged 3 seconds. These estimates never select tests.
+MODULE_SECONDS = {
+    "test_comparison": 91,
+    "test_enhanced_forecast_workflow": 618,
+    "test_factor_discovery": 36,
+    "test_forecast_campaign": 42,
+    "test_forecast_recursive_preparation": 47,
+    "test_forecast_usability": 494,
+    "test_intraday_second_review": 32,
+    "test_local_comparison": 250,
+    "test_local_packages": 74,
+    "test_packages": 98,
+    "test_research_workflow": 50,
+    "test_trajectory": 235,
+    "test_trajectory_recovery_guard": 114,
+}
 
 
 def grouped_shards(selectors, count):
@@ -25,8 +42,14 @@ def grouped_shards(selectors, count):
         module = str(Path(selector.split("::", 1)[0]).resolve())
         groups.setdefault(module, []).append(selector)
     shards = [[] for _ in range(min(count, len(groups)))]
-    for index, group in enumerate(groups.values()):
-        shards[index % len(shards)].extend(group)
+    if len(shards) < 2:
+        return [[selector for group in groups.values() for selector in group]] if groups else []
+    estimates = {module: MODULE_SECONDS.get(Path(module).stem, 3) for module in groups}
+    loads = [0] * len(shards)
+    for module in sorted(groups, key=lambda module: -estimates[module]):
+        index = min(range(len(shards)), key=lambda index: loads[index])
+        shards[index].extend(groups[module])
+        loads[index] += estimates[module]
     return shards
 
 
