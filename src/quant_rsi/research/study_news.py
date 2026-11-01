@@ -108,6 +108,32 @@ def _validate(snapshot):
     return sources, max(receipts)
 
 
+def load_snapshot(path, symbol, *, limit=5):
+    """Read one retained RSS context with its original source receipts and selection."""
+    if type(limit) is not int or not 1 <= limit <= 20:
+        raise ValueError("--news-limit must be an integer between 1 and 20")
+    path = Path(path)
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_FILE_BYTES:
+        raise ValueError("Retained news snapshot file or byte bound exceeded")
+    with path.open("rb") as stream:
+        raw = stream.read(MAX_FILE_BYTES + 1)
+    if len(raw) > MAX_FILE_BYTES:
+        raise ValueError("Retained news snapshot exceeds byte limit")
+    snapshot = decode(raw)
+    sources, _ = _validate(snapshot)
+    if snapshot["provider"] != "issuer_rss":
+        raise ValueError("--news-snapshot requires retained issuer RSS data")
+    if next(iter(sources)) != symbol or sources[symbol]["status"] != "available":
+        raise ValueError("Retained news snapshot target differs from the study target")
+    if not any(item["symbol"] == symbol for item in snapshot["items"]):
+        raise ValueError("Retained news context requires at least one target headline")
+    for item in snapshot["items"]:
+        _text(item.get("text"), 2301)
+    if any(sum(item["symbol"] == key for item in snapshot["items"]) > limit for key in sources):
+        raise ValueError("Retained news selection exceeds --news-limit; it cannot be truncated")
+    return snapshot
+
+
 def load_archive(path):
     """Read only bounded content-addressed JSON; missing directories represent no history."""
     root, snapshots, total = Path(path), [], 0

@@ -63,6 +63,7 @@ def refresh_evidence(task, manifest, *, on_stage=None):
             on_stage("collecting_news")
         news = issuer_news({"symbol": symbol, "related": profile_related(symbol)})
         atomic_write(task / "preflight/news.json", canonical(news))
+        arguments += ["--news-snapshot", str(task / "preflight/news.json")]
         evidence["news"] = sorted(
             [
                 {
