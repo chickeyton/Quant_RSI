@@ -35,9 +35,12 @@ class LightGBMDemo:
         estimator="lightgbm",
         ridge_alpha=None,
         fit_cache=None,
+        horizon_sessions=5,
     ):
         self.fit_cache = fit_cache
-        self.model_configuration = model_configuration(estimator, ridge_alpha)
+        self.model_configuration = model_configuration(
+            estimator, ridge_alpha, horizon_sessions=horizon_sessions
+        )
         self.estimator = estimator
         self.model_label = "LightGBM" if estimator == "lightgbm" else "Ridge"
         if type(evaluation_sessions) is not int or not 1 <= evaluation_sessions <= 20:
@@ -75,14 +78,14 @@ class LightGBMDemo:
         ]
         if len(recipes) < 2:
             raise ValueError("LightGBM demo needs at least two numeric factors for one revision")
-        self.horizon = 5
+        self.horizon = horizon_sessions
         self.price_info = None
         if prices is None:
-            self.origin = 100
+            self.origin = 100 + 2 * (self.horizon - 5)
             self.data = synthetic_data(
                 DataSpec(
                     source="synthetic",
-                    sessions=128,
+                    sessions=128 + 3 * (self.horizon - 5),
                     instruments=1,
                     train_cutoff=self.origin,
                     seed=7,
@@ -90,6 +93,8 @@ class LightGBMDemo:
             )
         else:
             self.data, self.price_info = prices
+            if self.price_info.get("horizon_sessions", 5) != self.horizon:
+                raise ValueError("Retained price calendar was prepared for another horizon")
             self.origin = len(self.data.dates) - 1 - self.horizon
         self.price_provider = "public_daily_prices" if self.price_info else "synthetic_price_series"
         self.terminal_origins = np.arange(self.origin - terminal_sessions + 1, self.origin + 1)
@@ -284,6 +289,7 @@ class LightGBMDemo:
             "reference_price": float(self.data.closes[self.origin, 0]),
             "origin_session": self.data.dates[self.origin],
             "model_mode": self.estimator,
+            "horizon_sessions": self.horizon,
             "model_configuration": deepcopy(self.model_configuration),
             "price_evidence": deepcopy(self.price_info),
             "model_note": (
@@ -306,7 +312,7 @@ class LightGBMDemo:
                 + "All revisions use the same training window and evaluation origins. "
                 "Current news guides retrospective factor selection, not historically available "
                 "features. Each revision reuses disclosed development outcomes, so this "
-                "is not independent holdout validation. Five-session outcomes overlap."
+                f"is not independent holdout validation. {self.horizon}-session outcomes overlap."
             )
         if self.news_feature_support is not None:
             result["news_feature_support"] = deepcopy(self.news_feature_support)
@@ -507,7 +513,7 @@ class LightGBMDemo:
             "training_rows": len(self.train),
             "training_feature_columns": x.shape[1],
             "last_training_label_session": self.data.dates[self.train[-1] + self.horizon],
-            "training_target": "five_session_close_log_return",
+            "training_target": self.model_configuration["target"],
         }
         if self.estimator == "ridge":
             result["fitted_model"] = model.state()
@@ -693,6 +699,7 @@ class LightGBMDemo:
         ]
         return {
             "selected_round": selected_round,
+            "horizon_sessions": self.horizon,
             "symbol": self.data.instruments[0],
             "factor_ids": deepcopy(factor_ids),
             "model_configuration": deepcopy(self.model_configuration),
@@ -703,6 +710,7 @@ class LightGBMDemo:
         """Dates only: frozen before research, with no terminal values or outcomes."""
         return {
             "status": "reserved" if len(self.terminal_origins) else "disabled",
+            "horizon_sessions": self.horizon,
             "sample_count": len(self.terminal_origins),
             "origin_sessions": [self.data.dates[i] for i in self.terminal_origins],
             "target_sessions": [self.data.dates[i + self.horizon] for i in self.terminal_origins],
@@ -854,6 +862,6 @@ class LightGBMDemo:
             result["text"] += (
                 f" Metrics describe the same {len(self.origins)} matured origins; "
                 "news informs retrospective selection and the revised fit reuses these disclosed "
-                "outcomes. Overlapping five-session labels are not independent samples."
+                f"outcomes. Overlapping {self.horizon}-session labels are not independent samples."
             )
         return result

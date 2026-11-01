@@ -102,7 +102,10 @@ def run_study(args, *, resume=False):
 
 def _configuration(args):
     symbol = TypeAdapter(InstrumentId).validate_python(args.symbol.strip().upper())
-    estimator_configuration = model_configuration(args.model, args.ridge_alpha)
+    horizon = getattr(args, "horizon_sessions", 5)
+    estimator_configuration = model_configuration(
+        args.model, args.ridge_alpha, horizon_sessions=horizon
+    )
     compare_external = getattr(args, "compare_qlib", False)
     if compare_external:
         if args.model != "lightgbm":
@@ -240,11 +243,15 @@ def _run(args, symbol, root, configuration, record, progress, cache):
             from uuid import uuid4
 
             directory = root / "price_retries" / uuid4().hex
-        load_daily_prices(symbol, directory)
+        load_daily_prices(symbol, directory, horizon_sessions=getattr(args, "horizon_sessions", 5))
         return str(directory.resolve())
 
     prices = (
-        load_daily_prices(symbol, cache.call("target_collection", symbol, collect_target))
+        load_daily_prices(
+            symbol,
+            cache.call("target_collection", symbol, collect_target),
+            horizon_sessions=getattr(args, "horizon_sessions", 5),
+        )
         if args.prices == "daily"
         else None
     )
@@ -267,6 +274,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         estimator=args.model,
         ridge_alpha=args.ridge_alpha,
         fit_cache=cache,
+        horizon_sessions=getattr(args, "horizon_sessions", 5),
     )
     if prices is None:
         model.data = replace(model.data, instruments=(symbol,))
@@ -276,7 +284,9 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         {"provider": model.price_provider, "symbol": symbol, "sessions": len(model.data.dates)},
     )
     history_prices = (
-        collection_snapshot(symbol, prices[1]["collection_directory"])
+        collection_snapshot(
+            symbol, prices[1]["collection_directory"], horizon_sessions=model.horizon
+        )
         if args.history_dir and prices
         else None
     )
@@ -286,7 +296,9 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         if history_prices:
             observe_prices(args.history_dir, symbol, history_prices)
         prior_outcomes = cache.call(
-            "prior_outcomes", symbol, lambda: mature_feedback(args.history_dir, symbol)
+            "prior_outcomes",
+            symbol,
+            lambda: mature_feedback(args.history_dir, symbol, horizon_sessions=model.horizon),
         )
         _write(root / "prior_outcomes.json", prior_outcomes)
         progress.finish(
@@ -588,6 +600,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
             slippage_bps=args.slippage_bps,
             initial_cash=args.initial_cash,
             threshold=args.threshold,
+            horizon_sessions=model.horizon,
         )
         return prediction
 
@@ -622,6 +635,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
                 slippage_bps=args.slippage_bps,
                 initial_cash=args.initial_cash,
                 threshold=args.threshold,
+                horizon_sessions=model.horizon,
             )
             terminal["strategy"]["evidence_mode"] = "historical_terminal_hypothetical_account"
         _write(root / "terminal_evaluation.json", terminal)
@@ -736,7 +750,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         )
     result["notice"] = (
         f"Connected research study with {model.price_provider} prices and "
-        f"real {model.model_label} training. "
+        f"real {model.model_label} training at a {model.horizon}-session horizon. "
         f"Hypotheses: {steps['initial_hypothesis']['provider']}; "
         f"news: {steps['news']['provider']}; "
         f"relationships: {steps['related_stocks']['provider']}. "
@@ -803,7 +817,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         "external_engine": "Qlib-style local price adapters; no Qlib or QuantDinger execution.",
         "conclusion": (
             discovery_summary + f"{symbol}: completed {len(attempts)} fits and "
-            f"{len(attempts) - 1} revision attempts; "
+            f"{len(attempts) - 1} revision attempts at a {model.horizon}-session horizon; "
             f"stopped: {result['iterations']['stop_reason']}. "
             f"Final trial evaluated over "
             f"{metrics['sample_count']} development observations. Price MAE: initial "
@@ -849,6 +863,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
                     "slippage_bps": args.slippage_bps,
                     "initial_cash": args.initial_cash,
                     "threshold": args.threshold,
+                    "horizon_sessions": model.horizon,
                 },
             ),
         )
@@ -888,6 +903,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
                     "slippage_bps": args.slippage_bps,
                     "initial_cash": args.initial_cash,
                     "threshold": args.threshold,
+                    "horizon_sessions": model.horizon,
                 },
             )
 

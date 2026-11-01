@@ -10,7 +10,8 @@ from quant_rsi.research.demo_proposals import (
 )
 
 NOTICE = (
-    "Recipes from the latest five studies of this symbol, including unobserved forecasts. "
+    "Recipes from the latest five studies of this symbol and prediction horizon, "
+    "including unobserved forecasts. "
     "Prior selection is not evidence that a factor works. Only settled forecast outcomes "
     "supply observed error feedback. Availability is checked against current inputs; "
     "old feature values and historical runnable flags are never reused. "

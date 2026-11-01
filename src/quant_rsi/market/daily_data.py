@@ -23,6 +23,14 @@ from quant_rsi.market.market_contracts import CSV_FIELDS, DataContract
 
 CALENDAR_URL = "https://www.nyse.com/markets/hours-calendars"
 NASDAQ_CALENDAR_URL = "https://www.nasdaq.com/market-activity/stock-market-holiday-schedule"
+NYSE_PAST_CALENDAR_URL = (
+    "https://ir.theice.com/press/news-details/2024/"
+    "NYSE-Group-Announces-2025-2026-and-2027-Holiday-and-Early-Closings-Calendar/default.aspx"
+)
+NASDAQ_PAST_CALENDAR_URL = (
+    "https://www.nasdaqtrader.com/content/technicalsupport/2025tradingcalendar.pdf"
+)
+NASDAQ_PAST_CALENDAR_SHA256 = "fb761082d449ef76461d2ca8448ccebb79862a0acd124fad2e914469c9086037"
 CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/"
 NASDAQ_EXCHANGES = {"NMS", "NGM", "NCM"}
 SUPPORTED_EXCHANGES = {
@@ -144,11 +152,17 @@ class _CalendarHTML(HTMLParser):
             self.paragraph = None
 
 
-def _calendar(body):
+def _calendar(body, *, archive=False):
     page = _CalendarHTML()
     page.feed(body.decode("utf-8"))
     text = " ".join(" ".join(page.text).split())
-    if "All NYSE markets observe" not in text or not re.search(
+    if archive:
+        if (
+            "NYSE Group Announces 2025, 2026 and 2027 Holiday and Early Closings Calendar"
+            not in text
+        ):
+            raise ValueError("Official NYSE historical calendar heading is absent or changed")
+    elif "All NYSE markets observe" not in text or not re.search(
         r"Core Trading Session:\s*9:30 a\.m\.\s+to\s+4:00 p\.m\.\s+ET", text
     ):
         raise ValueError("Official NYSE core-hours evidence is absent or has changed")
@@ -204,6 +218,37 @@ def _calendar(body):
             raise ValueError("Unrecognized official early-close dates")
         for month, day, year in found:
             early.add(date(int(year), MONTHS[month], int(day)))
+    return holidays, early
+
+
+def _past_calendar(body, *, nasdaq):
+    """Admit the missing 2025 schedule from a retained, exchange-specific source."""
+    if not nasdaq:
+        holidays, early = _calendar(body, archive=True)
+        if 2025 not in holidays:
+            raise ValueError("Official NYSE archive does not cover 2025")
+        return holidays[2025], {day for day in early if day.year == 2025}
+    # The Nasdaq PDF encodes closures with filled/hollow circles. These dates were
+    # visually transcribed from that exact document, not inferred from NYSE rules.
+    # A changed file must be reviewed instead of silently reusing this transcription.
+    if _sha(body) != NASDAQ_PAST_CALENDAR_SHA256:
+        raise ValueError("Nasdaq 2025 calendar differs from the reviewed source PDF")
+    holidays = {
+        date.fromisoformat("2025-" + day)
+        for day in (
+            "01-01",
+            "01-20",
+            "02-17",
+            "04-18",
+            "05-26",
+            "06-19",
+            "07-04",
+            "09-01",
+            "11-27",
+            "12-25",
+        )
+    }
+    early = {date(2025, 7, 3), date(2025, 11, 28), date(2025, 12, 24)}
     return holidays, early
 
 
@@ -326,7 +371,16 @@ def _chart(body, ticker):
     return data, timestamps, quotes
 
 
-def _complete_bars(timestamps, quotes, holidays, early, received_at):
+def _complete_bars(
+    timestamps,
+    quotes,
+    holidays,
+    early,
+    received_at,
+    *,
+    historical_sessions=HISTORY_SESSIONS,
+    future_sessions=5,
+):
     complete, previous = [], None
     first_calendar_year = min(holidays)
     for i, epoch in enumerate(timestamps):
@@ -348,9 +402,11 @@ def _complete_bars(timestamps, quotes, holidays, early, received_at):
                 raise ValueError("Public chart contains a future bar")
             continue
         complete.append((session, _price(quotes["open"][i]), _price(quotes["close"][i])))
-    if len(complete) < HISTORY_SESSIONS:
-        raise ValueError(f"Need {HISTORY_SESSIONS} complete daily bars; received {len(complete)}")
-    complete = complete[-HISTORY_SESSIONS:]
+    if len(complete) < historical_sessions:
+        raise ValueError(
+            f"Need {historical_sessions} complete daily bars; received {len(complete)}"
+        )
+    complete = complete[-historical_sessions:]
     start = date.fromisoformat(complete[0][0]["session_id"])
     end = date.fromisoformat(complete[-1][0]["session_id"])
     expected = []
@@ -372,7 +428,7 @@ def _complete_bars(timestamps, quotes, holidays, early, received_at):
         day += timedelta(days=1)
     future = []
     day = end
-    while len(future) < 5:
+    while len(future) < future_sessions:
         day += timedelta(days=1)
         session = _session(day, holidays, early)
         if session:
@@ -430,8 +486,14 @@ def _action_events(data, ticker, raw_ref):
     return events, cash, unsupported
 
 
-def collect_daily(ticker, output_dir) -> dict:
+def collect_daily(
+    ticker, output_dir, *, historical_sessions=HISTORY_SESSIONS, future_sessions=5
+) -> dict:
     """Collect into a fresh directory; errors preserve raw evidence and a failure receipt."""
+    if type(historical_sessions) is not int or not HISTORY_SESSIONS <= historical_sessions <= 285:
+        raise ValueError("Daily history must contain 120 through 285 sessions")
+    if type(future_sessions) is not int or not 5 <= future_sessions <= 60:
+        raise ValueError("Future calendar must contain 5 through 60 sessions")
     output = Path(output_dir).absolute()
     output.mkdir(parents=True, exist_ok=True)
     if any(output.iterdir()):
@@ -456,7 +518,10 @@ def collect_daily(ticker, output_dir) -> dict:
         if not isinstance(ticker, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9.-]{0,14}", ticker):
             raise ValueError("Ticker must be a supported plain US equity/ETF symbol")
         ticker = ticker.upper()
-        url = CHART_URL + quote(ticker, safe="") + "?range=1y&interval=1d&events=div%2Csplits"
+        period = "2y" if historical_sessions > HISTORY_SESSIONS else "1y"
+        url = (
+            CHART_URL + quote(ticker, safe="") + f"?range={period}&interval=1d&events=div%2Csplits"
+        )
         raw_path = output / "yahoo_chart_raw.json"
         raw = _download(url, raw_path, downloads)
         data, timestamps, quotes = _chart(raw, ticker)
@@ -467,7 +532,41 @@ def collect_daily(ticker, output_dir) -> dict:
         calendar_path = output / f"{calendar_name}_hours_calendar.html"
         calendar_body = _download(calendar_url, calendar_path, downloads)
         holidays, early = (_nasdaq_calendar if nasdaq else _calendar)(calendar_body)
-        bars, future = _complete_bars(timestamps, quotes, holidays, early, bars_received_at)
+        historical_sources = []
+        covered = sum(datetime.fromtimestamp(t, EASTERN).year >= min(holidays) for t in timestamps)
+        if (
+            covered <= historical_sessions
+            and 2025 not in holidays
+            and any(datetime.fromtimestamp(t, EASTERN).year == 2025 for t in timestamps)
+        ):
+            historical_url = NASDAQ_PAST_CALENDAR_URL if nasdaq else NYSE_PAST_CALENDAR_URL
+            historical_path = output / (
+                "nasdaq_calendar_2025.pdf" if nasdaq else "nyse_calendar_2025.html"
+            )
+            historical_body = _download(historical_url, historical_path, downloads)
+            if downloads[-1]["response_url"] != historical_url:
+                raise ValueError("Historical calendar redirected away from its registered source")
+            past_holidays, past_early = _past_calendar(historical_body, nasdaq=nasdaq)
+            holidays[2025] = past_holidays
+            early |= past_early
+            historical_sources.append(
+                {
+                    "year": 2025,
+                    "source_url": historical_url,
+                    "source_ref": _sha(historical_body),
+                    "path": str(historical_path),
+                    "method": "reviewed_pdf_transcription" if nasdaq else "published_html_table",
+                }
+            )
+        bars, future = _complete_bars(
+            timestamps,
+            quotes,
+            holidays,
+            early,
+            bars_received_at,
+            historical_sessions=historical_sessions,
+            future_sessions=future_sessions,
+        )
         sessions = [bar[0] for bar in bars] + future
         calendar_evidence = {
             "kind": "ParsedPublishedNasdaqCalendar" if nasdaq else "ParsedPublishedNYSECalendar",
@@ -481,6 +580,10 @@ def collect_daily(ticker, output_dir) -> dict:
             "sessions": sessions,
             "qualification": "published scheduled core sessions; emergency closures not certified",
         }
+        if historical_sources:
+            calendar_evidence["historical_sources"] = [
+                {k: v for k, v in source.items() if k != "path"} for source in historical_sources
+            ]
         calendar_json = output / "calendar_evidence.json"
         calendar_ref = _json_file(calendar_json, calendar_evidence)
         unit_json = output / "price_unit_evidence.json"
@@ -597,6 +700,7 @@ def collect_daily(ticker, output_dir) -> dict:
             calendar_ref: str(calendar_json),
             unit_ref: str(unit_json),
         }
+        evidence.update({source["source_ref"]: source["path"] for source in historical_sources})
         receipt.update(
             status="collected",
             ticker=ticker,

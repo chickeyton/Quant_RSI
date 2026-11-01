@@ -54,7 +54,7 @@ def evidence(tmp_path, monkeypatch):
         "entries": [],
     }
 
-    def collect(symbol, directory):
+    def collect(symbol, directory, **kwargs):
         directory.mkdir(parents=True)
         return deepcopy(state["prices"])
 
@@ -63,7 +63,7 @@ def evidence(tmp_path, monkeypatch):
     monkeypatch.setattr(trigger, "issuer_news", lambda *a: deepcopy(state["news"]))
     monkeypatch.setattr(trigger, "profile_related", lambda *a: {})
     monkeypatch.setattr(trigger, "collect_financials", lambda *a: deepcopy(state["financials"]))
-    monkeypatch.setattr(trigger, "mature_feedback", lambda *a: {"entries": state["entries"]})
+    monkeypatch.setattr(trigger, "mature_feedback", lambda *a, **kw: {"entries": state["entries"]})
     workbench = Workbench(tmp_path)
     options = OFFLINE | {"data": "daily", "financials": True, "only_new_evidence": True}
 

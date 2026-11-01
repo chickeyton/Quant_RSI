@@ -137,6 +137,13 @@ def main(argv: list[str] | None = None) -> int:
             )
             demo.add_argument("--evaluation-sessions", type=int, default=20, choices=range(2, 21))
             demo.add_argument(
+                "--horizon-sessions",
+                type=int,
+                default=5,
+                choices=(5, 20, 60),
+                help="prediction target in trading sessions (default: 5)",
+            )
+            demo.add_argument(
                 "--terminal-sessions",
                 type=int,
                 default=10,

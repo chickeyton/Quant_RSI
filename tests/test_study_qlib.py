@@ -97,14 +97,28 @@ def test_ridge_comparison_rejected_before_provider_work(tmp_path, capsys):
 
 
 @pytest.mark.parametrize("terminal_sessions", [0, 10])
+@pytest.mark.parametrize("horizon_sessions", [5, 20, 60])
 def test_actual_upstream_workflow_matches_frozen_inputs_and_common_accounts(
-    tmp_path, terminal_sessions
+    tmp_path, terminal_sessions, horizon_sessions
 ):
     pytest.importorskip("qlib", reason="optional upstream Qlib workflow environment is absent")
     pytest.importorskip("mlflow", reason="optional upstream Qlib workflow recorder is absent")
     root = tmp_path / "study"
-    assert main(command(root, "--terminal-sessions", str(terminal_sessions))) == 0
+    assert (
+        main(
+            command(
+                root,
+                "--terminal-sessions",
+                str(terminal_sessions),
+                "--horizon-sessions",
+                str(horizon_sessions),
+            )
+        )
+        == 0
+    )
     assert_upstream_comparison(root, terminal_sessions)
+    inputs = json.loads((root / "qlib-comparison/inputs.json").read_bytes())
+    assert inputs["horizon_sessions"] == horizon_sessions
 
 
 def assert_upstream_comparison(root, terminal_sessions):
