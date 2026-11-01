@@ -18,6 +18,7 @@ def input_report(root, symbol, model, news, financials):
             "provider": model.price_provider,
             "first_session": str(model.data.dates[0]),
             "last_session": str(model.data.dates[-1]),
+            "historical_sessions": len(model.data.dates),
             "training_rows": len(model.train),
             "development_rows": len(model.origins),
         },
@@ -42,11 +43,11 @@ def input_report(root, symbol, model, news, financials):
         if not rows:
             return "<p>None recorded.</p>"
         return (
-            "<table><thead><tr>"
+            "<div class='table-scroll'><table><thead><tr>"
             + cells(headers, "th")
             + "</tr></thead><tbody>"
             + "".join("<tr>" + cells(row, "td") + "</tr>" for row in rows)
-            + "</tbody></table>"
+            + "</tbody></table></div>"
         )
 
     prices = report["prices"]
@@ -58,6 +59,13 @@ def input_report(root, symbol, model, news, financials):
                 "Target prices",
                 prices["provider"],
                 f"{prices['first_session']} → {prices['last_session']}",
+            ],
+            [
+                "Research samples",
+                prices["provider"],
+                f"{prices['historical_sessions']} price sessions · "
+                f"{prices['training_rows']} training rows · "
+                f"{prices['development_rows']} development rows",
             ],
             [
                 "Current news",
@@ -86,6 +94,30 @@ def input_report(root, symbol, model, news, financials):
         ],
     )
     body += "<p>" + escape(financials["notice"]) + "</p>"
+    if financials.get("sample_coverage"):
+        body += "<h2>Financial variation on research rows</h2>" + table(
+            [
+                "Factor",
+                "Available training rows",
+                "Distinct training values",
+                "Distinct development values",
+            ],
+            [
+                [
+                    r["factor_id"],
+                    f"{r['training_available_rows']} / {r['training_rows']}",
+                    r["training_distinct_values"],
+                    r["development_distinct_values"],
+                ]
+                for r in financials["sample_coverage"]
+            ],
+        )
+        body += (
+            "<p>Counts use the frozen research rows only. Repeated daily values are not "
+            "independent financial observations; distinct values are not a count of filings. "
+            "A constant training feature cannot explain differences between training rows. "
+            "Coverage does not establish predictive value.</p>"
+        )
     if financials.get("coverage_gaps"):
         body += "<h2>Why financial factors are unavailable</h2><div class='coverage-gaps'>" + table(
             ["Factor", "Missing required rows", "Reason", "Example cutoff", "Next step"],
@@ -124,7 +156,8 @@ def input_report(root, symbol, model, news, financials):
 <title>Research input check</title><style>
 body{background:#0b1220;color:#e5edf9;font:16px system-ui;
 max-width:1100px;margin:40px auto;padding:20px}
-h1,h2{color:#72e3d1}p{line-height:1.6}table{width:100%;border-collapse:collapse;display:block;overflow:auto}
+h1,h2{color:#72e3d1}p{line-height:1.6}
+.table-scroll{max-width:100%;overflow:auto}table{width:100%;min-width:680px;border-collapse:collapse}
 .coverage-gaps{overflow:auto}.coverage-gaps table{min-width:760px}
 th,td{text-align:left;padding:12px;border-bottom:1px solid #334155;overflow-wrap:anywhere}
 th:first-child,td:first-child{min-width:150px}th:nth-child(2),td:nth-child(2){min-width:180px}

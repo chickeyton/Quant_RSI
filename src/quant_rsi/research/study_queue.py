@@ -35,6 +35,7 @@ def study_options(options):
         "patience": None,
         "selection_metric": "mae",
         "horizon_sessions": 5,
+        "historical_sessions": None,
         "walk_forward_folds": 0,
         "question": "",
     }
@@ -59,6 +60,13 @@ def study_options(options):
         3,
     ):
         raise ValueError("Walk-forward diagnostic needs 0, 2 or 3 folds")
+    from quant_rsi.research.study_walk_forward import price_history_sessions
+
+    price_history_sessions(
+        result["horizon_sessions"], 20, result["walk_forward_folds"], result["historical_sessions"]
+    )
+    if result["historical_sessions"] is not None and result["data"] != "daily":
+        raise ValueError("Historical sessions requires daily prices")
     model = result["llm_model"]
     if (
         not isinstance(model, str)
@@ -108,9 +116,10 @@ def study_arguments(task, workspace, symbol, options):
         ("patience", "patience"),
         ("selection_metric", "selection-metric"),
         ("horizon_sessions", "horizon-sessions"),
+        ("historical_sessions", "historical-sessions"),
         ("walk_forward_folds", "walk-forward-folds"),
     ):
-        if options[key] is not None:
+        if options.get(key) is not None:
             arguments += ["--" + flag, str(options[key])]
     if options["data"] == "synthetic":
         arguments += ["--news", "simulated", "--related", "simulated"]

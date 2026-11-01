@@ -38,6 +38,36 @@ def test_real_workers_skip_repeat_and_force_manual_cycle(tmp_path):
     assert (workbench.task(row["id"]) / "study/financial_comparison.json").exists()
 
 
+def test_requested_history_survives_queue_preparation_and_changes_trigger(
+    evidence, tmp_path, monkeypatch
+):
+    calls = []
+    original = trigger.collection_snapshot
+
+    def collect(*args, **kwargs):
+        calls.append(kwargs)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(trigger, "collection_snapshot", collect)
+    workbench = Workbench(tmp_path)
+    fingerprints = []
+    for sessions in (252, 445):
+        options = OFFLINE | {"data": "daily", "historical_sessions": sessions}
+        batch = workbench.batch(["KO"], options)
+        task = workbench.task(batch["tasks"][-1]["id"])
+        manifest = json.loads((task / "task.json").read_bytes())
+        receipt, args = trigger.refresh_evidence(task, manifest)
+        assert args[args.index("--historical-sessions") + 1] == str(sessions)
+        assert Workbench(tmp_path).item(task)["historical_sessions"] == sessions
+        assert any(r["historical_sessions"] == sessions for r in workbench.overview()["tasks"])
+        fingerprints.append(receipt["fingerprint"])
+    assert calls == [
+        {"horizon_sessions": 5, "historical_sessions": 252},
+        {"horizon_sessions": 5, "historical_sessions": 445},
+    ]
+    assert fingerprints[0] != fingerprints[1]
+
+
 @pytest.mark.parametrize(
     "failure", [None, "collecting_prices", "collecting_news", "collecting_financials"]
 )

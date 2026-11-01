@@ -463,6 +463,22 @@ def _gap_reason(metric, evidence):
     return "missing_or_incompatible_margin_facts"
 
 
+def sample_coverage(bundle, training, development):
+    """Describe the actual frozen rows, without admitting or dropping any factor."""
+    coverage = []
+    for definition in bundle["definitions"]:
+        identity = definition["factor_id"]
+        values = bundle["columns"][identity]
+        row = {"factor_id": identity}
+        for name, indices in (("training", training), ("development", development)):
+            available = [values[int(i)] for i in indices if values[int(i)] is not None]
+            row[name + "_rows"] = len(indices)
+            row[name + "_available_rows"] = len(available)
+            row[name + "_distinct_values"] = len(set(available))
+        coverage.append(row)
+    return coverage
+
+
 def prepare_financials(snapshot, cutoffs, required):
     records = reported_records(snapshot)
     rows = []

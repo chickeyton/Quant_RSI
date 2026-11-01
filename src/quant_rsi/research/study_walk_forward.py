@@ -24,6 +24,19 @@ def extra_history(folds, sessions, horizon):
     return max(0, folds - 1) * (sessions + horizon)
 
 
+def price_history_sessions(horizon, sessions, folds, requested=None):
+    """One collection requirement for direct studies and workbench preparation."""
+    minimum = 120 + 3 * (horizon - 5) + extra_history(folds, sessions, horizon)
+    if requested is None:
+        return minimum
+    if type(requested) is not int or not minimum <= requested <= 445:
+        raise ValueError(
+            f"Historical sessions must be an integer from {minimum} through 445 "
+            "for this horizon and diagnostic plan"
+        )
+    return requested
+
+
 def freeze_windows(data, last_origin, horizon, sessions, folds):
     """Choose dates before any hypotheses; keep fold valuation intervals disjoint."""
     extra_history(folds, sessions, horizon)

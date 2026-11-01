@@ -220,6 +220,7 @@ def visual_output(stage, output, previous, symbol):
                 "price_source": output["prices"]["provider"],
                 "first_session": output["prices"]["first_session"],
                 "last_session": output["prices"]["last_session"],
+                "historical_sessions": output["prices"].get("historical_sessions"),
                 "training_rows": output["prices"]["training_rows"],
                 "development_rows": output["prices"]["development_rows"],
                 "news_source": output["news"]["provider"],
@@ -233,6 +234,7 @@ def visual_output(stage, output, previous, symbol):
                 },
             },
             "coverage_gaps": financials.get("coverage_gaps", []),
+            "sample_coverage": financials.get("sample_coverage", []),
             "note": output["notice"] + " " + financials["notice"],
         }
     if stage == "load_financials":
@@ -240,6 +242,7 @@ def visual_output(stage, output, previous, symbol):
             "kind": "factors",
             "factors": _factors(output.get("definitions", [])),
             "coverage_gaps": output.get("coverage_gaps", []),
+            "sample_coverage": output.get("sample_coverage", []),
             "catalog": True,
             "note": output["notice"]
             + " Source: "
