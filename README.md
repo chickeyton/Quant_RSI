@@ -83,7 +83,7 @@ drawdown and buy-and-hold per window. It allows up to three additional fits and
 does not change adoption or publish a different forecast. See
 [time-window diagnostics](docs/connected_research_study.md#frozen-recipe-time-window-diagnostic).
 
-To let business hypotheses select revenue growth, operating-margin and cash-flow factors:
+To let business hypotheses select revenue growth, operating-margin, cash-flow and inventory factors:
 
 ```bash
 quant-rsi research-study KO --news-research --financials --output /tmp/ko-business-study
@@ -94,7 +94,9 @@ are shared. `--financials-source auto` (default) tries SEC, then the configured 
 archive if SEC is unavailable. Use `sec` or `issuer` to require a specific source. The report shows
 availability, selected factors, MAE/Sharpe and a same-row diagnostic with financial
 columns removed (up to **one additional fit**, separate from the research budget).
-Income factors use reported quarterly USD facts; cash-flow factors compare matching reported
+Inventory growth uses comparable prior-year balance-sheet dates, not the preceding fiscal
+year-end or inventory changes from the cash-flow statement. Income factors use reported
+quarterly USD facts; cash-flow factors compare matching reported
 3/6/9/12-month periods. Each fact must be available by the feature cutoff. Missing
 facts disable the affected factor; they are not invented or filled with zero. Source failures and fallback choices remain visible. See the
 [financial data contract and offline example](docs/connected_research_study.md#financial-business-factors).
@@ -286,7 +288,7 @@ at a time.
 | Candidate factor execution | Opt-in [Qlib ROC and MA close-price adapters](docs/candidate_factor_runtime.md) feed bounded discovery; the remaining survey candidates are not executable |
 | Dynamic event factors | Registered title instances, observed lifecycle transitions, decay and archival; KO RSS observations can enter this path |
 | Multi-branch factor discovery | CALM is a worked specification; its factor tree is not executable |
-| News and financial evidence | Retained title/guidance features and opt-in filing-dated KO/AAPL revenue, margin and cash-flow factors can enter connected-study training; availability and current-context-only evidence are disclosed |
+| News and financial evidence | Retained title/guidance features and opt-in filing-dated KO/AAPL revenue, margin, cash-flow and inventory factors can enter connected-study training; availability and current-context-only evidence are disclosed |
 | News collection and extraction | [Bounded KO official RSS observations](docs/news_collection.md), retained-title extraction and revision tracking; the study adds current search/page text for hypotheses. The [first news-factor slice](docs/news_factor_slice.md) is implemented; general historical text-feature extraction remains under #8/#39 B |
 | Statistical confirmation and promotion | Incomplete; protected evaluation is engineering-only and retains the incumbent |
 | Intraday bars, model and IBKR paper trading | Standalone, offline-tested: IBKR adapter with a paper-only guard, intraday snapshots, fixed LightGBM development evaluation, replay simulator and paper-account episodes. Not yet wired into the C2/C4/C5 controller or `quant-rsi`; see the [intraday guide](docs/intraday_ibkr.md) |

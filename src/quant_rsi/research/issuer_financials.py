@@ -19,12 +19,14 @@ NOTICE = (
     "Official issuer earnings statements, reconstructed retrospectively from retained public "
     "documents, not a historical vendor archive. Only explicitly reported three-month USD "
     "income columns and explicitly labelled 3/6/9/12-month cash-flow columns are used; no YTD "
-    "subtraction or invented period starts. Date-only publication "
+    "subtraction or invented period starts. Inventory comes from explicit balance-sheet dates, "
+    "not cash-flow changes. Date-only publication "
     "and PDF-declared revisions become usable at 05:00 UTC the following day. "
     "PDF metadata is provenance, not proof that this exact version was historically observed. "
     "Page maintenance dates are recorded separately; "
     "without PDF dates they are used conservatively."
 )
+MAX_RELEASES = 16  # Balance-sheet YoY needs older releases than income's printed comparatives.
 
 
 class Page(HTMLParser):
@@ -41,8 +43,8 @@ class Page(HTMLParser):
             self.meta[attrs.get("name", attrs.get("property"))] = attrs.get("content")
 
 
-def statement_rows(text, profile, *, cashflow=False):
-    """Read the first two columns only after the expected quarterly statement heading."""
+def statement_rows(text, profile, *, cashflow=False, balance=False):
+    """Read two explicitly dated columns after the configured statement heading."""
     lines = [" ".join(line.split()) for line in text.splitlines() if line.strip()]
     if not any(profile["statement_title"].lower() in line.lower() for line in lines[:5]):
         return None
@@ -64,6 +66,15 @@ def statement_rows(text, profile, *, cashflow=False):
         ),
         None,
     )
+    if balance:
+        date_lines = [
+            i
+            for i, line in enumerate(lines[:10])
+            if len(re.findall(r"[A-Z][a-z]+ \d{1,2},", line)) == 2
+        ]
+        if len(date_lines) != 1:
+            raise ValueError("Expected two explicit balance-sheet dates")
+        header = date_lines[0] - 1
     if header is None:
         return None  # Annual and YTD-only pages cannot supply quarterly facts.
     if len(lines) <= header + 2:
@@ -76,7 +87,9 @@ def statement_rows(text, profile, *, cashflow=False):
         datetime.strptime(f"{m} {y}", "%B %d %Y").date()
         for m, y in zip(months[:2], years[:2], strict=True)
     ]
-    if not 350 <= (ends[0] - ends[1]).days <= 380:
+    if balance and (len(years) != 2 or not 0 < (ends[0] - ends[1]).days <= 380):
+        raise ValueError("Ambiguous balance-sheet dates")
+    if not balance and not 350 <= (ends[0] - ends[1]).days <= 380:
         raise ValueError("Quarterly columns are not comparable year-over-year periods")
     rows = []
     for field, label in profile["rows"].items():
@@ -119,6 +132,10 @@ def statement_rows(text, profile, *, cashflow=False):
                 "end": str(end),
                 "value": value * 1_000_000,
             }
+            if balance:
+                if value < 0:
+                    raise ValueError("Reported inventory must be nonnegative")
+                row["period_kind"] = "reported_balance_instant"
             if cashflow:
                 row.update(
                     period_kind="reported_cashflow_duration", period_months=periods[lines[header]]
@@ -131,7 +148,7 @@ def statement_rows(text, profile, *, cashflow=False):
     return rows
 
 
-def parse_statement(raw, profile, *, cashflow=False):
+def parse_statement(raw, profile, *, cashflow=False, balance=False):
     reader = PdfReader(io.BytesIO(raw))
     if reader.is_encrypted or not 1 <= len(reader.pages) <= 40:
         raise ValueError("Unsupported encrypted or oversized earnings statement")
@@ -141,13 +158,13 @@ def parse_statement(raw, profile, *, cashflow=False):
         if contents and len(contents.get_data()) > 4_000_000:
             raise ValueError("Statement page content exceeds the parsing bound")
         text = page.extract_text(extraction_mode="layout")
-        rows = statement_rows(text, profile, cashflow=cashflow)
+        rows = statement_rows(text, profile, cashflow=cashflow, balance=balance)
         if rows:
             found.append((rows, number + 1))
     if len(found) != 1:
         raise ValueError(
             "Expected exactly one supported "
-            + ("cash-flow" if cashflow else "quarterly income")
+            + ("balance-sheet" if balance else "cash-flow" if cashflow else "quarterly income")
             + " statement"
         )
     return found[0]
@@ -212,7 +229,7 @@ def collect_issuer(symbol, directory, profile):
         params = {
             "apiKey": key[1],
             "LanguageId": 1,
-            "pageSize": 8,
+            "pageSize": MAX_RELEASES,
             "pageNumber": 0,
             "year": -1,
             "excludeSelection": 1,
@@ -222,7 +239,7 @@ def collect_issuer(symbol, directory, profile):
         feed = json.loads(fetch(feed_url + "?" + urlencode(params), "json"))
         releases = [
             d["DocumentPath"]
-            for r in feed["GetFinancialReportListResult"][:8]
+            for r in feed["GetFinancialReportListResult"][:MAX_RELEASES]
             for d in r["Documents"]
             if d["DocumentCategory"] == "news"
         ]
@@ -233,7 +250,8 @@ def collect_issuer(symbol, directory, profile):
                 for link in Page(index).links
                 if re.search(source["release_pattern"], link)
             )
-        )[:8]
+        )[:MAX_RELEASES]
+    releases = list(dict.fromkeys(releases))[:MAX_RELEASES]
     records = []
     for release in releases:
         try:
@@ -253,10 +271,15 @@ def collect_issuer(symbol, directory, profile):
             sections = [("income", source)]
             if "cashflow" in source:
                 sections.append(("cashflow", source["cashflow"]))
+            if "balance" in source:
+                sections.append(("balance", source["balance"]))
             for section, definition in sections:
                 try:
                     parsed, page_number = parse_statement(
-                        raw, definition, cashflow=section == "cashflow"
+                        raw,
+                        definition,
+                        cashflow=section == "cashflow",
+                        balance=section == "balance",
                     )
                     rows.extend(row | {"page": page_number} for row in parsed)
                 except (ValueError, PyPdfError) as exc:

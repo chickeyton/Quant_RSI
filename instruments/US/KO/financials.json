@@ -15,6 +15,9 @@
     ],
     "capital_expenditure": [
       "PaymentsToAcquirePropertyPlantAndEquipment"
+    ],
+    "inventory": [
+      "InventoryNet"
     ]
   },
   "issuer": {
@@ -38,6 +41,12 @@
           "Net Cash Provided by Operating Activities"
         ],
         "capital_expenditure": "Purchases of property, plant and equipment"
+      }
+    },
+    "balance": {
+      "statement_title": "Consolidated Balance Sheets",
+      "rows": {
+        "inventory": "Inventories"
       }
     }
   }
