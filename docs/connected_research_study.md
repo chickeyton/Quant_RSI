@@ -29,19 +29,60 @@ quant-rsi research-resume /tmp/ko-interrupted-study --ui
 ```
 
 The workbench binds only to `127.0.0.1`, prints a random-token URL, and opens the browser.
-It accepts a symbol, Codex/API/simulated researcher, optional LLM model, LightGBM/Ridge,
-real/synthetic inputs and the news-research switch. API mode requires a model name and
+It accepts a comma-separated watchlist of up to 20 unique symbols, Codex/API/simulated
+researcher, optional LLM model, LightGBM/Ridge, real/synthetic inputs, news-research switch,
+2–10 rounds, 2–10 fits per stock per cycle, optional patience and MAE/Sharpe selection.
+These limits use the same CLI iteration semantics (the smaller round/fit limit applies).
+API mode requires a model name and
 `OPENAI_API_KEY` in the server environment; Codex uses the existing local login.
 No credentials are accepted or saved by the form. The page shows running/completed/failed
-studies, links to the existing animated graph and reports, and offers **Continue study**.
-One worker runs at a time per workbench. This is a local single-user tool, not a hosted job service.
+studies and queued/cancelled tasks, links to the existing animated graph and reports,
+and offers **Continue study** and cancellation of queued tasks. One worker runs at a time
+per workbench; additional tasks wait durably. Failed workers do not block the queue.
+This is a local single-user tool, not a hosted job service.
 
-Each launch runs the existing CLI in `WORKSPACE/tasks/ID/study`; `worker.log` captures its
-output. Shared forecast/news history lives under `WORKSPACE/history`, separated by real
+**Queue research** starts one watchlist cycle. **Save template** persists its name,
+watchlist, settings and optional 1–168 hour recurring interval. **Run now** starts a
+saved template immediately, even if its schedule is paused. Saving/enabling/editing
+schedules the next cycle one interval from that action; it does not run immediately.
+Recurring runs can consume real service/API budgets and require explicit enablement.
+**Pause schedule** stops future cycles; cancel already queued tasks separately if needed.
+Loading/editing a template affects future cycles only; queued inputs remain frozen.
+
+Scheduling and queue dispatch require this server to remain running (use `--no-open`
+for a headless terminal). Missed intervals coalesce into one cycle on reopening. A
+template cannot start another cycle while its previous tasks are queued/running.
+This is wall-clock interval scheduling, not an exchange-session scheduler; holidays
+or missing prices may leave forecasts pending. There is no automatic retry of failed
+paid calls: continue a resumable research task explicitly or run a fresh cycle.
+
+Each cycle queues **observe → research** for each symbol. The separate observation
+worker collects fresh public daily evidence when prior forecasts need assessment,
+before any news/LLM work. No pending forecasts means no observation download; synthetic
+inputs are never treated as real matured outcomes. Collection failures remain failed
+tasks and do not manufacture outcomes or block research/other symbols. The existing
+study path also observes its freshly collected prices and passes only settled outcomes
+to the LLM as prior feedback. A later news/LLM failure cannot erase completed observations.
+Research still runs when no forecasts have matured; its context retains the pending states.
+
+The comparison table shows each selected round's development MAE, unchanged-price MAE,
+net Sharpe with daily sample count, net return, buy-and-hold and terminal availability.
+Use the report for dates, settings, terminal metrics and risk-statistic limitations.
+The separate outcome table shows the latest 50 published receipts per input mode,
+including pending/unavailable evidence and actual matured errors. Task/comparison lists
+show the latest 100 tasks; older directories remain intact. These tables do not pool
+different stocks into a portfolio, an accuracy score or an independent benchmark.
+
+Research workers call the existing CLI in `WORKSPACE/tasks/ID/study`; `worker.log` captures
+output. Observation workers save `observation.json` and retained prices in their own task
+directory. `task.json` freezes each queued job, `worker.json` records its exit, and
+`plans.json` stores reusable templates. Shared forecast/news history lives under `WORKSPACE/history`, separated by real
 and synthetic inputs. The workspace owns its task list: arbitrary old CLI directories are
 not silently imported. Use `research-resume PATH` for such directories created by this version.
 Closing the browser or stopping the workbench leaves launched workers running. Reopening
-the same workspace restores the list. An absent worker with unfinished state is marked
+the same workspace restores the list and continues pending dispatch. An inherited task
+lock covers worker startup as well as research, so reopening cannot launch an overlapping
+worker during initialization. An absent worker with unfinished state is marked
 interrupted, rather than remaining permanently "running". A run lock prevents two writers.
 
 Recovery preserves the experiment configuration and completed inputs. Run-local JSON
