@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from quant_rsi.research.demo import select_factors
 from quant_rsi.research.demo_proposals import FactorProposal, NewsFactorProposal, extend_library
 from quant_rsi.research.provider_process import run_provider
+from quant_rsi.research.study_business import BusinessFactorProposal
 
 
 class Hypothesis(BaseModel):
@@ -30,6 +31,9 @@ class Hypothesis(BaseModel):
 
 class StudyHypothesis(Hypothesis):
     proposed_factors: list[FactorProposal] = Field(min_length=1, max_length=3)
+    proposed_business_factors: list[BusinessFactorProposal] = Field(
+        default_factory=list, max_length=2
+    )
 
 
 class NewsStudyHypothesis(StudyHypothesis):
@@ -60,6 +64,22 @@ class LLMHypothesizer:
         if news_study:
             response_type = NewsStudyHypothesis
         schema = response_type.model_json_schema()
+        if study:
+            schema["required"] = list(schema["properties"])
+            for name in ("ExpressionNode", "FactorExpression"):
+                definition = schema["$defs"][name]
+                definition["required"] = list(definition["properties"])
+                for value in definition["properties"].values():
+                    value.pop("default", None)
+            financial_ids = [
+                item["factor_id"]
+                for item in library["definitions"]
+                if item.get("recipe", {}).get("op") == "financial"
+            ]
+            if financial_ids:
+                schema["$defs"]["BusinessInput"]["properties"]["factor_id"]["enum"] = financial_ids
+            else:
+                schema["properties"]["proposed_business_factors"]["maxItems"] = 0
         if news_study:
             proposal_schema = schema["$defs"]["NewsFactorProposal"]
             proposal_schema["required"] = list(proposal_schema["properties"])
@@ -159,6 +179,19 @@ class LLMHypothesizer:
                 "log_return_volatility is the unannualized sample standard deviation (ddof=1) "
                 "of trailing daily log returns; its window must be 2..30. "
                 "Revision may deactivate earlier factors by omitting their IDs. "
+                "Optionally propose zero to two proposed_business_factors; use [] when no "
+                "relevant supplied financial inputs exist. Each has name, description, inputs "
+                "(two to four {name, factor_id} bindings to supplied financial.* factors), and "
+                "expression {schema_version: 1, nodes}. Nodes have name, op, inputs, leaf: "
+                "leaf nodes use inputs=[] and a binding name in leaf; binary add/subtract/"
+                "multiply nodes use two preceding node names in inputs and leaf=null. "
+                "Use at most seven nodes and depth three; the final node is the output. "
+                "Every binding must be used. IDs are business.<name>. You may select these "
+                "new IDs in factor_ids along with the required price proposal. For example, "
+                "inventory_yoy minus revenue_yoy tests relative growth, not inventory turnover "
+                "or causality. Respect the original periods and availability of each source. "
+                "Do not invent financial inputs. Changing an existing business recipe requires "
+                "a new name; omit its old ID to deactivate it for this round. "
                 "Supplied news.guidance_direction_7/30 factors encode the latest explicit issuer "
                 "guidance change (+1 raised, -1 lowered, 0 reaffirmed or no explicit statement). "
                 "They are business facts, not expected stock returns. Select only runnable "

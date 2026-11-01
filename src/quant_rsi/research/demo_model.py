@@ -15,6 +15,7 @@ from quant_rsi.research.demo_features import (
     price_feature,
     price_metrics,
 )
+from quant_rsi.research.study_business import business_column
 from quant_rsi.research.study_estimators import StandardizedRidge, model_configuration
 from quant_rsi.research.study_factor_profiles import prepare_bound_features
 
@@ -377,6 +378,14 @@ class LightGBMDemo:
         effective = {item["factor_id"]: item for item in factors}
         bound_inputs = []
         for item in factors:
+            if item.get("recipe", {}).get("op") == "financial_expression":
+                values, dependencies = business_column(item, self.financial_features)
+                columns.append(values)
+                bound_inputs.append({"factor_id": item["factor_id"], "inputs": dependencies})
+                effective.update(
+                    {dependency["factor_id"]: dependency for dependency in dependencies}
+                )
+                continue
             if item.get("recipe", {}).get("op") == "financial":
                 retained = next(
                     (
@@ -606,7 +615,8 @@ class LightGBMDemo:
                     item["factor_id"]
                     for item in factors
                     if item["kind"] == "numeric"
-                    and item["recipe"].get("op") not in {"peer_return", "financial"}
+                    and item["recipe"].get("op")
+                    not in {"peer_return", "financial", "financial_expression"}
                 ],
                 "reason": "target_labels_and_reference_prices",
             }

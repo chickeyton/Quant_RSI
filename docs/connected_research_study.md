@@ -506,6 +506,51 @@ release; this source is unsuitable for claiming an independently verified point-
 benchmark. Quarterly starts are not invented. Current publication dates are never replaced
 by fiscal-period ends.
 
+### Business factor expressions
+
+Codex/API hypothesis rounds can propose up to two run-local business expressions
+alongside their price recipes. This connects a business hypothesis to actual feature
+calculation, a model fit, feedback, and a changed recipe in the next round:
+
+```bash
+quant-rsi research-study KO --llm codex --financials --news-research \
+  --question "Test inventory growth minus revenue growth as a demand hypothesis. After feedback, consider a cash-flow-based revision and explain contrary evidence." \
+  --output /tmp/ko-business-expressions
+```
+
+Each `proposed_business_factors` entry contains a `name`, `description`, two to four
+`inputs` binding local aliases to supplied `financial.*` factor IDs, and an
+`expression`. The expression uses the existing `schema_version: 1` grammar:
+topologically ordered `leaf`, `add`, `subtract`, or `multiply` nodes, at most seven
+nodes and depth three. Every binding must be used; the last node is the output.
+There is no generated Python, arbitrary field lookup, division, or new data fetch.
+The researcher can return an empty list when no relevant combination is supported.
+
+For example, aliases `inventory` and `revenue` can bind to
+`financial.inventory_yoy` and `financial.revenue_yoy`; subtracting their leaf nodes
+creates a relative-growth feature. Its ID is `business.<name>`. A changed recipe
+requires a new name, and omitting an old ID deactivates that factor for the round
+without deleting its recorded definition. Selection must still include at least
+one proposed price recipe under the existing study contract.
+
+All inputs must be existing financial definitions. Missing historical inputs keep
+a proposal unavailable; feature computation propagates missing values without
+filling or dropping rows. Input availability uses the original publication cutoffs.
+Combining factors does **not** align different reporting periods or turn growth
+rates into inventory turnover, demand measurements, or causal evidence. The
+researcher must explain those limitations.
+
+Both model implementations execute the resulting column. The live factor cards
+and final report show the input aliases and arithmetic nodes as tables. Predictions
+retain the underlying financial definitions, and the optional same-row financial
+diagnostic removes financial-derived expressions together with direct financial
+columns. It remains a development diagnostic, not independent validation.
+
+Selected business recipes can be offered in a later study through existing factor
+memory. They are rebound to the current financial definitions and availability;
+old feature values and runnable flags are never imported. Financial inputs absent
+from the new study cannot be replaced with price proxies.
+
 ### Check inputs before research
 
 ```bash

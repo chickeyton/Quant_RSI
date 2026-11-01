@@ -228,6 +228,36 @@ def render_study(result):
                         for node in item["recipe"]["expression"]["nodes"]
                     ],
                 )
+    business = {}
+    for event in result["trace"]:
+        if event["stage"].endswith("factor_library"):
+            business.update(
+                (item["factor_id"], item)
+                for item in event["output"]["definitions"]
+                if item.get("recipe", {}).get("op") == "financial_expression"
+            )
+    if business:
+        section(
+            "Business factor hypotheses",
+            "Run-local arithmetic over retained publication-dated financial factors. "
+            "Original reporting periods and missing inputs are preserved. "
+            "These proposed relationships are not established causal effects. "
+            "Unselected recipes remain in the record; "
+            "the report also shows selection and revision.",
+        )
+        for item in business.values():
+            section(item["factor_id"], item["description"])
+            table(
+                ["Input alias", "Financial factor"],
+                [[binding["name"], binding["factor_id"]] for binding in item["recipe"]["inputs"]],
+            )
+            table(
+                ["Node", "Operation", "Inputs"],
+                [
+                    [node["name"], node["op"], node.get("leaf") or ", ".join(node["inputs"])]
+                    for node in item["recipe"]["expression"]["nodes"]
+                ],
+            )
     terminal = result.get("terminal_evaluation")
     if terminal:
         section("Reserved terminal evaluation", terminal["limitation"])

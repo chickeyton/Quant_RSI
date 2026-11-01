@@ -6,9 +6,11 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from quant_rsi.core.artifacts import canonical
 from quant_rsi.core.contracts_base import StrictModel
 from quant_rsi.factors.contracts import NumericFactorDefinition
 from quant_rsi.market.market_contracts import timestamp, utc_text
+from quant_rsi.research.study_business import BusinessFactorProposal
 
 
 class StudyVolatilityRecipe(StrictModel):
@@ -148,6 +150,21 @@ def extend_library(library, hypothesis):
                 evidence_news_ids=deepcopy(hypothesis.get("evidence_news_ids", [])),
             )
             news_recipe_expired(definition, created)
+        definitions.setdefault(identity, definition)
+    business_proposals = hypothesis.get("proposed_business_factors", [])
+    if not isinstance(business_proposals, list) or len(business_proposals) > 2:
+        raise ValueError("At most two business factor proposals are supported per round")
+    business_ids = set()
+    for proposal in business_proposals:
+        definition = BusinessFactorProposal.model_validate_json(canonical(proposal)).definition(
+            library["definitions"]
+        )
+        identity = definition["factor_id"]
+        if identity in business_ids:
+            raise ValueError("Duplicate business factor proposal")
+        business_ids.add(identity)
+        if identity in definitions and definitions[identity]["recipe"] != definition["recipe"]:
+            raise ValueError("Use a new business factor name when changing an existing recipe")
         definitions.setdefault(identity, definition)
     result["definitions"] = list(definitions.values())
     return result
