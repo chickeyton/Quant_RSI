@@ -197,6 +197,12 @@ def _terminal_view(output):
 
 
 def visual_output(stage, output, previous, symbol):
+    if stage == "restore_factor_recipes":
+        return {
+            "kind": "facts",
+            "facts": {e["factor_id"]: e["status"].replace("_", " ") for e in output["entries"]},
+            "note": output["notice"],
+        }
     if stage == "check_inputs":
         financials = output["financials"]
         return {

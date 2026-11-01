@@ -569,6 +569,45 @@ is asked to explain how mature outcomes motivate its hypothesis; supplying feedb
 does not prove it used that feedback. This frozen explanation stays separate from the
 live history table, which may receive new observations after the run completes.
 
+### Reusing selected factor recipes
+
+With `--history-dir` (already provided by the workbench), a new study reads selected
+recipes from the latest five studies of the same stock. It reads immutable history
+artifacts, not the prior run's mutable filesystem path. Older entries can recover the
+selected definitions from their frozen catalogs without rewriting those entries.
+
+Bounded generated price and headline recipes are offered to the next LLM and can enter
+its actual feature matrix. Their numeric values are recomputed from current inputs;
+news eligibility is recalculated from the current retained archive. Financial, peer and
+composed factors must already exist in the current configured library. A disabled
+financial source, missing peer binding, conflicting definition or unsupported recipe
+cannot be revived by an old `runnable=true` flag. Current catalog definitions take
+precedence, and the most recently selected version of each remembered ID is considered.
+
+`factor_memory.json`, the live factor stage and the **Recipes from previous studies**
+report table record the source study/result reference, input mode, recipe hash,
+current availability and whether the recipe was selected again. Pending/unavailable
+forecast statuses are shown without invented outcome metrics; only the existing mature
+outcome path supplies observed errors. Unselected candidates remain in retained history.
+This is not a global factor deletion/TTL policy, automatic promotion, or an independent
+assessment of factor effectiveness. Studies without shared history remain isolated.
+New memory alone does not count as new external evidence for scheduled research.
+
+A real-service check on 2026-11-01 registered the retained KO study from the financial
+source acceptance into a separate history at the current receipt time, then ran a new
+Codex study with public prices/current RSS and retained issuer financials. The first
+fit selected the remembered `research.momentum_20`, `financial.operating_margin_yoy`
+and `ko.relative_bottler_momentum` recipes. Its revised combination changed to momentum
+10 and revenue growth. Development MAE was 1.4078 initially and 2.8777 after revision
+(unchanged-price baseline 0.9460), so round 1 was retained. There were two actual Codex
+hypothesis calls, two LightGBM research fits and one financial-removal diagnostic;
+this second check did not request active news search. The prior forecast was still
+pending, and no realized error for it was supplied. This proves the connection works,
+not that reuse improves prediction. Local artifacts are
+`/tmp/quant-rsi-ko-factor-memory-study/` and `/tmp/quant-rsi-factor-memory-real-history/`.
+Offline tests additionally verify unavailable news, recipe conflicts, symbol isolation,
+legacy artifact recovery and unchanged completed study files.
+
 With shared history, issuer RSS snapshots default to
 `HISTORY/news_archive/real/SYMBOL`; synthetic-price history uses a separate `simulated`
 namespace. An explicit `--news-archive` still overrides this path. Original receipt
