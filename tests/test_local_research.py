@@ -151,3 +151,24 @@ def test_actual_incumbent_seals_and_infers_last_session_without_fit(
             "s31",
             as_of="2099-01-01T00:00:00Z",
         )
+
+
+@pytest.mark.parametrize("op", ["momentum", "mean_return"])
+def test_batched_development_predictions_match_fresh_single_view_inference(local_plan, op):
+    from quant_rsi.evaluation.local_research import fit_predict_local
+    from quant_rsi.market.asof import make_feature_view, predict_view
+
+    plan = local_plan.development
+    data = LocalResearchData.from_json(export_local_data(plan.data))
+    factor = FactorSpec(op=op, window=2)
+    fitted = fit_predict_local(data, plan, factor)
+    separately_decoded = [
+        predict_view(
+            fitted["model_text"],
+            make_feature_view(
+                data.snapshot, data.contract, data.dates[i], data.decision_at(i), factor
+            ),
+        )
+        for i in range(plan.data.train_cutoff, plan.data.sessions)
+    ]
+    assert canonical(fitted["predictions"]) == canonical(separately_decoded)

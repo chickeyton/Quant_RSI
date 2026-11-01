@@ -9,7 +9,7 @@ from quant_rsi.core.artifacts import canonical, digest
 from quant_rsi.core.schemas import LocalDataSpec
 from quant_rsi.execution import execution_account as account
 from quant_rsi.market import market_contracts
-from quant_rsi.market.asof import make_feature_view, mature_label, predict_view, qualifications
+from quant_rsi.market.asof import _view_predictor, make_feature_views, mature_label, qualifications
 from quant_rsi.market.market_contracts import DataContract, timestamp, utc_text
 from quant_rsi.market.market_data import (
     economic_identity,
@@ -164,10 +164,15 @@ def training_view(data, plan, factor):
     cutoff = data.decision_at(plan.data.train_cutoff)
     rows, x, y, used = [], [], [], set()
     available = []
-    for index in range(factor.window, plan.data.train_cutoff):
-        view = make_feature_view(
-            data.snapshot, data.contract, data.dates[index], data.decision_at(index), factor
-        )
+    indices = range(factor.window, plan.data.train_cutoff)
+    views = make_feature_views(
+        data.snapshot,
+        data.contract,
+        [(data.dates[index], data.decision_at(index)) for index in indices],
+        factor,
+    )
+    for index, view in zip(indices, views, strict=True):
+        feature_view_ref = digest(canonical(view))
         for feature in view["rows"]:
             label = mature_label(
                 data.snapshot, data.contract, data.dates[index], feature["instrument"], cutoff
@@ -177,7 +182,7 @@ def training_view(data, plan, factor):
                 dict(
                     session_id=data.dates[index],
                     instrument=feature["instrument"],
-                    feature_view_ref=digest(canonical(view)),
+                    feature_view_ref=feature_view_ref,
                     feature=feature,
                     label=label,
                     training_eligible=eligible,
@@ -219,15 +224,17 @@ def development_predictions(data, plan, factor, model_text):
         from quant_rsi.forecast import forecast_research
 
         return forecast_research.development_predictions(data, plan, factor, model_text)
-    return [
-        predict_view(
-            model_text,
-            make_feature_view(
-                data.snapshot, data.contract, data.dates[index], data.decision_at(index), factor
-            ),
-        )
-        for index in range(plan.data.train_cutoff, plan.data.sessions)
-    ]
+    views = make_feature_views(
+        data.snapshot,
+        data.contract,
+        [
+            (data.dates[index], data.decision_at(index))
+            for index in range(plan.data.train_cutoff, plan.data.sessions)
+        ],
+        factor,
+    )
+    predict = _view_predictor(model_text)
+    return [predict(view) for view in views]
 
 
 def fit_predict_local(data, plan, factor):
