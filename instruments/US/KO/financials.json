@@ -9,6 +9,12 @@
     ],
     "operating_income": [
       "OperatingIncomeLoss"
+    ],
+    "operating_cashflow": [
+      "NetCashProvidedByUsedInOperatingActivities"
+    ],
+    "capital_expenditure": [
+      "PaymentsToAcquirePropertyPlantAndEquipment"
     ]
   },
   "issuer": {
@@ -23,6 +29,16 @@
     "rows": {
       "revenue": "Net Operating Revenues",
       "operating_income": "Operating Income"
+    },
+    "cashflow": {
+      "statement_title": "Consolidated Statements of Cash Flows",
+      "rows": {
+        "operating_cashflow": [
+          "Net Cash Provided by (Used in) Operating Activities",
+          "Net Cash Provided by Operating Activities"
+        ],
+        "capital_expenditure": "Purchases of property, plant and equipment"
+      }
     }
   }
 }

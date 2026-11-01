@@ -68,7 +68,7 @@ def test_date_only_filing_boundary_and_later_restatement():
     data = snapshot()
     revenue = data["companyfacts"]["facts"]["us-gaap"]["Revenues"]["units"]["USD"]
     revenue.append(revenue[-1] | {"val": 150, "filed": "2024-05-25", "accn": "restated"})
-    records = financials.quarterly_records(data)
+    records = financials.reported_records(data)
     before, _ = financials.at_cutoff(records, "2024-04-26T04:59:59+00:00")
     first, evidence = financials.at_cutoff(records, "2024-04-26T05:00:00+00:00")
     later, _ = financials.at_cutoff(records, "2024-05-26T05:00:00+00:00")
@@ -90,14 +90,12 @@ def test_shared_calculations_reject_ytd_wrong_unit_and_ambiguous_facts(symbol):
     base = units["USD"][-1]
     units["USD"].append(base | {"start": "2023-10-01", "val": 9999})
     units["EUR"] = [base | {"val": 9999}]
-    records = financials.quarterly_records(data)
+    records = financials.reported_records(data)
     assert len(records) == 4
     result, _ = financials.at_cutoff(records, "2024-04-27T00:00:00+00:00")
     assert result["revenue_yoy"] == pytest.approx(0.2)
     units["USD"].append(base | {"val": 333})
-    result, _ = financials.at_cutoff(
-        financials.quarterly_records(data), "2024-04-27T00:00:00+00:00"
-    )
+    result, _ = financials.at_cutoff(financials.reported_records(data), "2024-04-27T00:00:00+00:00")
     assert "revenue_yoy" not in result
 
 
@@ -109,7 +107,11 @@ def test_missing_rows_disable_factor_without_dropping_or_filling():
     assert bundle["columns"]["financial.revenue_yoy"] == [None, pytest.approx(0.2)]
     assert len(bundle["evidence"]) == 2
     selected = financials.prepare_financials(data, cutoffs, [1])
-    assert all(d["runnable"] for d in selected["definitions"])
+    assert {d["factor_id"] for d in selected["definitions"] if d["runnable"]} == {
+        "financial.revenue_yoy",
+        "financial.operating_margin",
+        "financial.operating_margin_yoy",
+    }
 
 
 def test_retained_snapshot_hash_is_checked(tmp_path):

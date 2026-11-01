@@ -157,21 +157,56 @@ AAPL uses the public financial-report feed linked by its
 [investor relations site](https://investor.apple.com/investor-relations/).
 The bounded collector retains up to eight releases and extracts only the explicitly
 reported three-month revenue and operating-income columns from their financial PDFs.
-It ignores YTD columns, rejects ambiguous numbers and keeps per-release failures.
+A separate cash-flow section reads explicitly labelled 3/6/9/12-month operating cash
+flow and purchases of property, plant and equipment. It preserves each reported
+duration, rejects ambiguous numbers and retains per-section failures; an unusable
+cash-flow section does not discard a usable income statement, or vice versa.
 The PDF reader and font decoder are installed by the normal dependency lock.
 `instruments/US/{KO,AAPL}/financials.json` holds company CIK and ordered US-GAAP tag
 mappings. The shared implementation computes `financial.revenue_yoy`,
 `financial.operating_margin` and `financial.operating_margin_yoy` (year-over-year margin
 change), adds runnable definitions to the existing LLM factor library, executes selected
 columns in the existing model, and allows revision after the same error/strategy feedback.
+Cash-flow definitions extend the same path:
+
+| Factor | Calculation and period |
+| --- | --- |
+| `financial.operating_cashflow_yoy` | Change in reported operating cash flow divided by the absolute prior-year amount, over matching 3/6/9/12-month periods |
+| `financial.free_cashflow_yoy` | The same scaled change for operating cash flow minus purchases of property, plant and equipment; this is the specific free-cash-flow definition used here |
+
+These are **reported-duration comparisons**, not single-quarter cash-flow estimates.
+Nine months compare only with nine months. When SEC reports multiple durations ending
+on the latest date, the longest reported duration is used. Issuer PDFs provide an explicit
+duration and end date; the parser does not invent a start date. SEC rows retain their
+reported starts, which must also match the prior-year period. No YTD subtraction occurs.
+Zero prior amounts disable the corresponding ratio; negative amounts use the absolute
+prior-year denominator, so a transition from -100 to 150 is +2.5. Free cash flow requires
+operating cash flow and nonnegative capital expenditure from the same statement/version.
+Issuer cash-outflow signs are normalized; missing, ambiguous or stale facts remain unavailable.
+
 The LLM selects ratios; it does not invent their numerical values. Synthetic mode uses
 explicitly marked fixtures through the same parser/calculations.
+
+Cash-flow acceptance on 2026-11-01 used freshly collected official KO/AAPL statements
+(64 normalized records per company, no section failures after explicit KO row aliases).
+Both companies supplied all five financial factors at the two checked cutoffs. A real
+AAPL Codex study with public daily prices and LightGBM selected
+`financial.free_cashflow_yoy` in round 1 (latest feature value 0.524564), then changed to
+`financial.operating_margin_yoy` after feedback. Development price MAE worsened from
+8.1859 to 16.0872, versus 6.9440 for unchanged price, so round 1 was retained. The
+same-row financial-removal diagnostic completed. Reserved terminal MAE was 5.7510,
+versus 2.7780 for unchanged price; no predictive gain is claimed. Active news issued
+two searches, but all four article reads failed and remained disclosed. This is
+execution evidence on retrospectively retained data, not prospective validation.
+
 
 The collector retains `financials/snapshot.json`: raw company facts, content hash, mapping,
 provider URL and receipt time. `--financials-dir PATH` reuses that retained snapshot after
 symbol/CIK/mapping/hash validation. Issuer snapshots additionally retain content-addressed
 HTML/PDF resources, normalized records, statement page numbers and resource hashes.
-Every retained resource hash is checked before reuse. `source_attempts.json` records
+Every retained resource hash is checked before reuse. Financial mappings are part of
+the snapshot identity: snapshots collected with an older mapping remain historical
+evidence, and new cash-flow studies need a fresh collection directory. `source_attempts.json` records
 failed source requests even when neither provider succeeds. It requires `--financials` and a path outside the
 checkout. `financial_features.json` records per-session values, chosen fact accessions,
 reporting periods, filing dates, cutoff and missing reasons. Runtime/configuration

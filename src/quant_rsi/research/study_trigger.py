@@ -5,7 +5,7 @@ import json
 from quant_rsi.core.artifacts import atomic_write, canonical, digest
 from quant_rsi.research.demo_news import issuer_news
 from quant_rsi.research.demo_related import profile_related
-from quant_rsi.research.study_financials import collect_financials, quarterly_records
+from quant_rsi.research.study_financials import collect_financials, reported_records
 from quant_rsi.research.study_history import collection_snapshot, mature_feedback, observe_prices
 from quant_rsi.research.study_resume import binding
 
@@ -68,7 +68,7 @@ def refresh_evidence(task, manifest):
             evidence["financials"] = sorted(
                 [
                     {k: v for k, v in row.items() if k != "page_modified_date"}
-                    for row in quarterly_records(snapshot)
+                    for row in reported_records(snapshot)
                 ],
                 key=canonical,
             )
