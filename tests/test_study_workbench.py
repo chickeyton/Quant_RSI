@@ -105,6 +105,20 @@ def test_http_origin_token_inputs_and_history(tmp_path):
             with pytest.raises(HTTPError):
                 urlopen(origin + "/wrong-token/tasks")
             assert workbench.listing() == []
+            # Initialization can fail before the CLI creates its study directory.
+            task = workbench.tasks / ("c" * 24)
+            task.mkdir()
+            (task / "worker.json").write_text(
+                json.dumps({"status": "failed", "error": "Interpreter unavailable"})
+            )
+            (task / "task.json").write_text(
+                json.dumps({"symbol": "KO", "created_at": 0, "queue_state": "dispatched"})
+            )
+            with urlopen(base + f"tasks/{task.name}/state") as response:
+                state = json.load(response)
+            assert state["runtime"]["status"] == "failed"
+            assert state["symbol"] == "KO"
+            assert state["failure"]["error"] == "Interpreter unavailable"
         finally:
             server.shutdown()
             thread.join(timeout=5)

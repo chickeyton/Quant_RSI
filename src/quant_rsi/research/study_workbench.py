@@ -369,9 +369,12 @@ def make_server(workbench, token, port=0):
                     task = workbench.task(route.split("/")[1])
                     state = read_state(task / "study")
                     item = workbench.item(task)
-                    if item["status"] == "interrupted":
+                    state["symbol"] = item["symbol"]
+                    if item["status"] in {"failed", "interrupted"}:
                         state["runtime"]["status"] = "failed"
-                        state["failure"] = {"error": "Worker stopped. Continue from the workbench."}
+                        state["failure"] = {
+                            "error": item["error"] or "Worker stopped. Continue from the workbench."
+                        }
                     if route.endswith("/state"):
                         self.respond(200, state)
                     else:
