@@ -4,6 +4,7 @@ import importlib.metadata
 import json
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -76,7 +77,12 @@ def test_missing_optional_runtime_fails_before_provider_work(tmp_path, monkeypat
     def missing(name):
         raise importlib.metadata.PackageNotFoundError(name)
 
-    monkeypatch.setattr(study_qlib.importlib.metadata, "version", missing)
+    # Keep the simulated missing dependency local to this adapter. Patching the
+    # stdlib module can leak through another module's first `from ... import version`.
+    metadata = SimpleNamespace(
+        version=missing, PackageNotFoundError=importlib.metadata.PackageNotFoundError
+    )
+    monkeypatch.setattr(study_qlib, "importlib", SimpleNamespace(metadata=metadata))
     root = tmp_path / "missing"
     assert main(command(root)) == 1
     assert "optional Qlib workflow environment" in capsys.readouterr().err
@@ -98,6 +104,10 @@ def test_actual_upstream_workflow_matches_frozen_inputs_and_common_accounts(
     pytest.importorskip("mlflow", reason="optional upstream Qlib workflow recorder is absent")
     root = tmp_path / "study"
     assert main(command(root, "--terminal-sessions", str(terminal_sessions))) == 0
+    assert_upstream_comparison(root, terminal_sessions)
+
+
+def assert_upstream_comparison(root, terminal_sessions):
     result = json.loads((root / "result.json").read_text())
     comparison = result["study"]["qlib_comparison"]
     inputs = root / "qlib-comparison/inputs.json"
@@ -106,8 +116,12 @@ def test_actual_upstream_workflow_matches_frozen_inputs_and_common_accounts(
     assert comparison["recorder_id"]
     assert (root / "qlib-comparison/model.txt").stat().st_size > 0
     assert (root / "qlib-comparison/mlflow.db").stat().st_size > 0
-    assert result["configuration"]["comparison_fit_budget"] == 1
-    assert result["runtime"]["counts"]["comparison_model_stages_completed"] == 1
+    assert result["configuration"]["comparison_fit_budget"] == 1 + int(
+        result["configuration"]["financials"]
+    )
+    assert result["runtime"]["counts"]["comparison_model_stages_completed"] == 1 + int(
+        result["configuration"]["financials"]
+    )
     assert result["runtime"]["counts"]["model_stages_completed"] == 2
     selected = result["iterations"]["attempts"][result["iterations"]["selected_round"] - 1]
     assert comparison["factor_ids"] == selected["factor_ids"]
@@ -123,3 +137,34 @@ def test_actual_upstream_workflow_matches_frozen_inputs_and_common_accounts(
     view = next(e["view"] for e in read_state(root)["events"] if e["stage"] == "qlib_comparison")
     assert view["kind"] == "engine_comparison"
     assert len(view["rows"]) == (4 if terminal_sessions else 2)
+
+
+@pytest.mark.parametrize(
+    "cashflow_factor", ["financial.operating_cashflow_yoy", "financial.free_cashflow_yoy"]
+)
+def test_actual_upstream_receives_selected_cashflow_column(tmp_path, monkeypatch, cashflow_factor):
+    pytest.importorskip("qlib", reason="optional upstream Qlib workflow environment is absent")
+    pytest.importorskip("mlflow", reason="optional upstream Qlib workflow recorder is absent")
+    from quant_rsi.research import study
+    from quant_rsi.research.demo import simulated_hypothesis
+
+    def researcher(context, catalog, **kwargs):
+        result = simulated_hypothesis(context, catalog, **kwargs)
+        definition = next(d for d in catalog["definitions"] if d["factor_id"] == cashflow_factor)
+        assert definition["runnable"]
+        result["factor_ids"] = [
+            key for key in result["factor_ids"] if not key.startswith("financial.")
+        ] + [cashflow_factor]
+        return result
+
+    monkeypatch.setattr(study, "simulated_hypothesis", researcher)
+    root = tmp_path / "business-study"
+    assert main(command(root, "--financials")) == 0
+    assert_upstream_comparison(root, 10)
+    inputs = json.loads((root / "qlib-comparison/inputs.json").read_bytes())
+    column = inputs["factor_ids"].index(cashflow_factor)
+    values = [row[column] for row in inputs["segments"]["train"]["features"]]
+    assert all(isinstance(value, float) and np.isfinite(value) for value in values)
+    assert any(value != 0 for value in values)
+    comparison = json.loads((root / "qlib-comparison/comparison.json").read_bytes())
+    assert cashflow_factor in comparison["factor_ids"]

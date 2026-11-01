@@ -443,6 +443,8 @@ broader checks; no coverage-percentage threshold is configured. For reproducible
 timings and bounded logs, use `python examples/profile_validation.py --output
 /tmp/quant-rsi-validation` with a fresh directory. Optional `--shards 2` keeps each
 module's shared fixtures in one process; CI uses this two-process mode.
+An additional parallel CI job runs the two [Qlib integration test modules](docs/qlib_workflow_comparison.md)
+in the pinned optional environment; the core suite keeps its normal dependencies.
 [Validation cost and test tiers](docs/validation_cost.md)
 describes focused feedback and final-revision full-suite evidence. CI preserves
 these profiles as artifacts for 14 days.
