@@ -61,6 +61,18 @@ def render_study(result):
         f"<header><p class='eyebrow'>QUANT RSI / RESEARCH STUDY</p><h1>{escape(title)}</h1>"
         f"<p>{escape(result['notice'])}</p></header>"
     )
+    question = result["configuration"].get("question", "")
+    if question:
+        section("Research question", question)
+        if iterations:
+            chosen = iterations["attempts"][iterations["selected_round"] - 1]
+            section("Selected research hypothesis", chosen["hypothesis"]["hypothesis"])
+        section(
+            "Scope of the answer",
+            "The question guides evidence discovery and factor hypotheses. The results below "
+            "evaluate the selected factors under the configured forecast objective; they do not "
+            "establish a causal answer or measure business variables absent from the inputs.",
+        )
     section("Conclusion", result["study"]["conclusion"])
     selection = result["study"]["selection"]
     section(
@@ -936,7 +948,8 @@ def render_study(result):
         "table{width:100%;border-collapse:collapse;background:white}"
         "td,th{text-align:left;vertical-align:top;padding:10px;border-bottom:1px solid #d8e1e7;"
         "overflow-wrap:anywhere;min-width:80px}th{background:#e4eeed}a{color:#086b79}"
-        "svg{width:100%;height:auto;background:white}section p{max-width:100ch}"
+        "svg{width:100%;height:auto;background:white}"
+        "section p{max-width:100ch;overflow-wrap:anywhere}"
         "</style><main>" + "".join(html) + "</main></html>"
     )
 

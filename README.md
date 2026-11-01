@@ -24,6 +24,8 @@ quant-rsi research-ui --workspace /tmp/quant-rsi-workbench
 Enter a watchlist (for example `KO, XOM, AAPL`), choose the researcher, model,
 rounds, fit budget and MAE/Sharpe selection, then queue a cycle. Each stock gets
 an observation task followed by a study; one failure does not block the next stock.
+An optional **Research question** focuses news discovery and both hypothesis rounds;
+it is saved with the template, task, report and forecast history.
 Save these settings as a template and optionally enable recurring cycles. Scheduling
 requires the workbench server to stay running; closing the browser is fine.
 The durable queue, history and **Continue study** controls survive reopening the
@@ -37,8 +39,9 @@ completion/failure notices appear while the page is open. Existing saved options
 their previous behavior until edited.
 See [task operations and recovery](docs/connected_research_study.md#local-workbench-and-recovery).
 
-Shared study history also retains selected factor recipes. A later study can select
-those price/news recipes again after checking current inputs; financial, peer and
+Shared study history retains selected factor recipes and feedback for the same stock,
+horizon and research question. Leave the question blank for general research.
+Later studies can reuse price/news recipes after checking current inputs; financial, peer and
 composed factors still require their current configured data/bindings. The report shows
 which historical candidates were available and selected again. This is recipe reuse,
 not proof that a previous factor was effective. News proposals may declare a finite
@@ -88,6 +91,10 @@ To let business hypotheses select revenue growth, operating-margin, cash-flow an
 ```bash
 quant-rsi research-study KO --news-research --financials --output /tmp/ko-business-study
 ```
+
+To focus that study on a concrete business question, add
+`--question "Could inventory growth indicate weaker demand? Which available variables can test it?"`.
+This guides the researcher; the chosen horizon and MAE/Sharpe selection remain fixed.
 
 KO and AAPL support SEC company facts and official issuer earnings statements; calculations
 are shared. `--financials-source auto` (default) tries SEC, then the configured issuer
