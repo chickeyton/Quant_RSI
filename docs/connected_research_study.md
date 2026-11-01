@@ -513,6 +513,23 @@ The action is not a successful research receipt and cannot suppress a later rese
 Normal studies also compute and display this check before their first LLM request. Missing
 financial data is visible and does not masquerade as a complete business-data study.
 
+When fixed training/development rows lack a financial value, `coverage_gaps` groups
+one primary reason per missing row, with a count, an actual example cutoff and a
+suggested next step. The preflight HTML, live financial/input nodes, hypothesis context
+and final report reuse those diagnostics. Reasons distinguish missing visible periods,
+stale statements, missing comparable years and incompatible values. They do not claim
+to diagnose every upstream cause: a missing supported fact can reflect absent tags,
+conflicting filings or parser/source failures, which remain separately visible.
+
+For example, missing prior-year inventory suggests collecting comparable balances
+350–380 days apart, not substituting the previous fiscal year-end. Incompatible cash
+flows require matching reported durations; a zero comparison base remains unavailable.
+Use a fresh collection and study when changing inputs. More data does not guarantee a
+valid feature, and diagnostics never fill values, move availability dates or change
+admission. Non-required rows do not contribute to these counts. The final financial
+table distinguishes **Selected**, **Available, not selected** and **Unavailable**;
+selection is not evidence of importance or business causality.
+
 After selection, if the selected fit contains financial and nonfinancial columns, one
 additional diagnostic fit removes only the financial columns, retaining identical
 training/development sessions, labels, estimator settings and cost policy. The report

@@ -316,6 +316,18 @@ const StudyCards = (() => {
     }
     else if(view.kind==='facts'){content.append(table(['Field','Value'],Object.entries(view.facts).map(([k,v])=>[title(k),valueText(v)])));if(view.note)content.append(note(view.note));}
     else content.append(note('A visual summary is not available for this stage. Inspect its raw data below.'));
+    if(view.coverage_gaps?.length){
+      const gaps=el('div','factor-grid');
+      view.coverage_gaps.forEach(g=>{
+        const card=el('article','factor-card coverage-gap-card');
+        card.append(el('h3','',g.factor_id),badge(`${g.missing_required_rows} missing required rows`,'caution'),
+          el('p','factor-description',g.description),el('strong','','Next step'),
+          el('p','factor-description',g.next_step),note(`Example required cutoff · ${g.example_cutoff}`));
+        gaps.append(card);
+      });
+      content.append(el('h3','view-section-title','Why financial factors are unavailable'),gaps,
+        note('One primary reason per missing required row; source failures may coexist. Suggestions do not guarantee coverage. Use a new collection and study; do not fill missing values or move publication dates.'));
+    }
     host.replaceChildren(content);
   }
   return {render};

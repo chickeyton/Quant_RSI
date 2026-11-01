@@ -339,6 +339,7 @@ class LightGBMDemo:
         if self.financial_features is not None:
             result["financial_features"] = {
                 "definitions": deepcopy(self.financial_features["definitions"]),
+                "coverage_gaps": deepcopy(self.financial_features.get("coverage_gaps", [])),
                 "latest_visible_facts": deepcopy(self.financial_features.get("evidence", [{}])[-1]),
                 "notice": self.financial_features["notice"],
             }
