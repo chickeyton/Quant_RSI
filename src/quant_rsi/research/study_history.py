@@ -141,6 +141,8 @@ def register_study(directory, run_root, result, snapshot=None):
                 "result_ref": result_ref,
             }
             status, reason = "not_prospective", "publication_confirmation_missing"
+        from quant_rsi.research.study_factor_memory import selected_definitions
+
         entry = {
             "study_id": study_id,
             "run_directory": run_root,
@@ -148,6 +150,8 @@ def register_study(directory, run_root, result, snapshot=None):
             "issued_at": now,
             "selected_round": selected,
             "factor_ids": attempt["prediction"]["factor_ids"],
+            "factor_definitions": selected_definitions(result),
+            "input_mode": result["configuration"].get("prices", "unknown"),
             "forecast": forecast,
             "publication": publication,
             "sessions": sessions,
@@ -318,6 +322,7 @@ def mature_feedback(directory, symbol):
     return {
         "scope": "previously_issued_forecasts_observed_after_maturity; now_research_feedback",
         "notice": NOTICE,
+        "factor_memory": recent_factor_recipes(directory, symbol),
         "entries": [e for e in view["entries"] if e["status"] == "settled"][-20:],
         "history": {
             "entries": [
@@ -327,3 +332,33 @@ def mature_feedback(directory, symbol):
             "notice": "Status and chosen factors only; outcome metrics are in entries above.",
         },
     }
+
+
+def recent_factor_recipes(directory, symbol):
+    """Read selected recipes through retained artifact references, never mutable run paths."""
+    if not (Path(directory) / "journal.sqlite").exists():
+        return []
+    from quant_rsi.research.study_factor_memory import selected_definitions
+
+    with _ledger(directory) as (journal, store):
+        entries = [e for e in _entries(journal, store).values() if e["symbol"] == symbol]
+        result = []
+        for entry in reversed(entries[-5:]):
+            definitions = entry.get("factor_definitions")
+            input_mode = entry.get("input_mode", "unknown")
+            if definitions is None:
+                retained = store.json(entry["result_ref"])
+                definitions = selected_definitions(retained)
+                input_mode = retained.get("configuration", {}).get("prices", "unknown")
+            latest = entry["observations"][-1] if entry["observations"] else entry
+            result.append(
+                {
+                    "study_id": entry["study_id"],
+                    "result_ref": entry["result_ref"],
+                    "issued_at": entry["issued_at"],
+                    "outcome_status": latest["status"],
+                    "input_mode": input_mode,
+                    "definitions": definitions,
+                }
+            )
+        return result

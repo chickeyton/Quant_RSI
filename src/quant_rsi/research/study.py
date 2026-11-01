@@ -539,6 +539,16 @@ def _run(args, symbol, root, configuration, record, progress, cache):
     )
     progress.finish("load_related_prices", {"related": related})
 
+    from quant_rsi.research.study_factor_memory import reuse_recipes
+
+    model.library, factor_memory = reuse_recipes(
+        model.library, (prior_outcomes or {}).get("factor_memory", [])
+    )
+    if factor_memory["entries"]:
+        _write(root / "factor_memory.json", factor_memory)
+        progress.start("restore_factor_recipes")
+        progress.finish("restore_factor_recipes", factor_memory)
+
     hypothesis_number = 0
 
     def cached_hypothesis(context, library, **kwargs):
@@ -552,7 +562,10 @@ def _run(args, symbol, root, configuration, record, progress, cache):
 
     def context(target):
         return model.context(target) | {
-            "prior_outcomes": prior_outcomes,
+            "prior_outcomes": {k: v for k, v in prior_outcomes.items() if k != "factor_memory"}
+            if prior_outcomes
+            else None,
+            "factor_memory": factor_memory,
             "guidance": guidance_summary,
             "allow_factor_proposals": True,
             "selection_policy": {
@@ -741,6 +754,19 @@ def _run(args, symbol, root, configuration, record, progress, cache):
     result["study"] = {
         "engine": f"local_{args.model}_and_existing_finite_account",
         "guidance": guidance_summary,
+        "factor_memory": factor_memory
+        | {
+            "entries": [
+                entry
+                | {
+                    "selected_in_this_study": entry["status"]
+                    in {"restored_candidate", "available_in_current_catalog"}
+                    and entry["factor_id"]
+                    in attempts[selection["selected_round"] - 1]["prediction"]["factor_ids"]
+                }
+                for entry in factor_memory["entries"]
+            ]
+        },
         "factor_profile": deepcopy(model.profile_features["definitions"])
         if model.profile_features is not None
         else [],

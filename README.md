@@ -37,6 +37,13 @@ completion/failure notices appear while the page is open. Existing saved options
 their previous behavior until edited.
 See [task operations and recovery](docs/connected_research_study.md#local-workbench-and-recovery).
 
+Shared study history also retains selected factor recipes. A later study can select
+those price/news recipes again after checking current inputs; financial, peer and
+composed factors still require their current configured data/bindings. The report shows
+which historical candidates were available and selected again. This is recipe reuse,
+not proof that a previous factor was effective.
+
+
 
 This connects configured company relationships, issuer news, daily prices, two
 Codex hypothesis calls and two real LightGBM fits. Open `/tmp/ko-study/report.html`

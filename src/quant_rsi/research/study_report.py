@@ -414,6 +414,22 @@ def render_study(result):
         )
     section("Initial hypothesis", steps["initial_hypothesis"]["hypothesis"])
     section("Revision after feedback", steps["revised_hypothesis"]["hypothesis"])
+    memory = result["study"].get("factor_memory", {})
+    if memory.get("entries"):
+        section("Recipes from previous studies", memory["notice"])
+        table(
+            ["Factor", "Current availability", "Selected again", "Previous inputs", "Source study"],
+            [
+                [
+                    e["factor_id"],
+                    e["status"].replace("_", " "),
+                    "Yes" if e["selected_in_this_study"] else "No",
+                    e["source_input_mode"],
+                    e["source_study_id"][:12],
+                ]
+                for e in memory["entries"]
+            ],
+        )
     changes = result["study"]["factor_changes"]
     table(
         ["Factor change", "IDs"],
