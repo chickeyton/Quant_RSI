@@ -659,6 +659,33 @@ memory. They are rebound to the current source definitions and availability;
 old feature values and runnable flags are never imported. Business inputs absent
 from the new study cannot be replaced with price proxies.
 
+### Mixed-source integration observation (2026-11-01)
+
+A real Codex run on source `fa2b7d1` used retained XOM prices and issuer financials,
+retained issuer RSS, and the EIA snapshot described below. The explicit question
+requested a crude-inventory-change minus revenue-growth composition, followed by
+a new distillate-inventory-change minus revenue-growth recipe after feedback.
+Both rounds kept the same momentum control and actually trained LightGBM.
+
+Two Codex calls, two research fits and two source-removal diagnostic fits completed
+in 57.93 seconds, excluding the original data collection. The 183 recorded source
+and configuration hashes matched that run. On the same 20 development observations,
+MAE increased from 3.5950 to 3.7040. The system retained the first recipe and kept
+the unsuccessful revision visible. Both source-removal diagnostics removed the
+selected mixed column; they are not two independent tests of an interaction.
+The original runtime stage counter predates the external-stage accounting fix;
+both additional fits were recorded in their diagnostic artifacts.
+
+Terminal evaluation remained unavailable because an industry input expired on
+one reserved date. The latest forecast's outcome was unobserved. This verifies
+prompted composition, execution, revision and rejection on retained inputs; it
+does not establish autonomous discovery or predictive improvement. The different
+weekly and reporting-period meanings remain a limitation of this example.
+
+Local evidence: `/tmp/quant-rsi-mixed-business-codex-study/report.html` and
+`/tmp/quant-rsi-mixed-business-codex-validation.json`. These paths are not shipped
+with the package, and the original run identity and output were not rewritten.
+
 ### Check inputs before research
 
 ```bash

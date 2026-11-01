@@ -257,6 +257,7 @@ def test_llm_business_revision_reaches_model_report_and_financial_ablation(
     flags = ["--external-drivers"] if mixed else []
     assert main(command(root, "--llm", "codex", "--financials", "--model", model, *flags)) == 0
     result = json.loads((root / "result.json").read_bytes())
+    assert result["runtime"]["counts"]["comparison_model_stages_completed"] == (2 if mixed else 1)
     assert len(calls) == 2
     assert len(matrices) == 2
     assert not np.allclose(matrices[0][:, 1], matrices[1][:, 1], equal_nan=True)
