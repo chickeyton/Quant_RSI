@@ -228,3 +228,56 @@ def test_known_action_excludes_mature_label_and_observed_basis_has_correct_quali
     )
     assert view["rows"][0]["status"] == "unresolved"
     assert "historical_exploration_not_observed_forward" not in view["qualifications"]
+
+
+@pytest.mark.parametrize("basis", [None, "observed_receipts"])
+@pytest.mark.parametrize("watermark", [0, 1])
+@pytest.mark.parametrize("op", ["momentum", "mean_return"])
+def test_feature_batch_preserves_each_decision_and_source(imported, basis, watermark, op):
+    from quant_rsi.market.asof import make_feature_views
+
+    contract, _, _, snapshot, _ = imported
+    decisions = [
+        ("s0", "2020-10-19T16:00:00Z"),
+        ("s2", "2020-10-21T16:00:00Z"),
+        ("s4", "2026-10-24T12:00:00Z"),
+    ]
+    expected = [
+        make_feature_view(
+            snapshot, contract, session, as_of, factor(op), basis=basis, watermark=watermark
+        )
+        for session, as_of in decisions
+    ]
+    batch = make_feature_views(
+        snapshot, contract, decisions, factor(op), basis=basis, watermark=watermark
+    )
+    assert canonical(batch) == canonical(expected)
+    assert all(view["snapshot_ref"] == digest(canonical(snapshot)) for view in batch)
+    batch[0]["factor"]["window"] = 30
+    assert batch[1]["factor"]["window"] == 2  # Outputs do not share mutable dictionaries.
+
+
+def test_feature_batch_hashes_once_and_refreshes_after_input_change(imported, monkeypatch):
+    from quant_rsi.market import asof
+
+    contract, _, _, snapshot, _ = imported
+    decisions = [("s2", "2020-10-21T16:00:00Z"), ("s3", "2020-10-22T16:00:00Z")]
+    calls = []
+
+    def encode(value):
+        if value is snapshot:
+            calls.append(value["receipt_watermark"])
+        return canonical(value)
+
+    monkeypatch.setattr(asof, "canonical", encode)
+    before = asof.make_feature_views(snapshot, contract, decisions, factor())
+    assert calls == [1]
+    assert before[0]["rows"][0]["status"] == "eligible"
+    snapshot["receipt_watermark"] = 0
+    after = asof.make_feature_views(snapshot, contract, decisions, factor())
+    assert calls == [1, 0]
+    assert all(view["rows"][0]["status"] == "unresolved" for view in after)
+    assert all(view["snapshot_ref"] == digest(canonical(snapshot)) for view in after)
+    assert before[0]["snapshot_ref"] != after[0]["snapshot_ref"]
+    with pytest.raises(ValueError, match="watermark"):
+        asof.make_feature_views(snapshot, contract, decisions, factor(), watermark=1)

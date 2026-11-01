@@ -39,6 +39,63 @@ def make_feature_view(
     watermark=None,
     forecast_objective=None,
 ):
+    return make_feature_views(
+        snapshot,
+        contract,
+        [(session_id, as_of)],
+        factor,
+        basis=basis,
+        watermark=watermark,
+        forecast_objective=forecast_objective,
+    )[0]
+
+
+def make_feature_views(
+    snapshot,
+    contract,
+    decisions,
+    factor: FactorSpec,
+    *,
+    basis=None,
+    watermark=None,
+    forecast_objective=None,
+):
+    """Build one synchronous batch, hashing the input snapshot once for this call only.
+
+    Each decision still computes its own visible revisions and eligibility. Materialize
+    requests before hashing, and return completed views rather than yielding across a
+    caller's mutations. No snapshot identity or visibility result survives this call.
+    """
+    decisions = tuple(decisions)
+    snapshot_ref = digest(canonical(snapshot))
+    return [
+        _make_feature_view(
+            snapshot,
+            contract,
+            session_id,
+            as_of,
+            factor,
+            snapshot_ref=snapshot_ref,
+            basis=basis,
+            watermark=watermark,
+            forecast_objective=forecast_objective,
+        )
+        for session_id, as_of in decisions
+    ]
+
+
+def _make_feature_view(
+    snapshot,
+    contract,
+    session_id,
+    as_of,
+    factor: FactorSpec,
+    *,
+    snapshot_ref,
+    basis=None,
+    watermark=None,
+    forecast_objective=None,
+):
     basis = basis or contract.knowledge_basis
     index = session_index(contract, session_id)
     session = contract.calendar.sessions[index]
@@ -169,7 +226,7 @@ def make_feature_view(
     result = {
         "kind": "AsOfFeatureView",
         "contract_ref": snapshot["contract_ref"],
-        "snapshot_ref": digest(canonical(snapshot)),
+        "snapshot_ref": snapshot_ref,
         "knowledge_basis": basis,
         "receipt_watermark": snapshot["receipt_watermark"] if watermark is None else watermark,
         "session_id": session_id,

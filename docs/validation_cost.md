@@ -93,7 +93,7 @@ KeyboardInterrupt in this environment, so the diagnostic logs were inspected
 and are explicitly excluded from validation evidence. The regular helper invokes
 pytest directly and preserves its exit status.
 
-The production change is limited to a 4,096-entry LRU cache for exact built-in
+The original #41 production change was limited to a 4,096-entry LRU cache for exact built-in
 timestamp strings up to 128 characters. It stores only string-to-UTC-datetime
 conversion. Long strings, string subclasses, datetime/custom-timezone inputs,
 `trusted_now`, receipt corrections and evidence verification remain uncached.
@@ -115,3 +115,56 @@ hands-on time and time to its final report, before and after. Those end-to-end
 research usability measurements and a final-revision whole-suite timing are
 still needed; the profiling helper alone does not complete #39's engineering-cost
 acceptance.
+
+## Feature-view batching measurement (2026-11-01)
+
+A later sample of the finite-trajectory workload attributed about 30% of parent-process
+CPU samples to JSON encoding, mostly repeated hashing of the same snapshot for each
+training/prediction session. Repeated label visibility scans accounted for about 19
+seconds of a 177.52-second baseline; optimizing that part alone was unlikely to meet
+the predeclared 20% elapsed-time target.
+
+The legacy local development path now builds feature views in one synchronous batch.
+It hashes the snapshot once per batch, while still recomputing visible revisions,
+eligibility and source references for every decision. No snapshot hash or visibility
+decision is reused across calls. Training hashes each completed view once for its
+instrument rows. Development predictions use the existing lazy model reader within
+that one call, as the forecast path already did. The standalone feature-view API
+retains its inputs and outputs; forecasts retain their existing training path.
+
+The same unchanged finite-chain test, including actual workers and saturation/replay
+assertions, passed before and after:
+
+| Local measurement | Before | After |
+| --- | ---: | ---: |
+| Elapsed seconds | 177.5246 | 121.9604 |
+| Child user CPU seconds | 172.8555 | 116.3706 |
+| Child system CPU seconds | 2.1285 | 2.3779 |
+| Pytest outcome | 1 passed | 1 passed |
+| Source changed during run | false | false |
+
+This is a **31.3% reduction for this workload**, above its 20% target, not a claim
+about the complete suite or normal connected-study latency. These were one before/after
+pair on the same 16-CPU Linux/Python 3.12 host, separate processes, fresh workspaces,
+one numerical thread, no concurrent local study, and uncontrolled OS caches. The baseline
+was `c7a9163` (the same tree as `main@f82488c`); the candidate changes feature batching
+and model decoding in the local development path. Repeated measurements are needed to
+estimate timing variability. Profiling runs were diagnostic and excluded from this pair.
+
+Reproduce the measured workload on each revision with fresh output directories:
+
+```bash
+python examples/profile_validation.py --output /tmp/quant-rsi-batch-cost \
+  --cache-note 'Record host contention and cache conditions for this run' \
+  tests/test_trajectory.py::test_actual_finite_chain_seals_saturation_at_fully_occupied_capacity
+```
+
+A separate comparison with the saved original implementations produced byte-identical
+canonical outputs for 48 feature views across operators, windows, knowledge bases and
+watermarks. Two offline engineering fixtures with actual LightGBM fits also preserved both
+34-by-3 training matrices,
+labels, training-view/provenance metadata, all 12 development predictions per model,
+and account results. Automated regressions cover batch/individual equality, fresh
+hashes and visibility after changed input, watermark rejection, output independence,
+and one-call versus fresh-per-view model decoding. Full required CI remains the merge
+gate; focused timings do not replace it or establish a whole-suite speedup.
