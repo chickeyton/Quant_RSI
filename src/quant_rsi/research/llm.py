@@ -60,6 +60,10 @@ class LLMHypothesizer:
         if news_study:
             response_type = NewsStudyHypothesis
         schema = response_type.model_json_schema()
+        if news_study:
+            proposal_schema = schema["$defs"]["NewsFactorProposal"]
+            proposal_schema["required"] = list(proposal_schema["properties"])
+            proposal_schema["properties"]["reuse_for_hours"].pop("default", None)
         if not study:
             schema["properties"]["factor_ids"]["items"]["enum"] = [
                 item["factor_id"] for item in library["definitions"]
@@ -156,7 +160,15 @@ class LLMHypothesizer:
             )
             + (
                 "Also propose one or two target-issuer news factors with name, keywords, "
-                "window_days (1..30 calendar days), and description. Their IDs are "
+                "window_days (1..30 calendar days), description, and reuse_for_hours. "
+                "Set reuse_for_hours to null for a reusable recurring-news recipe, or "
+                "1..720 hours for a hypothesis tied to a specific event. This limits admission "
+                "to future studies from this study's frozen recipe_as_of clock; it does not "
+                "backdate the event or change historical feature values. An event recipe keeps "
+                "its original expiry when selected again. Repeat its original hours if proposing "
+                "an existing event recipe; expired recipes cannot be selected or renewed. "
+                "A new event hypothesis needs a new name and supplied news evidence; do not "
+                "rename an expired recipe merely to extend it. Their IDs are "
                 "news.<name>_<window_days>. Names use lowercase letters, digits and underscores. "
                 "Execution counts distinct retained target headlines containing ANY literal "
                 "case-insensitive keyword, using only snapshots received by the historical "

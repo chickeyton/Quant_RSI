@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from quant_rsi.cli import main
+from quant_rsi.market import market_contracts
 from quant_rsi.research import study
 from quant_rsi.research.demo import load_catalog, simulated_hypothesis
 from quant_rsi.research.demo_model import LightGBMDemo
@@ -97,6 +98,8 @@ def test_terminal_uses_exact_middle_model_once_without_refitting(estimator, monk
 def test_terminal_changes_do_not_change_research_prompts_selection_or_accounts(
     tmp_path, monkeypatch, estimator
 ):
+    # Keep the explicit recipe-admission input fixed; perturb only terminal data.
+    monkeypatch.setattr(market_contracts, "trusted_now", lambda: "2026-11-01T10:00:00Z")
     prompts, runs = [], []
     changed = False
 
