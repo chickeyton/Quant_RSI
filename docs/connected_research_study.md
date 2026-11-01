@@ -195,6 +195,33 @@ Case and punctuation are retained. Blank questions and older records share the g
 research scope. All forecasts remain in the global history and can still be observed.
 Failed studies preserve the question on `research-resume`; changing it requires a new study.
 
+### Unprescribed factor selection observation (2026-11-01)
+
+At `28e9c05`, real Codex received only this business question, with no named factor
+recipe or prescribed revision: “Could changes in US petroleum inventories help explain
+near-term XOM returns, and how might company fundamentals change that hypothesis?
+Use the available evidence to investigate the question and identify what cannot be tested.”
+The run reused 252 retained public daily sessions, issuer financials, EIA archive data
+and issuer RSS. Active news search and related-price collection were disabled; it was
+not a fresh online discovery benchmark.
+
+Codex selected all three supplied EIA inventory changes, company revenue/inventory/free
+cash-flow growth, momentum and volatility. After development feedback it substituted
+operating cash-flow growth and a moving-average price recipe. Both rounds supplied four
+question-map entries, including one explicitly unmeasured claim about missing causal,
+news or peer evidence. All bound IDs were present in their actual model inputs.
+
+Two Codex calls, two real LightGBM research fits and two source-removal diagnostic fits
+completed in 87.9 seconds on the local machine. Over 20 development observations,
+price MAE was 4.0271 initially and 4.0823 after revision, versus 3.6075 for unchanged
+price. The configured MAE rule retained round 1 despite revised net return rising
+from 3.60% to 3.74%; buy-and-hold returned 4.98%. Annualized daily Sharpe was
+1.7910 initially, 1.6919 revised and 2.3644 for buy-and-hold, using only 24 daily
+returns. Terminal evaluation remained unavailable because selected industry features
+were missing on reserved dates; the latest forecast had no observed outcome.
+These are negative development results and one integration timing, not independent
+predictive evidence or a claim that the explanation changes improved performance.
+
 ### Question-driven integration observation (2026-11-01)
 
 A real Codex run asked whether inventory growth indicated weaker Coca-Cola demand,
