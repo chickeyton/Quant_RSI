@@ -7,8 +7,11 @@ import pytest
 from test_study_financials import snapshot
 from test_study_queue import OFFLINE, finish_queue
 
+from quant_rsi import cli
 from quant_rsi.core.artifacts import canonical
 from quant_rsi.research import study_trigger as trigger
+from quant_rsi.research.study_queue import run_task, study_options
+from quant_rsi.research.study_resume import run_lock
 from quant_rsi.research.study_workbench import Workbench
 
 
@@ -33,6 +36,72 @@ def test_real_workers_skip_repeat_and_force_manual_cycle(tmp_path):
     row = workbench.item(workbench.task(forced["tasks"][-1]["id"]))
     assert row["status"] == "completed"
     assert (workbench.task(row["id"]) / "study/financial_comparison.json").exists()
+
+
+@pytest.mark.parametrize(
+    "failure", [None, "collecting_prices", "collecting_news", "collecting_financials"]
+)
+def test_preparation_progress_survives_reopen_and_failure_then_clears_on_handoff(
+    evidence, tmp_path, monkeypatch, failure
+):
+    workbench = Workbench(tmp_path)
+    options = study_options(
+        OFFLINE | {"data": "daily", "financials": True, "only_new_evidence": True}
+    )
+    stages, cli_calls = [], []
+    task = None
+
+    for function, stage in (
+        ("collection_snapshot", "collecting_prices"),
+        ("issuer_news", "collecting_news"),
+        ("collect_financials", "collecting_financials"),
+        ("mature_feedback", "checking_new_evidence"),
+    ):
+        original = getattr(trigger, function)
+
+        def collect(*args, _original=original, _stage=stage, **kwargs):
+            item = Workbench(tmp_path).item(task)
+            assert item["status"] == "running" and item["stage"] == _stage
+            assert not (task / "study/runtime.json").exists()
+            stages.append(_stage)
+            if failure == _stage:
+                raise ValueError("Source unavailable")
+            return _original(*args, **kwargs)
+
+        monkeypatch.setattr(trigger, function, collect)
+
+    def research(arguments):
+        assert Workbench(tmp_path).item(task)["stage"] is None
+        cli_calls.append(arguments)
+        return 0
+
+    monkeypatch.setattr(cli, "main", research)
+    for cycle in range(1 if failure else 2):
+        task = workbench._enqueue("KO", options)
+        manifest = json.loads((task / "task.json").read_bytes()) | {"queue_state": "dispatched"}
+        (task / "task.json").write_bytes(canonical(manifest))
+        with run_lock(task):
+            assert run_task(task) == (1 if failure else 0)
+        item = Workbench(tmp_path).item(task)
+        if failure:
+            assert item["status"] == "failed" and item["stage"] == failure
+            assert item["error"] == "Source unavailable" and not item["resumable"]
+            assert not cli_calls and not (task / "trigger.json").exists()
+        else:
+            assert item["stage"] is None
+            assert item["status"] == ("completed" if cycle == 0 else "skipped")
+            assert len(cli_calls) == 1
+    if not failure:
+        assert (
+            stages
+            == [
+                "collecting_prices",
+                "collecting_news",
+                "collecting_financials",
+                "checking_new_evidence",
+            ]
+            * 2
+        )
 
 
 @pytest.fixture

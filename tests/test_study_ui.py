@@ -1,7 +1,10 @@
 """The local UI observes real study artifacts; providers and browser launch stay offline."""
 
 import json
+import shutil
+import subprocess
 import threading
+from importlib.resources import files
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
@@ -11,6 +14,29 @@ from test_research_study import command
 from quant_rsi.cli import main
 from quant_rsi.research import study, study_ui
 from quant_rsi.research.study_progress import StudyProgress
+
+
+def test_empty_output_renderer_keeps_initial_live_page_polling():
+    # Exercise the actual JS on the empty-output path that runs before polling starts.
+    # The minimal DOM only supplies the elements needed by this path; browser QA covers layout.
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is needed for the optional renderer smoke test")
+    cards = files("quant_rsi.research").joinpath("study_ui_cards.js").read_text()
+    script = """
+const assert = require('node:assert/strict');
+global.document = {createElement: tag => ({tag})};
+for (const view of [undefined, null]) {
+  let child;
+  StudyCards.render({replaceChildren: element => {child = element;}}, view, 'Waiting for input');
+  assert.equal(child.tag, 'p');
+  assert.equal(child.textContent, 'Waiting for input');
+}
+"""
+    result = subprocess.run(
+        [node, "-e", cards + script], capture_output=True, text=True, timeout=10
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_state_keeps_partial_trace_and_escapes_provider_markup(tmp_path):

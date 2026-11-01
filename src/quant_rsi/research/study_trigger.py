@@ -10,7 +10,7 @@ from quant_rsi.research.study_history import collection_snapshot, mature_feedbac
 from quant_rsi.research.study_resume import binding
 
 
-def refresh_evidence(task, manifest):
+def refresh_evidence(task, manifest, *, on_stage=None):
     root = task.parent.parent
     symbol, mode = manifest["symbol"], manifest["data"]
     history = root / "history" / mode
@@ -45,6 +45,8 @@ def refresh_evidence(task, manifest):
     if mode == "daily":
         from quant_rsi.research.study_walk_forward import extra_history
 
+        if on_stage:
+            on_stage("collecting_prices")
         prices = task / "preflight/prices"
         horizon = manifest.get("horizon_sessions", 5)
         extra_sessions = extra_history(manifest.get("walk_forward_folds", 0), 20, horizon)
@@ -57,6 +59,8 @@ def refresh_evidence(task, manifest):
         observe_prices(history, symbol, snapshot)
         evidence["prices"] = {k: snapshot[k] for k in ("dates", "opens", "closes")}
         arguments += ["--prices-dir", str(prices)]
+        if on_stage:
+            on_stage("collecting_news")
         news = issuer_news({"symbol": symbol, "related": profile_related(symbol)})
         atomic_write(task / "preflight/news.json", canonical(news))
         evidence["news"] = sorted(
@@ -73,6 +77,8 @@ def refresh_evidence(task, manifest):
             {k: row.get(k) for k in ("symbol", "status")} for row in news.get("coverage", [])
         ]
         if manifest.get("financials"):
+            if on_stage:
+                on_stage("collecting_financials")
             directory = task / "preflight/financials"
             snapshot = collect_financials(
                 symbol, directory, profile_root, manifest.get("financials_source", "auto")
@@ -85,6 +91,8 @@ def refresh_evidence(task, manifest):
                 key=canonical,
             )
             arguments += ["--financials-dir", str(directory)]
+    if on_stage:
+        on_stage("checking_new_evidence")
     evidence["matured"] = [
         {k: entry[k] for k in ("study_id", "status", "metrics")}
         for entry in mature_feedback(

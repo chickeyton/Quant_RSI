@@ -75,7 +75,9 @@ class Workbench:
         return {k: v for k, v in item.items() if k != "arguments"} | {
             "id": task.name,
             "status": status,
-            "stage": runtime.get("current_stage"),
+            "stage": (runtime.get("current_stage") or worker.get("stage"))
+            if status in {"running", "failed", "interrupted"}
+            else None,
             "error": error if status in {"failed", "interrupted"} else None,
             "resumable": not running
             and status in {"failed", "interrupted"}
@@ -381,6 +383,17 @@ def make_server(workbench, token, port=0):
                     state = read_state(task / "study")
                     item = workbench.item(task)
                     state["symbol"] = item["symbol"]
+                    if not (task / "study/runtime.json").exists() and item["stage"]:
+                        state["preparation"] = item["stage"]
+                        state["runtime"]["status"] = item["status"]
+                        state["config"].update(
+                            llm=item.get("llm"),
+                            model=item.get("model"),
+                            prices=item.get("data"),
+                            question=item.get("question"),
+                            research_rounds=item.get("rounds"),
+                            fit_budget=item.get("max_fits"),
+                        )
                     if item["status"] in {"failed", "interrupted"}:
                         state["runtime"]["status"] = "failed"
                         state["failure"] = {
