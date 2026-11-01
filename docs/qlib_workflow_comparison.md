@@ -25,7 +25,10 @@ quant-rsi research-study XOM --news-research --compare-qlib \
 Codex authentication and public service access follow the
 [connected-study guide](connected_research_study.md). Use a new output directory.
 Missing Qlib dependencies or `--model ridge` fail before news collection or LLM
-calls. This first comparison supports LightGBM only.
+calls. This first comparison supports LightGBM only. When reusing an optional environment
+after updating the repository, rerun its requirements installation before starting a
+new study; financial inputs also require the current pinned PDF/font dependencies.
+Existing study artifacts keep their original runtime identities.
 
 For an offline demonstration with actual native and Qlib fits:
 
@@ -35,10 +38,17 @@ quant-rsi research-study KO --llm simulated --news simulated --related simulated
 pytest -q tests/test_study_qlib.py tests/test_qlib_operator_comparison.py
 ```
 
-Normal CI runs the core regression suite without Qlib and explicitly skips the
-optional upstream integration cases. Run the command above in the optional
-environment to exercise the real upstream model and recorder; mocks do not
-satisfy this check.
+The core CI job runs the complete regression suite without Qlib and explicitly skips
+the optional upstream integration cases. A separate **Qlib / Python 3.12** job installs
+the pinned optional environment, requires the real runtime, and runs just the two
+modules above with retained timing and JUnit artifacts. It runs alongside the core
+suite without adding Qlib to the normal development environment. Run the command above
+locally to exercise the real upstream model and recorder; mocks do not
+satisfy this check. The optional regressions include both cash-flow factors
+with actual native/Qlib fits, common-account parity and separate financial-removal
+and Qlib comparison budgets. Their researcher, news and financial facts are explicit
+offline fixtures. The missing-dependency test scopes its stub to the Qlib adapter
+so that importing another module cannot retain a fake global version lookup.
 
 ## What is held equal
 
@@ -88,3 +98,17 @@ historical-data and LLM-knowledge limitations.
 Upstream implementations: [data loader](https://github.com/microsoft/qlib/blob/v0.9.7/qlib/data/dataset/loader.py),
 [data handler](https://github.com/microsoft/qlib/blob/v0.9.7/qlib/data/dataset/handler.py),
 [LightGBM model](https://github.com/microsoft/qlib/blob/v0.9.7/qlib/contrib/model/gbdt.py).
+## Cash-flow integration observation (2026-11-01)
+
+A follow-up run on `a7b7bc2` used public AAPL/related daily prices and retained official
+AAPL statements, with an explicitly simulated acceptance researcher and simulated news.
+The first round selected `financial.operating_cashflow_yoy`; the revision selected
+`financial.free_cashflow_yoy`. The first native round was retained. Actual Qlib 0.9.7
+then fitted the selected common inputs using LightGBM 4.7.0 and MLflow 3.17.2.
+All 20 development and 10 reserved-terminal predictions matched the native model:
+maximum absolute differences were zero for both log return and price. The common
+input hash was `e62771a8a2bf0255c4783df6ea756b0adde7f4b80eb6a3ed0104c89d1e21d26d`.
+This checks business-column transport and workflow semantics. It does not test a real
+LLM proposal, compare research policies, or establish predictive advantage. The
+separate real-Codex cash-flow observation is recorded in the
+[connected-study guide](connected_research_study.md#financial-business-factors).

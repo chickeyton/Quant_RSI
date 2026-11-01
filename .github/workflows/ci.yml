@@ -60,3 +60,55 @@ jobs:
             ${{ runner.temp }}/validation-profile/*.log
           if-no-files-found: warn
           retention-days: 14
+
+  qlib:
+    name: Qlib / Python 3.12
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONHASHSEED: "0"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      MLFLOW_DISABLE_AGENT_HINT: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.lock
+            examples/requirements-qlib-workflow.txt
+
+      - name: Install optional workflow dependencies
+        run: |
+          python -m pip install -r examples/requirements-qlib-workflow.txt
+          python -m pip install --no-deps -e .
+          python -m pip check
+
+      - name: Require real upstream runtime
+        run: python -c "from quant_rsi.research.study_qlib import require_qlib; require_qlib()"
+
+      - name: Run offline upstream integration tests
+        run: >-
+          python examples/profile_validation.py
+          --output "$RUNNER_TEMP/qlib-validation"
+          tests/test_study_qlib.py tests/test_qlib_operator_comparison.py
+
+      - name: Preserve upstream validation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: qlib-validation-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/qlib-validation/*.json
+            ${{ runner.temp }}/qlib-validation/*.xml
+            ${{ runner.temp }}/qlib-validation/*.log
+          if-no-files-found: warn
+          retention-days: 14
