@@ -13,12 +13,29 @@ NOTICE = (
     "Retrospective reconstruction from currently retained SEC facts, not a complete historical "
     "vendor archive. A filing date without an acceptance time becomes usable at 05:00 UTC on "
     "the following day. Only directly reported 70–110 day quarters in USD are used; no annual "
-    "or year-to-date values are silently converted. Revisions are selected as of each cutoff."
+    "income values are silently converted. Cash-flow facts retain their reported 3/6/9/12-month "
+    "durations and compare only matching year-over-year periods. Revisions are selected "
+    "as of each cutoff."
 )
 METRICS = {
     "revenue_yoy": "Quarterly revenue / comparable prior-year revenue - 1",
     "operating_margin": "Quarterly operating income / revenue",
     "operating_margin_yoy": "Quarterly operating margin minus comparable prior-year margin",
+    "operating_cashflow_yoy": (
+        "Reported cumulative operating cash flow change / absolute prior-year "
+        "value; matching 3/6/9/12-month periods"
+    ),
+    "free_cashflow_yoy": (
+        "Reported cumulative (operating cash flow - capital expenditure) change / "
+        "absolute prior-year value; matching periods, not a single-quarter estimate"
+    ),
+}
+CASHFLOW_FIELDS = {"operating_cashflow", "capital_expenditure"}
+DURATION_BOUNDS = {
+    3: (70, 110),
+    6: (150, 200),
+    9: (240, 290),
+    12: (330, 380),
 }
 
 
@@ -128,7 +145,7 @@ def collect_sec(symbol, profile):
     }
 
 
-def quarterly_records(snapshot):
+def reported_records(snapshot):
     if snapshot["provider"] == "issuer_earnings":
         return snapshot["records"]
     records = []
@@ -149,8 +166,17 @@ def quarterly_records(snapshot):
                     continue
                 start, end, filed = (date.fromisoformat(fact[k]) for k in ("start", "end", "filed"))
                 value = fact.get("val")
+                months = next(
+                    (
+                        m
+                        for m, (low, high) in DURATION_BOUNDS.items()
+                        if low <= (end - start).days <= high
+                    ),
+                    None,
+                )
                 if (
-                    not 70 <= (end - start).days <= 110
+                    months is None
+                    or (field not in CASHFLOW_FIELDS and months != 3)
                     or end > filed
                     or type(value) not in {int, float}
                     or not math.isfinite(value)
@@ -172,29 +198,44 @@ def quarterly_records(snapshot):
                         "value": float(value),
                         "unit": "USD",
                     }
+                    | (
+                        {"period_months": months, "period_kind": "reported_cashflow_duration"}
+                        if field in CASHFLOW_FIELDS
+                        else {}
+                    )
                 )
     return records
+
+
+def select_facts(fields):
+    selected = {}
+    for field, versions in fields.items():
+        rank = max((r["available_at"], -r["priority"]) for r in versions)
+        choices = [r for r in versions if (r["available_at"], -r["priority"]) == rank]
+        if len({r["value"] for r in choices}) != 1:
+            continue
+        selected[field] = sorted(choices, key=lambda r: r.get("statement_id", r.get("accession")))[
+            -1
+        ]
+    return selected
 
 
 def at_cutoff(records, cutoff):
     instant = datetime.fromisoformat(cutoff)
     if instant.tzinfo is None:
         raise ValueError("Financial cutoffs require a timezone")
-    visible = [r for r in records if datetime.fromisoformat(r["available_at"]) <= instant]
+    visible = [
+        r
+        for r in records
+        if r["field"] not in CASHFLOW_FIELDS
+        and datetime.fromisoformat(r["available_at"]) <= instant
+    ]
     periods = {}
     for row in visible:
         periods.setdefault((row["start"], row["end"]), {}).setdefault(row["field"], []).append(row)
     quarters = []
     for (start, end), fields in periods.items():
-        selected = {}
-        for field, versions in fields.items():
-            rank = max((r["available_at"], -r["priority"]) for r in versions)
-            choices = [r for r in versions if (r["available_at"], -r["priority"]) == rank]
-            if len({r["value"] for r in choices}) != 1:
-                continue
-            selected[field] = sorted(
-                choices, key=lambda r: r.get("statement_id", r.get("accession"))
-            )[-1]
+        selected = select_facts(fields)
         if "revenue" in selected and selected["revenue"]["value"] > 0:
             quarters.append({"start": start, "end": end, "facts": selected})
     if not quarters:
@@ -240,9 +281,86 @@ def at_cutoff(records, cutoff):
     return values, {"cutoff": cutoff, "current": latest, "prior_year": prior, "values": values}
 
 
+def cashflow_at_cutoff(records, cutoff):
+    """Compare reported durations; never derive quarters by subtracting YTD filings."""
+    instant = datetime.fromisoformat(cutoff)
+    if instant.tzinfo is None:
+        raise ValueError("Financial cutoffs require a timezone")
+    periods = {}
+    for row in records:
+        if (
+            row["field"] not in CASHFLOW_FIELDS
+            or datetime.fromisoformat(row["available_at"]) > instant
+        ):
+            continue
+        months = row.get("period_months")
+        if months not in DURATION_BOUNDS:
+            continue
+        periods.setdefault((row["start"], row["end"], months), {}).setdefault(
+            row["field"], []
+        ).append(row)
+    periods = [
+        dict(start=start, end=end, months=months, facts=select_facts(fields))
+        for (start, end, months), fields in periods.items()
+    ]
+    if not periods:
+        return {}, {"reason": "no_visible_cashflow_period"}
+    # If a newer period is unusable, do not silently fall back to an older ratio.
+    end = max(p["end"] for p in periods)
+    months = max(p["months"] for p in periods if p["end"] == end)
+    latest = [p for p in periods if p["end"] == end and p["months"] == months]
+    if len(latest) != 1 or (instant.date() - date.fromisoformat(end)).days > 270:
+        return {}, {"reason": "ambiguous_or_stale_cashflow_period"}
+    current = latest[0]
+    matches = [
+        p
+        for p in periods
+        if p["months"] == current["months"]
+        and 350 <= (date.fromisoformat(end) - date.fromisoformat(p["end"])).days <= 380
+        and (
+            current["start"] is None
+            or p["start"] is None
+            or 350
+            <= (date.fromisoformat(current["start"]) - date.fromisoformat(p["start"])).days
+            <= 380
+        )
+    ]
+    prior = matches[0] if len(matches) == 1 else None
+    evidence = {"current": current, "prior_year": prior}
+    if prior is None:
+        return {}, evidence | {"reason": "no_unique_comparable_cashflow_period"}
+
+    def amounts(period):
+        facts = period["facts"]
+        operating, capex = facts.get("operating_cashflow"), facts.get("capital_expenditure")
+        result = {}
+        if operating:
+            result["operating_cashflow_yoy"] = operating["value"]
+            if (
+                capex
+                and capex["value"] >= 0
+                and capex.get("statement_id", capex.get("accession"))
+                == operating.get("statement_id", operating.get("accession"))
+            ):
+                result["free_cashflow_yoy"] = operating["value"] - capex["value"]
+        return result
+
+    now, before = amounts(current), amounts(prior)
+    values = {
+        metric: (value - before[metric]) / abs(before[metric])
+        for metric, value in now.items()
+        if metric in before and before[metric] != 0
+    }
+    return values, evidence | {"values": values}
+
+
 def prepare_financials(snapshot, cutoffs, required):
-    records = quarterly_records(snapshot)
-    rows = [at_cutoff(records, cutoff) for cutoff in cutoffs]
+    records = reported_records(snapshot)
+    rows = []
+    for cutoff in cutoffs:
+        values, evidence = at_cutoff(records, cutoff)
+        cash_values, cash_evidence = cashflow_at_cutoff(records, cutoff)
+        rows.append((values | cash_values, evidence | {"cashflow": cash_evidence}))
     columns, definitions = {}, []
     for metric, description in METRICS.items():
         identity = "financial." + metric
@@ -261,7 +379,7 @@ def prepare_financials(snapshot, cutoffs, required):
                 "source": {"symbol": snapshot["symbol"], "snapshot_sha256": snapshot["sha256"]},
                 "reason": "available"
                 if missing == 0
-                else "missing_or_incompatible_reported_quarters",
+                else "missing_or_incompatible_reported_periods",
             }
         )
     return {
@@ -287,7 +405,12 @@ def simulated_financials(symbol, cutoffs, required):
     # Explicit fixture mode exercises the same filing-date parser and feature computation.
     last = datetime.fromisoformat(cutoffs[-1]).date()
     facts = {"cik": 0, "facts": {"us-gaap": {}}}
-    for tag, scale in (("Revenues", 1000), ("OperatingIncomeLoss", 180)):
+    for tag, scale in (
+        ("Revenues", 1000),
+        ("OperatingIncomeLoss", 180),
+        ("NetCashProvidedByUsedInOperatingActivities", 220),
+        ("PaymentsToAcquirePropertyPlantAndEquipment", 50),
+    ):
         rows = []
         for year in range(last.year - 3, last.year + 1):
             for month in (3, 6, 9, 12):
@@ -308,7 +431,12 @@ def simulated_financials(symbol, cutoffs, required):
         "symbol": symbol,
         "provider": "simulated_financials",
         "profile": {
-            "fields": {"revenue": ["Revenues"], "operating_income": ["OperatingIncomeLoss"]}
+            "fields": {
+                "revenue": ["Revenues"],
+                "operating_income": ["OperatingIncomeLoss"],
+                "operating_cashflow": ["NetCashProvidedByUsedInOperatingActivities"],
+                "capital_expenditure": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+            }
         },
         "companyfacts": facts,
         "sha256": digest(canonical(facts)),

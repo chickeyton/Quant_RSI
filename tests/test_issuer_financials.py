@@ -174,7 +174,7 @@ def test_input_check_never_constructs_llm_fits_or_registers_forecast(tmp_path, m
         == 0
     )
     report = json.loads((root / "input_report.json").read_bytes())
-    assert report["financials"]["coverage"]["runnable_factors"] == 3
+    assert report["financials"]["coverage"]["runnable_factors"] == 5
     assert not (root / "result.json").exists()
     runtime = json.loads((root / "runtime.json").read_bytes())
     assert runtime["status"] == "completed"

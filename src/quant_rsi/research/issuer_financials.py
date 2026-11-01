@@ -18,7 +18,8 @@ from quant_rsi.market.news_feed import NoRedirect
 NOTICE = (
     "Official issuer earnings statements, reconstructed retrospectively from retained public "
     "documents, not a historical vendor archive. Only explicitly reported three-month USD "
-    "columns are used; no YTD subtraction or invented quarter starts. Date-only publication "
+    "income columns and explicitly labelled 3/6/9/12-month cash-flow columns are used; no YTD "
+    "subtraction or invented period starts. Date-only publication "
     "and PDF-declared revisions become usable at 05:00 UTC the following day. "
     "PDF metadata is provenance, not proof that this exact version was historically observed. "
     "Page maintenance dates are recorded separately; "
@@ -40,15 +41,28 @@ class Page(HTMLParser):
             self.meta[attrs.get("name", attrs.get("property"))] = attrs.get("content")
 
 
-def statement_rows(text, profile):
+def statement_rows(text, profile, *, cashflow=False):
     """Read the first two columns only after the expected quarterly statement heading."""
     lines = [" ".join(line.split()) for line in text.splitlines() if line.strip()]
     if not any(profile["statement_title"].lower() in line.lower() for line in lines[:5]):
         return None
     if not any("in millions" in line.lower() for line in lines[:6]):
         raise ValueError("Statement currency scale is not explicitly millions")
+    periods = {
+        "Three Months Ended": 3,
+        "Six Months Ended": 6,
+        "Nine Months Ended": 9,
+        "Twelve Months Ended": 12,
+        "Year Ended": 12,
+        "Years Ended": 12,
+    }
     header = next(
-        (i for i, line in enumerate(lines[:10]) if line.startswith("Three Months Ended")), None
+        (
+            i
+            for i, line in enumerate(lines[:10])
+            if (line in periods if cashflow else line.startswith("Three Months Ended"))
+        ),
+        None,
     )
     if header is None:
         return None  # Annual and YTD-only pages cannot supply quarterly facts.
@@ -68,12 +82,15 @@ def statement_rows(text, profile):
     for field, label in profile["rows"].items():
         # PDF glyph positioning can insert spaces inside words ("To t a l").
         # Match only the configured label, without relaxing numeric parsing.
-        label_pattern = r"\s*".join(re.escape(c) for c in label if not c.isspace())
-        pattern = re.compile(r"^" + label_pattern + r"\s+(.*)$", re.I)
+        labels = [label] if isinstance(label, str) else label
+        label_pattern = "|".join(
+            r"\s*".join(re.escape(c) for c in item if not c.isspace()) for item in labels
+        )
+        pattern = re.compile(r"^(?P<label>" + label_pattern + r")\s+(?P<values>.*)$", re.I)
         matches = [pattern.match(line) for line in lines[header + 3 :]]
-        candidates = []
+        candidates, tags = [], []
         for match in filter(None, matches):
-            values = match[1].replace("$", "").replace("%", "").split()
+            values = match["values"].replace("$", "").replace("%", "").split()
             expected = len(years) + int("%" in lines[header + 1])
             if len(values) == expected + 1 and re.fullmatch(r"\(\d{1,2}\)", values[0]):
                 values = values[1:]
@@ -90,16 +107,31 @@ def statement_rows(text, profile):
                 for v in values[:2]
             ]
             candidates.append(pair)
+            tags.append(" ".join(match["label"].split()))
         if not candidates or any(pair != candidates[0] for pair in candidates):
             raise ValueError(f"Missing or conflicting quarterly row: {label}")
         for end, value in zip(ends, candidates[0], strict=True):
             if field == "revenue" and value <= 0:
                 raise ValueError("Reported quarterly revenue must be positive")
-            rows.append({"field": field, "tag": label, "end": str(end), "value": value * 1_000_000})
+            row = {
+                "field": field,
+                "tag": label if isinstance(label, str) else tags[0],
+                "end": str(end),
+                "value": value * 1_000_000,
+            }
+            if cashflow:
+                row.update(
+                    period_kind="reported_cashflow_duration", period_months=periods[lines[header]]
+                )
+                if field == "capital_expenditure":
+                    row["value"] *= -1  # Issuer statements show payments as a negative cash flow.
+                    if row["value"] < 0:
+                        raise ValueError("Capital expenditure must be a reported cash outflow")
+            rows.append(row)
     return rows
 
 
-def parse_statement(raw, profile):
+def parse_statement(raw, profile, *, cashflow=False):
     reader = PdfReader(io.BytesIO(raw))
     if reader.is_encrypted or not 1 <= len(reader.pages) <= 40:
         raise ValueError("Unsupported encrypted or oversized earnings statement")
@@ -109,11 +141,15 @@ def parse_statement(raw, profile):
         if contents and len(contents.get_data()) > 4_000_000:
             raise ValueError("Statement page content exceeds the parsing bound")
         text = page.extract_text(extraction_mode="layout")
-        rows = statement_rows(text, profile)
+        rows = statement_rows(text, profile, cashflow=cashflow)
         if rows:
             found.append((rows, number + 1))
     if len(found) != 1:
-        raise ValueError("Expected exactly one supported quarterly income statement")
+        raise ValueError(
+            "Expected exactly one supported "
+            + ("cash-flow" if cashflow else "quarterly income")
+            + " statement"
+        )
     return found[0]
 
 
@@ -213,7 +249,18 @@ def collect_issuer(symbol, directory, profile):
             if len(links) != 1:
                 raise ValueError("Expected one supported issuer financial PDF")
             raw = fetch(links[0], "pdf")
-            rows, page_number = parse_statement(raw, source)
+            rows = []
+            sections = [("income", source)]
+            if "cashflow" in source:
+                sections.append(("cashflow", source["cashflow"]))
+            for section, definition in sections:
+                try:
+                    parsed, page_number = parse_statement(
+                        raw, definition, cashflow=section == "cashflow"
+                    )
+                    rows.extend(row | {"page": page_number} for row in parsed)
+                except (ValueError, PyPdfError) as exc:
+                    failures.append({"release_url": release, "section": section, "error": str(exc)})
             effective = statement_date(raw, published, page_modified)
             available = datetime.combine(
                 effective + timedelta(days=1), datetime.min.time(), timezone.utc
@@ -221,8 +268,7 @@ def collect_issuer(symbol, directory, profile):
             if any(date.fromisoformat(r["end"]) > published for r in rows):
                 raise ValueError("Statement period ends after its release date")
             records += [
-                row
-                | {
+                {
                     "priority": 0,
                     "start": None,
                     "period_kind": "reported_three_months",
@@ -234,8 +280,8 @@ def collect_issuer(symbol, directory, profile):
                     "unit": "USD",
                     "source_url": links[0],
                     "release_url": release,
-                    "page": page_number,
                 }
+                | row
                 for row in rows
             ]
         except (OSError, ValueError, KeyError, PyPdfError) as exc:
