@@ -130,7 +130,17 @@ const StudyCards = (() => {
     const wrap = el('div', 'question-map');
     if (!rows?.length) return wrap;
     wrap.append(el('h3', 'view-section-title', 'Question → measured inputs'));
-    wrap.append(table(['Claim (LLM)', 'Bound factors', 'Execution', 'Rationale (LLM)', 'Limitations (LLM)'], rows.map(row => [row.claim, row.factor_ids.join(', ') || 'No measured input', title(row.status), row.rationale, row.limitations.join('; ')])));
+    rows.forEach(row => {
+      const card = el('article', 'factor-card');
+      card.append(badge(title(row.status), row.status === 'inputs_fitted' ? '' : 'caution'), el('h3', '', row.claim));
+      card.append(note('Selected inputs'), row.factor_ids.length ? pills(row.factor_ids) : note('No measured input'));
+      card.append(note(`Rationale (LLM) · ${row.rationale}`));
+      const limits = el('details', 'observation-details');
+      limits.append(el('summary', '', `Limitations (LLM) · ${row.limitations.length}`));
+      row.limitations.forEach(text => limits.append(note(text)));
+      if (row.status === 'no_measured_input') limits.open = true;
+      card.append(limits); wrap.append(card);
+    });
     wrap.append(note('Claims and limitations are the researcher’s assessment. Inputs fitted does not confirm a claim or establish causality.'));
     return wrap;
   }
