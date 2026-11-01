@@ -234,12 +234,13 @@ def render_study(result):
             business.update(
                 (item["factor_id"], item)
                 for item in event["output"]["definitions"]
-                if item.get("recipe", {}).get("op") == "financial_expression"
+                if item.get("recipe", {}).get("op")
+                in {"financial_expression", "business_expression"}
             )
     if business:
         section(
             "Business factor hypotheses",
-            "Run-local arithmetic over retained publication-dated financial factors. "
+            "Run-local arithmetic over retained publication-dated financial and industry factors. "
             "Original reporting periods and missing inputs are preserved. "
             "These proposed relationships are not established causal effects. "
             "Unselected recipes remain in the record; "
@@ -248,7 +249,7 @@ def render_study(result):
         for item in business.values():
             section(item["factor_id"], item["description"])
             table(
-                ["Input alias", "Financial factor"],
+                ["Input alias", "Source factor"],
                 [[binding["name"], binding["factor_id"]] for binding in item["recipe"]["inputs"]],
             )
             table(
@@ -723,6 +724,11 @@ def render_study(result):
         section("Forecast availability", "Synthetic run: no real-market latest forecast.")
     external = result["study"].get("external_data")
     if external is not None:
+        bound_source_ids = {
+            source["factor_id"]
+            for item in selected.get("bound_factor_inputs", [])
+            for source in item["inputs"]
+        }
         section("External business drivers", external["notice"])
         table(
             ["Factor", "Use in selected model", "Missing fixed rows", "Definition"],
@@ -731,6 +737,8 @@ def render_study(result):
                     d["factor_id"],
                     "selected"
                     if d["factor_id"] in selected["factor_ids"]
+                    else "used by selected expression"
+                    if d["factor_id"] in bound_source_ids
                     else "available"
                     if d["runnable"]
                     else "unavailable",

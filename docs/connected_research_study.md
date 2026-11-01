@@ -607,7 +607,7 @@ quant-rsi research-study KO --llm codex --financials --news-research \
 ```
 
 Each `proposed_business_factors` entry contains a `name`, `description`, two to four
-`inputs` binding local aliases to supplied `financial.*` factor IDs, and an
+`inputs` binding local aliases to supplied `financial.*` or `external.*` factor IDs, and an
 `expression`. The expression uses the existing `schema_version: 1` grammar:
 topologically ordered `leaf`, `add`, `subtract`, or `multiply` nodes, at most seven
 nodes and depth three. Every binding must be used; the last node is the output.
@@ -621,7 +621,24 @@ requires a new name, and omitting an old ID deactivates that factor for the roun
 without deleting its recorded definition. Selection must still include at least
 one proposed price recipe under the existing study contract.
 
-All inputs must be existing financial definitions. Missing historical inputs keep
+With `--external-drivers`, a proposal can also compare two EIA inventory changes
+or combine an industry change with a financial variable. For example:
+
+```bash
+quant-rsi research-study XOM --llm codex --financials --external-drivers \
+  --historical-sessions 252 \
+  --question "Test a composition of EIA crude inventory change and XOM revenue growth. After feedback, test distillate inventory instead; explain the different periods and limits." \
+  --output /tmp/xom-mixed-business-study
+```
+
+The inventory source is a weekly industry aggregate, while revenue growth refers
+to the company's reporting period. Arithmetic does not align these periods or
+measure XOM's own inventory. Industry-only expressions do not require enabling
+financial data. Existing financial-only recipes retain their recorded
+`financial_expression` representation; recipes with an industry input use
+`business_expression`, through the same grammar and evaluator.
+
+All inputs must be supplied financial or external definitions. Missing historical inputs keep
 a proposal unavailable; feature computation propagates missing values without
 filling or dropping rows. Input availability uses the original publication cutoffs.
 Combining factors does **not** align different reporting periods or turn growth
@@ -630,13 +647,16 @@ researcher must explain those limitations.
 
 Both model implementations execute the resulting column. The live factor cards
 and final report show the input aliases and arithmetic nodes as tables. Predictions
-retain the underlying financial definitions, and the optional same-row financial
-diagnostic removes financial-derived expressions together with direct financial
-columns. It remains a development diagnostic, not independent validation.
+retain the underlying source definitions. Each optional source-removal diagnostic
+removes every expression depending on that family, together with its direct columns.
+A mixed expression is therefore removed in both the financial and external diagnostics.
+These separate comparisons do not isolate an interaction effect and remain development
+diagnostics, not independent validation. Each enabled diagnostic uses at most one
+additional fit; neither changes selection or the latest forecast.
 
 Selected business recipes can be offered in a later study through existing factor
-memory. They are rebound to the current financial definitions and availability;
-old feature values and runnable flags are never imported. Financial inputs absent
+memory. They are rebound to the current source definitions and availability;
+old feature values and runnable flags are never imported. Business inputs absent
 from the new study cannot be replaced with price proxies.
 
 ### Check inputs before research

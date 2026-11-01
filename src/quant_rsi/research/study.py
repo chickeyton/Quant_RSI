@@ -172,7 +172,7 @@ def _configuration(args):
         + int(getattr(args, "financials", False))
         + int(getattr(args, "external_drivers", False)),
         walk_forward_fit_budget=folds,
-        generated_recipes="bounded_price_news_and_financial_expressions",
+        generated_recipes="bounded_price_news_and_business_expressions",
     )
     return symbol, root, configuration
 

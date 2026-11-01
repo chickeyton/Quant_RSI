@@ -1,4 +1,4 @@
-"""Run-local business hypotheses over existing publication-dated financial columns."""
+"""Run-local hypotheses over retained financial and industry columns."""
 
 from copy import deepcopy
 
@@ -13,7 +13,7 @@ class BusinessInput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     name: Name
-    factor_id: str = Field(pattern=r"^financial\.[a-z][a-z0-9_]*$")
+    factor_id: str = Field(pattern=r"^(financial|external)\.[a-z][a-z0-9_]*$")
 
 
 class BusinessFactorProposal(BaseModel):
@@ -38,34 +38,37 @@ class BusinessFactorProposal(BaseModel):
         for identity in ids:
             if (
                 identity not in sources
-                or sources[identity].get("recipe", {}).get("op") != "financial"
+                or sources[identity].get("recipe", {}).get("op") != identity.split(".", 1)[0]
             ):
                 raise ValueError(
-                    "Business expressions require supplied financial factor definitions"
+                    "Business expressions require supplied financial or external definitions"
                 )
         runnable = all(sources[identity].get("runnable") is True for identity in ids)
+        financial_only = all(identity.startswith("financial.") for identity in ids)
+        # Existing financial-only recipes keep their recorded representation.
+        op = "financial_expression" if financial_only else "business_expression"
         return {
             "factor_id": f"business.{self.name}",
             "kind": "numeric",
-            "input_kind": "retained_financial_factors",
+            "input_kind": "retained_financial_factors"
+            if financial_only
+            else "retained_business_factors",
             "description": self.description,
             "recipe": {
-                "op": "financial_expression",
+                "op": op,
                 "inputs": [item.model_dump(mode="json") for item in self.inputs],
                 "expression": self.expression.model_dump(mode="json"),
             },
             "input_factor_ids": ids,
             "runnable": runnable,
-            "availability_reason": "complete_common_sample"
-            if runnable
-            else "missing_financial_expression_inputs",
+            "availability_reason": "complete_common_sample" if runnable else f"missing_{op}_inputs",
         }
 
 
 def proposal_from_definition(definition):
     recipe = definition["recipe"]
-    if recipe.get("op") != "financial_expression":
-        raise ValueError("Expected a financial expression")
+    if recipe.get("op") not in {"financial_expression", "business_expression"}:
+        raise ValueError("Expected a business expression")
     return BusinessFactorProposal.model_validate_json(
         canonical(
             {
@@ -78,13 +81,17 @@ def proposal_from_definition(definition):
     )
 
 
-def business_column(definition, bundle):
+def business_column(definition, bundle, external=None):
     """Rebuild from retained columns; missing values propagate without row dropping."""
     proposal = proposal_from_definition(definition)
-    expected = proposal.definition((bundle or {}).get("definitions", []))
+    definitions = (bundle or {}).get("definitions", []) + (external or {}).get("definitions", [])
+    columns = (bundle or {}).get("columns", {}) | (external or {}).get("columns", {})
+    expected = proposal.definition(definitions)
     if expected != definition or not expected["runnable"]:
-        raise ValueError("Business factor lacks its exact usable financial inputs")
-    inputs = {item.name: np.asarray(bundle["columns"][item.factor_id]) for item in proposal.inputs}
+        raise ValueError("Business factor lacks its exact usable retained inputs")
+    inputs = {
+        item.name: np.asarray(columns[item.factor_id], dtype=float) for item in proposal.inputs
+    }
     lengths = {len(values) for values in inputs.values()}
     if len(lengths) != 1:
         raise ValueError("Business input columns must use the same fixed sample")
@@ -97,5 +104,5 @@ def business_column(definition, bundle):
         result = evaluate_expression(proposal.expression, row)["value"]
         if result is not None:
             values[index] = result
-    sources = {item["factor_id"]: item for item in bundle["definitions"]}
+    sources = {item["factor_id"]: item for item in definitions}
     return values, [deepcopy(sources[identity]) for identity in expected["input_factor_ids"]]

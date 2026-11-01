@@ -397,8 +397,10 @@ class LightGBMDemo:
         effective = {item["factor_id"]: item for item in factors}
         bound_inputs = []
         for item in factors:
-            if item.get("recipe", {}).get("op") == "financial_expression":
-                values, dependencies = business_column(item, self.financial_features)
+            if item.get("recipe", {}).get("op") in {"financial_expression", "business_expression"}:
+                values, dependencies = business_column(
+                    item, self.financial_features, self.external_features
+                )
                 columns.append(values)
                 bound_inputs.append({"factor_id": item["factor_id"], "inputs": dependencies})
                 effective.update(
@@ -647,7 +649,13 @@ class LightGBMDemo:
                     for item in factors
                     if item["kind"] == "numeric"
                     and item["recipe"].get("op")
-                    not in {"peer_return", "financial", "financial_expression", "external"}
+                    not in {
+                        "peer_return",
+                        "financial",
+                        "financial_expression",
+                        "external",
+                        "business_expression",
+                    }
                 ],
                 "reason": "target_labels_and_reference_prices",
             }

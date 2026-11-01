@@ -135,9 +135,63 @@ def test_business_memory_rebinds_current_availability_without_old_values():
     assert report["entries"][0]["status"] == "restored_candidate"
 
 
+@pytest.mark.parametrize("financial", [False, True])
+def test_industry_composition_missingness_and_current_source_rebinding(financial):
+    external_ids = ["external.eia_commercial_crude_wow", "external.eia_distillate_wow"]
+    external = {
+        "definitions": [
+            {
+                "factor_id": identity,
+                "kind": "numeric",
+                "recipe": {"op": "external", "metric": identity.split(".")[1]},
+                "runnable": True,
+            }
+            for identity in external_ids
+        ],
+        "columns": {external_ids[0]: [0.3, None, 0.2], external_ids[1]: [0.1, 0.4, None]},
+    }
+    business = proposal()
+    business["inputs"][0]["factor_id"] = external_ids[0]
+    business["inputs"][1]["factor_id"] = "financial.revenue_yoy" if financial else external_ids[1]
+    bundle = (
+        {
+            "definitions": library()["definitions"],
+            "columns": {"financial.revenue_yoy": [0.1, 0.4, None]},
+        }
+        if financial
+        else None
+    )
+    current = {"definitions": (bundle or {}).get("definitions", []) + external["definitions"]}
+    definition = BusinessFactorProposal.model_validate_json(canonical(business)).definition(
+        current["definitions"]
+    )
+    assert definition["recipe"]["op"] == "business_expression"
+    values, sources = business_column(definition, bundle, external)
+    np.testing.assert_allclose(values, [0.2, np.nan, np.nan])
+    assert [item["factor_id"] for item in sources] == definition["input_factor_ids"]
+    # Reuse recipes with fresh source bindings, never old feature columns.
+    old = deepcopy(definition) | {"column": [999, 999, 999]}
+    restored, report = reuse_recipes(current, [memory(old)])
+    assert restored["definitions"][-1] == definition
+    assert report["entries"][0]["status"] == "restored_candidate"
+    external["definitions"][0]["runnable"] = False
+    restored, report = reuse_recipes(current, [memory(old)])
+    assert restored["definitions"][-1]["runnable"] is False
+    assert report["entries"][0]["status"] == "unavailable_current_inputs"
+    with pytest.raises(ValueError, match="exact usable"):
+        business_column(definition, bundle, external)
+    # Merely spelling an industry ID cannot bind a price proxy or an invented source.
+    external["definitions"][0]["recipe"]["op"] = "momentum"
+    with pytest.raises(ValueError, match="supplied"):
+        BusinessFactorProposal.model_validate_json(canonical(business)).definition(
+            current["definitions"]
+        )
+
+
 @pytest.mark.parametrize("model", ["ridge", "lightgbm"])
+@pytest.mark.parametrize("mixed", [False, True])
 def test_llm_business_revision_reaches_model_report_and_financial_ablation(
-    tmp_path, monkeypatch, model
+    tmp_path, monkeypatch, model, mixed
 ):
     calls = []
     matrices = []
@@ -147,8 +201,11 @@ def test_llm_business_revision_reaches_model_report_and_financial_ablation(
         result = original_predict(self, context, factors, hypothesis)
         matrix = self._fits[-1][1]
         sources = factors[1]["input_factor_ids"]
-        expected = np.asarray(self.financial_features["columns"][sources[0]]) - np.asarray(
-            self.financial_features["columns"][sources[1]]
+        columns = self.financial_features["columns"] | (self.external_features or {}).get(
+            "columns", {}
+        )
+        expected = np.asarray(columns[sources[0]], dtype=float) - np.asarray(
+            columns[sources[1]], dtype=float
         )
         np.testing.assert_allclose(matrix[:, 1], expected)
         matrices.append(matrix.copy())
@@ -167,8 +224,18 @@ def test_llm_business_revision_reaches_model_report_and_financial_ablation(
         )
         if revised:
             assert payload["feedback"]["development"]["metrics"]["sample_count"] == 20
+        business = proposal(revised)
+        if mixed:
+            external_id = (
+                "external.eia_distillate_wow" if revised else "external.eia_commercial_crude_wow"
+            )
+            business["inputs"][0]["factor_id"] = external_id
+            assert (
+                external_id in schema["$defs"]["BusinessInput"]["properties"]["factor_id"]["enum"]
+            )
+            assert "weekly US industry inventory changes" in prompt
         return json.dumps(
-            hypothesis(proposal(revised))
+            hypothesis(business)
             | {
                 "hypothesis": "Compare reported business growth rates",
                 "event_signal": 0,
@@ -187,7 +254,8 @@ def test_llm_business_revision_reaches_model_report_and_financial_ablation(
 
     monkeypatch.setattr(LLMHypothesizer, "_codex", codex)
     root = tmp_path / "study"
-    assert main(command(root, "--llm", "codex", "--financials", "--model", model)) == 0
+    flags = ["--external-drivers"] if mixed else []
+    assert main(command(root, "--llm", "codex", "--financials", "--model", model, *flags)) == 0
     result = json.loads((root / "result.json").read_bytes())
     assert len(calls) == 2
     assert len(matrices) == 2
@@ -197,7 +265,19 @@ def test_llm_business_revision_reaches_model_report_and_financial_ablation(
         prediction = attempt["prediction"]
         assert f"business.{name}" in prediction["feature_values"]
         sources = prediction["bound_factor_inputs"][0]["inputs"]
-        assert len(sources) == 2 and all(item["recipe"]["op"] == "financial" for item in sources)
+        assert len(sources) == 2
+        assert {item["recipe"]["op"] for item in sources} == (
+            {"financial", "external"} if mixed else {"financial"}
+        )
+        for source in sources:
+            assert any(
+                usage["status"] == "used" and source["factor_id"] in usage["factor_ids"]
+                for usage in prediction["input_usage"][1:]
+            )
+        assert not any(
+            identity.startswith("business.")
+            for identity in prediction["input_usage"][0]["factor_ids"]
+        )
     comparison = result["study"]["financial_comparison"]
     assert comparison["status"] == "completed"
     assert len(comparison["removed_factor_ids"]) == 1
@@ -207,3 +287,13 @@ def test_llm_business_revision_reaches_model_report_and_financial_ablation(
     html = (root / "report.html").read_text()
     assert "Business factor hypotheses" in html and "Input alias" in html
     assert "business.inventory_gap" in html and "business.margin_gap" in html
+    if mixed:
+        external = result["study"]["external_comparison"]
+        assert external["status"] == "completed" and external["extra_fits"] == 1
+        assert external["removed_factor_ids"] == comparison["removed_factor_ids"]
+        assert external["kept_factor_ids"] == comparison["kept_factor_ids"]
+        assert (
+            external["without_external_drivers"]["forecast"]
+            == comparison["without_financials"]["forecast"]
+        )
+        assert "used by selected expression" in html

@@ -71,13 +71,13 @@ class LLMHypothesizer:
                 definition["required"] = list(definition["properties"])
                 for value in definition["properties"].values():
                     value.pop("default", None)
-            financial_ids = [
+            business_ids = [
                 item["factor_id"]
                 for item in library["definitions"]
-                if item.get("recipe", {}).get("op") == "financial"
+                if item.get("recipe", {}).get("op") in {"financial", "external"}
             ]
-            if financial_ids:
-                schema["$defs"]["BusinessInput"]["properties"]["factor_id"]["enum"] = financial_ids
+            if business_ids:
+                schema["$defs"]["BusinessInput"]["properties"]["factor_id"]["enum"] = business_ids
             else:
                 schema["properties"]["proposed_business_factors"]["maxItems"] = 0
         if news_study:
@@ -180,8 +180,9 @@ class LLMHypothesizer:
                 "of trailing daily log returns; its window must be 2..30. "
                 "Revision may deactivate earlier factors by omitting their IDs. "
                 "Optionally propose zero to two proposed_business_factors; use [] when no "
-                "relevant supplied financial inputs exist. Each has name, description, inputs "
-                "(two to four {name, factor_id} bindings to supplied financial.* factors), and "
+                "relevant supplied business inputs exist. Each has name, description, inputs "
+                "(two to four {name, factor_id} bindings to supplied financial.* or external.* "
+                "factors), and "
                 "expression {schema_version: 1, nodes}. Nodes have name, op, inputs, leaf: "
                 "leaf nodes use inputs=[] and a binding name in leaf; binary add/subtract/"
                 "multiply nodes use two preceding node names in inputs and leaf=null. "
@@ -190,7 +191,13 @@ class LLMHypothesizer:
                 "new IDs in factor_ids along with the required price proposal. For example, "
                 "inventory_yoy minus revenue_yoy tests relative growth, not inventory turnover "
                 "or causality. Respect the original periods and availability of each source. "
-                "Do not invent financial inputs. Changing an existing business recipe requires "
+                "External EIA variables are weekly US industry inventory changes, not company "
+                "inventories or oil prices. A composition may combine these with financial "
+                "variables or other industry inventory changes; explain the different periods "
+                "and units, and why this arithmetic represents the hypothesis. It does not "
+                "create a company-specific measurement or causal proof. Missing or stale "
+                "inputs stay unavailable. Do not invent business inputs. "
+                "Changing an existing business recipe requires "
                 "a new name; omit its old ID to deactivate it for this round. "
                 "Supplied news.guidance_direction_7/30 factors encode the latest explicit issuer "
                 "guidance change (+1 raised, -1 lowered, 0 reaffirmed or no explicit statement). "
