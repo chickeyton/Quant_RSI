@@ -141,6 +141,12 @@ def _configuration(args):
         args.news_snapshot = args.news_snapshot.resolve()
         if args.news_snapshot.is_relative_to(checkout):
             raise ValueError("Keep news snapshots outside the source checkout")
+    if getattr(args, "external_drivers_dir", None):
+        if not getattr(args, "external_drivers", False):
+            raise ValueError("--external-drivers-dir requires --external-drivers")
+        args.external_drivers_dir = args.external_drivers_dir.resolve()
+        if args.external_drivers_dir.is_relative_to(checkout):
+            raise ValueError("Keep external driver snapshots outside the checkout")
     if getattr(args, "financials_dir", None):
         if not getattr(args, "financials", False):
             raise ValueError("--financials-dir requires --financials")
@@ -468,9 +474,48 @@ def _run(args, symbol, root, configuration, record, progress, cache):
             {k: v for k, v in business.items() if k not in {"columns", "evidence"}},
         )
 
+    external = None
+    if getattr(args, "external_drivers", False):
+        from quant_rsi.research.eia_petroleum import (
+            collect_petroleum,
+            prepare_petroleum,
+            simulated_petroleum,
+        )
+        from quant_rsi.research.study_financials import sample_coverage
+
+        progress.start("load_external_drivers")
+        required = [int(i) for i in (*model.train, *model.origins)]
+
+        def external_inputs():
+            if args.prices == "synthetic":
+                return simulated_petroleum(cutoffs, required)
+            directory = args.external_drivers_dir or root / "external_drivers"
+            try:
+                snapshot = collect_petroleum(directory, cutoffs[0][:10], cutoffs[-1][:10])
+                return prepare_petroleum(snapshot, cutoffs, required)
+            except (OSError, ValueError, KeyError) as exc:
+                return {
+                    "definitions": [],
+                    "columns": {},
+                    "provider": "unavailable",
+                    "notice": "External drivers unavailable: " + str(exc),
+                    "failures": [{"error_type": type(exc).__name__, "reason": str(exc)}],
+                }
+
+        external = cache.call(
+            "external_features", {"cutoffs": cutoffs, "required": required}, external_inputs
+        )
+        external["sample_coverage"] = sample_coverage(external, model.train, model.origins)
+        model.configure_external(external)
+        _write(root / "external_features.json", external)
+        progress.finish(
+            "load_external_drivers",
+            {k: v for k, v in external.items() if k not in {"columns", "evidence"}},
+        )
+
     from quant_rsi.research.study_inputs import input_report
 
-    readiness = input_report(root, symbol, model, current_news, business)
+    readiness = input_report(root, symbol, model, current_news, business, external)
     progress.start("check_inputs")
     progress.finish("check_inputs", readiness)
     if getattr(args, "check_inputs", False):
@@ -929,6 +974,11 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         event = {"stage": "financial_comparison", "output": comparison}
         record(event)
         result["trace"].append(event)
+
+    if external is not None:
+        result["study"]["external_data"] = {
+            k: v for k, v in external.items() if k not in {"columns", "evidence"}
+        }
 
     if getattr(args, "compare_qlib", False):
         from quant_rsi.research.study_qlib import compare_qlib

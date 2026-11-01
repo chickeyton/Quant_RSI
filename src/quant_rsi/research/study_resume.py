@@ -77,6 +77,7 @@ def resume_arguments(root, *, ui=False):
         "news_archive",
         "news_snapshot",
         "financials_dir",
+        "external_drivers_dir",
     ):
         if config.get(name) is not None:
             config[name] = Path(config[name])

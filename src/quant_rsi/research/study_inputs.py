@@ -5,7 +5,7 @@ from html import escape
 from quant_rsi.core.artifacts import atomic_write, canonical
 
 
-def input_report(root, symbol, model, news, financials):
+def input_report(root, symbol, model, news, financials, external=None):
     financials = financials or {
         "provider": "disabled",
         "definitions": [],
@@ -34,6 +34,10 @@ def input_report(root, symbol, model, news, financials):
         "Unavailable financial factors are excluded; "
         "available price factors can still be researched.",
     }
+    if external is not None:
+        report["external_drivers"] = {
+            k: v for k, v in external.items() if k not in {"columns", "evidence"}
+        }
     atomic_write(root / "input_report.json", canonical(report))
 
     def table(headers, rows):
@@ -162,6 +166,15 @@ h1,h2{color:#72e3d1}p{line-height:1.6}
 th,td{text-align:left;padding:12px;border-bottom:1px solid #334155;overflow-wrap:anywhere}
 th:first-child,td:first-child{min-width:150px}th:nth-child(2),td:nth-child(2){min-width:180px}
 th{color:#a7bbd8}h2{margin-top:32px;font-size:20px}</style><main>"""
+    if external is not None:
+        body += "<h2>External business drivers</h2>" + table(
+            ["Factor", "Available", "Missing required rows", "Reason"],
+            [
+                [d["factor_id"], d["runnable"], d["missing_required_rows"], d["reason"]]
+                for d in external["definitions"]
+            ],
+        )
+        body += "<p>" + escape(external["notice"]) + "</p>"
     document += f"<h1>{escape(symbol)} · Input check</h1><p>{escape(report['notice'])}</p>" + body
     atomic_write(root / "input_report.html", (document + "</main></html>").encode())
     return report

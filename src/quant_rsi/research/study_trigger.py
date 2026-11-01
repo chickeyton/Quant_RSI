@@ -33,6 +33,7 @@ def refresh_evidence(task, manifest, *, on_stage=None):
             "news_research",
             "financials",
             "financials_source",
+            "external_drivers",
         )
     }
     arguments = list(manifest["arguments"])
@@ -95,6 +96,19 @@ def refresh_evidence(task, manifest, *, on_stage=None):
                 key=canonical,
             )
             arguments += ["--financials-dir", str(directory)]
+        if manifest.get("external_drivers"):
+            from quant_rsi.research.eia_petroleum import collect_petroleum
+
+            if on_stage:
+                on_stage("collecting_external_drivers")
+            directory = task / "preflight/external_drivers"
+            dates = evidence["prices"]["dates"]
+            external = collect_petroleum(directory, dates[0], dates[-1])
+            evidence["external_drivers"] = {
+                "records": external["records"],
+                "failures": external["failures"],
+            }
+            arguments += ["--external-drivers-dir", str(directory)]
     if on_stage:
         on_stage("checking_new_evidence")
     evidence["matured"] = [

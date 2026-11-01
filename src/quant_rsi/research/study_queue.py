@@ -28,6 +28,7 @@ def study_options(options):
         "llm_model": "",
         "news_research": True,
         "financials": False,
+        "external_drivers": False,
         "financials_source": "auto",
         "only_new_evidence": False,
         "rounds": 2,
@@ -74,7 +75,7 @@ def study_options(options):
         or (result["llm"] == "api" and not model.strip())
     ):
         raise ValueError("API mode requires a model name; credentials come from the environment")
-    for key in ("news_research", "financials", "only_new_evidence"):
+    for key in ("news_research", "financials", "external_drivers", "only_new_evidence"):
         if type(result[key]) is not bool:
             raise ValueError(key + " must be boolean")
     if result["max_fits"] is None:
@@ -131,6 +132,8 @@ def study_arguments(task, workspace, symbol, options):
         arguments += ["--news-research"]
     if options["financials"]:
         arguments += ["--financials", "--financials-source", options["financials_source"]]
+    if options.get("external_drivers"):
+        arguments += ["--external-drivers"]
     return arguments
 
 

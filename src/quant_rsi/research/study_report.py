@@ -721,6 +721,30 @@ def render_study(result):
         )
     else:
         section("Forecast availability", "Synthetic run: no real-market latest forecast.")
+    external = result["study"].get("external_data")
+    if external is not None:
+        section("External business drivers", external["notice"])
+        table(
+            ["Factor", "Use in selected model", "Missing fixed rows", "Definition"],
+            [
+                [
+                    d["factor_id"],
+                    "selected"
+                    if d["factor_id"] in selected["factor_ids"]
+                    else "available"
+                    if d["runnable"]
+                    else "unavailable",
+                    d["missing_required_rows"],
+                    d["description"],
+                ]
+                for d in external["definitions"]
+            ],
+        )
+        if external.get("failures"):
+            table(
+                ["Source", "Collection problem"],
+                [[f.get("url", external["provider"]), f["reason"]] for f in external["failures"]],
+            )
     financial = result["study"].get("financial_comparison")
     if financial:
         section("Financial business factors", result["study"]["financial_data"]["notice"])

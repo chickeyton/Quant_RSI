@@ -214,6 +214,7 @@ def visual_output(stage, output, previous, symbol):
         }
     if stage == "check_inputs":
         financials = output["financials"]
+        external = output.get("external_drivers", {})
         return {
             "kind": "facts",
             "facts": {
@@ -230,14 +231,19 @@ def visual_output(stage, output, previous, symbol):
                     d["factor_id"]: "Available"
                     if d["runnable"]
                     else f"Unavailable: {d['missing_required_rows']} missing required rows"
-                    for d in financials["definitions"]
+                    for d in financials["definitions"] + external.get("definitions", [])
                 },
             },
             "coverage_gaps": financials.get("coverage_gaps", []),
-            "sample_coverage": financials.get("sample_coverage", []),
-            "note": output["notice"] + " " + financials["notice"],
+            "sample_coverage": financials.get("sample_coverage", [])
+            + external.get("sample_coverage", []),
+            "note": output["notice"]
+            + " "
+            + financials["notice"]
+            + " "
+            + external.get("notice", ""),
         }
-    if stage == "load_financials":
+    if stage in {"load_financials", "load_external_drivers"}:
         return {
             "kind": "factors",
             "factors": _factors(output.get("definitions", [])),

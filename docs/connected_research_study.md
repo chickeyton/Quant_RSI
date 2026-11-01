@@ -731,6 +731,57 @@ Local retained evidence (not repository fixtures):
 These paths are machine-local evidence, not files shipped with the package. Automated
 regressions use small original offline fixtures rather than downloading issuer documents.
 
+## External business drivers
+
+`--external-drivers` connects the same research workflow to archived EIA weekly
+US petroleum inventory releases. The workbench exposes the same optional setting;
+saved templates and queued tasks preserve it. No additional model fit is charged
+just for enabling this source. The normal researcher chooses whether to use it.
+
+```bash
+quant-rsi research-study XOM --llm codex --news-research --external-drivers \
+  --historical-sessions 252 \
+  --question "Could changes in US petroleum inventories help explain XOM returns?" \
+  --output /tmp/xom-industry-study
+
+quant-rsi research-study XOM --external-drivers --historical-sessions 252 \
+  --check-inputs --output /tmp/xom-industry-input-check
+```
+
+The three available recipes calculate current / prior-week stocks minus one for
+commercial crude oil excluding the Strategic Petroleum Reserve, total motor
+gasoline, and distillate fuel oil. Both values come from the same release's
+[Table 4](https://www.eia.gov/petroleum/supply/weekly/archive/2026/2026_10_28/download/table4.pdf).
+These are US industry inventories in million barrels, not company financial
+inventory and not oil prices. They express candidate explanatory variables, not
+an established causal relationship or evidence of predictive improvement.
+
+The collector follows dated [EIA archive links](https://www.eia.gov/petroleum/supply/weekly/archive/)
+and verifies the page's publication date and the CSV's observation week. It
+supports both older `csv/` and newer `download/` layouts. Conflicting dates,
+missing fields, and failed downloads remain explicit failures. Each raw document
+and receipt time is retained; `--external-drivers-dir` reuses the original snapshot
+for the same requested date interval without refreshing it.
+
+Date-only releases become available at 05:00 UTC the following day. The latest
+published weekly change is usable for at most 14 days; subsequent missing data
+remain unavailable. Required training/development rows determine factor admission,
+without dropping rows or consulting terminal outcomes. A selected factor that
+expires before the latest forecast prevents that forecast while preserving
+completed development fits. Reports disclose missing inputs and selected factors.
+
+The source is a retrospective reconstruction from official archived documents,
+not proof that this exact file version was observed historically. Current news
+and LLM knowledge still influence hypothesis selection. Synthetic-price mode
+uses explicitly marked simulated inventory data. The normal financial ablation
+does not remove these industry factors; no external-factor ablation is implied.
+
+Workbench preparation fingerprints the retained external records and failures,
+then passes that same snapshot to the study. A changed receipt time alone does
+not trigger new research. A first collection can require two requests per weekly
+release, plus the archive index; it is bounded to 104 releases. Existing retained
+inputs are reused within the task. There is no new cross-task shared source cache.
+
 ## Nasdaq example: AAPL
 
 ```bash
