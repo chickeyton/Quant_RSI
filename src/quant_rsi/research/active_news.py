@@ -157,8 +157,16 @@ def _review(symbol, related, articles, llm, followup_allowed, question=""):
             )
         )
     )
-    result = _validated(ReviewResponse, llm.structured(prompt, ReviewResponse.model_json_schema()))
     ids = {item["id"] for item in available}
+    schema = ReviewResponse.model_json_schema()
+    if ids:
+        for definition in ("Finding", "RelatedCompany"):
+            schema["$defs"][definition]["properties"]["evidence_ids"]["items"]["enum"] = sorted(ids)
+    else:
+        # Keep the review available for a follow-up query, without uncitable findings.
+        for field in ("findings", "related_companies"):
+            schema["properties"][field]["maxItems"] = 0
+    result = _validated(ReviewResponse, llm.structured(prompt, schema))
     for item in result["findings"] + result["related_companies"]:
         if not set(item["evidence_ids"]).issubset(ids):
             raise ValueError("Active news review cited an unavailable or unknown article")

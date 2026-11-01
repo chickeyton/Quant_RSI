@@ -33,6 +33,7 @@ class ResearchFixture:
 
     def __init__(self):
         self.search_inputs, self.review_inputs = [], []
+        self.review_schemas = []
 
     def search(self, prompt, schema):
         data = inputs(prompt)
@@ -59,6 +60,7 @@ class ResearchFixture:
     def structured(self, prompt, schema):
         data = inputs(prompt)
         self.review_inputs.append(data)
+        self.review_schemas.append(schema)
         ids = [a["id"] for a in data["articles"] if a["status"] == "available"]
         assert "untrusted data" in prompt
         return json.dumps(
@@ -88,6 +90,10 @@ def test_search_read_followup_review_binds_sources_and_preserves_configured_rela
     assert len(fixture.search_inputs) == len(fixture.review_inputs) == 2
     assert fixture.search_inputs[1]["followup_query"] == "KO demand details"
     assert fixture.review_inputs[1]["followup_allowed"] is False
+    for data, schema in zip(fixture.review_inputs, fixture.review_schemas, strict=True):
+        ids = sorted(a["id"] for a in data["articles"] if a["status"] == "available")
+        for definition in ("Finding", "RelatedCompany"):
+            assert schema["$defs"][definition]["properties"]["evidence_ids"]["items"]["enum"] == ids
     assert len(events) == 6 and len(result["articles"]) == 2
     assert result["evidence_news_ids"] == result["related_candidates"][0]["evidence_ids"]
     news, enriched = active_news.attach_research({"items": []}, related, result, "KO")
@@ -113,6 +119,57 @@ def test_unread_articles_remain_missing_without_fabricated_findings():
     assert result["articles"][1]["reason"] == "skipped_denied_host"
     assert result["articles"][1]["host_failure"] == "http_403"
     assert result["articles"][1]["fetch_attempted"] is False
+    for schema in fixture.review_schemas:
+        assert schema["properties"]["findings"]["maxItems"] == 0
+        assert schema["properties"]["related_companies"]["maxItems"] == 0
+    assert fixture.search_inputs[1]["followup_query"] == "KO demand details"
+
+
+def test_review_schema_excludes_failed_reads_and_does_not_leak_ids_between_calls():
+    fixture = ResearchFixture()
+    available = article("https://example.com/read") | {"id": "read-id"}
+    denied = article("https://example.com/denied") | {
+        "id": "denied-id",
+        "status": "unavailable",
+        "reason": "http_403",
+        "text": "",
+    }
+    active_news._review("KO", {}, [available, denied], fixture, True)
+    active_news._review("KO", {}, [], fixture, True)
+    active_news._review("KO", {}, [available | {"id": "next-id"}], fixture, False)
+    for schema, expected in zip(
+        (fixture.review_schemas[0], fixture.review_schemas[2]),
+        (["read-id"], ["next-id"]),
+        strict=True,
+    ):
+        for definition in ("Finding", "RelatedCompany"):
+            assert (
+                schema["$defs"][definition]["properties"]["evidence_ids"]["items"]["enum"]
+                == expected
+            )
+        assert schema["properties"]["findings"]["maxItems"] == 3
+    assert fixture.review_schemas[1]["properties"]["findings"]["maxItems"] == 0
+    assert fixture.review_schemas[1]["properties"]["related_companies"]["maxItems"] == 0
+
+
+@pytest.mark.parametrize("field", ["findings", "related_companies"])
+@pytest.mark.parametrize("readable", [True, False])
+def test_review_still_rejects_unread_citations_when_provider_ignores_schema(field, readable):
+    available = article("https://example.com/read") | {"id": "read-id"}
+    denied = available | {"id": "denied-id", "status": "unavailable", "text": ""}
+    cited = {"evidence_ids": ["denied-id"]}
+    cited |= (
+        {"text": "Claim"}
+        if field == "findings"
+        else {"symbol": "DEMO", "name": "Supplier", "relationship": "Supplies the target"}
+    )
+    fixture = SimpleNamespace(
+        structured=lambda prompt, schema: json.dumps(
+            {"findings": [], "related_companies": [], "followup_query": None, field: [cited]}
+        )
+    )
+    with pytest.raises(ValueError, match="cited an unavailable or unknown article"):
+        active_news._review("KO", {}, [available, denied] if readable else [denied], fixture, True)
 
 
 @pytest.mark.parametrize("failure", ["unknown_citation", "self_relation", "extra_followup"])

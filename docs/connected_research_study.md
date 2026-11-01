@@ -1165,7 +1165,11 @@ prefer issuer/primary HTML or plain-text sources instead of adding a browser scr
 
 Search summaries and tool actions are kept separately from independently retrieved
 page text. Findings and related-company suggestions must cite successfully read
-article IDs. Those citations establish which sources were supplied, not automatic
+article IDs. The review response schema restricts both citation lists to the currently
+readable IDs. When none are readable, it requires empty findings and company suggestions
+while still allowing the permitted follow-up query. Runtime checks also reject invalid
+citations from providers that ignore the schema; no citation is silently repaired.
+Those citations establish which sources were supplied, not automatic
 verification of each claim or ticker mapping. Suggestions enter both hypothesis
 contexts alongside the existing configured profile, but do not rewrite that
 profile, declare measured correlations or automatically add peer price features.
