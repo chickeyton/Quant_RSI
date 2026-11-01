@@ -156,7 +156,7 @@ def _run_study(args, symbol, root, configuration, *, resume=False):
     last_stage = "initialization"
     progress = StudyProgress(root, args.llm, quiet=args.quiet, previous_attempts=cache.previous)
     cache.progress = progress
-    if getattr(args, "ui", False):
+    if getattr(args, "ui", False) and not getattr(args, "check_inputs", False):
         from quant_rsi.research.study_ui import start_view
 
         start_view(root)
@@ -186,7 +186,7 @@ def _run_study(args, symbol, root, configuration, *, resume=False):
         )
         raise
     finally:
-        if getattr(args, "ui", False):
+        if getattr(args, "ui", False) and not getattr(args, "check_inputs", False):
             from quant_rsi.research.study_ui import save_view
 
             try:
@@ -201,7 +201,9 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         return _finish_study(args, symbol, root, packet["result"], packet["prices"], progress)
     # Validate provider options before collection or fitting; no silent fallback.
     hypothesis = (
-        simulated_hypothesis
+        None
+        if getattr(args, "check_inputs", False)
+        else simulated_hypothesis
         if args.llm == "simulated"
         else LLMHypothesizer(args.llm, args.llm_model, args.llm_timeout, on_usage=progress.usage)
     )
@@ -279,7 +281,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         else None
     )
     prior_outcomes = None
-    if args.history_dir:
+    if args.history_dir and not getattr(args, "check_inputs", False):
         progress.start("observe_prior_forecasts")
         if history_prices:
             observe_prices(args.history_dir, symbol, history_prices)
@@ -359,6 +361,62 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         },
     )
     progress.finish("collect_news_context", {"related": related, "news": current_news})
+    business = None
+    if getattr(args, "financials", False):
+        from quant_rsi.research.study_financials import (
+            collect_financials,
+            prepare_financials,
+            simulated_financials,
+        )
+
+        progress.start("load_financials")
+        required = [int(i) for i in (*model.train, *model.origins)]
+
+        def financial_inputs():
+            if args.prices == "synthetic":
+                return simulated_financials(symbol, cutoffs, required)
+            directory = args.financials_dir or root / "financials"
+            try:
+                snapshot = collect_financials(
+                    symbol,
+                    directory,
+                    args.factor_root,
+                    getattr(args, "financials_source", "auto"),
+                )
+                return prepare_financials(snapshot, cutoffs, required)
+            except (OSError, ValueError, KeyError) as exc:
+                attempts = directory / "source_attempts.json"
+                return {
+                    "definitions": [],
+                    "columns": {},
+                    "notice": "Financial data unavailable: " + str(exc),
+                    "provider": "unavailable",
+                    "source_attempts": json.loads(attempts.read_bytes())
+                    if attempts.exists()
+                    else [],
+                }
+
+        business = cache.call(
+            "financial_features",
+            {"symbol": symbol, "cutoffs": cutoffs, "required": required},
+            financial_inputs,
+        )
+        model.configure_financials(business)
+        _write(root / "financial_features.json", business)
+        progress.finish(
+            "load_financials",
+            {k: v for k, v in business.items() if k not in {"columns", "evidence"}},
+        )
+
+    from quant_rsi.research.study_inputs import input_report
+
+    readiness = input_report(root, symbol, model, current_news, business)
+    progress.start("check_inputs")
+    progress.finish("check_inputs", readiness)
+    if getattr(args, "check_inputs", False):
+        progress.complete()
+        return readiness
+
     prelude = []
     guidance_summary = None
     if args.news_research:
@@ -480,44 +538,6 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         },
     )
     progress.finish("load_related_prices", {"related": related})
-
-    if getattr(args, "financials", False):
-        from quant_rsi.research.study_financials import (
-            collect_financials,
-            prepare_financials,
-            simulated_financials,
-        )
-
-        progress.start("load_financials")
-        required = [int(i) for i in (*model.train, *model.origins)]
-
-        def financial_inputs():
-            if args.prices == "synthetic":
-                return simulated_financials(symbol, cutoffs, required)
-            try:
-                snapshot = collect_financials(
-                    symbol, args.financials_dir or root / "financials", args.factor_root
-                )
-                return prepare_financials(snapshot, cutoffs, required)
-            except (OSError, ValueError, KeyError) as exc:
-                return {
-                    "definitions": [],
-                    "columns": {},
-                    "notice": "Financial data unavailable: " + str(exc),
-                    "provider": "unavailable",
-                }
-
-        business = cache.call(
-            "financial_features",
-            {"symbol": symbol, "cutoffs": cutoffs, "required": required},
-            financial_inputs,
-        )
-        model.configure_financials(business)
-        _write(root / "financial_features.json", business)
-        progress.finish(
-            "load_financials",
-            {k: v for k, v in business.items() if k not in {"columns", "evidence"}},
-        )
 
     hypothesis_number = 0
 

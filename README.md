@@ -29,7 +29,7 @@ requires the workbench server to stay running; closing the browser is fine.
 The durable queue, history and **Continue study** controls survive reopening the
 same workspace. Comparison tables keep development metrics separate from matured
 forecast outcomes. API credentials stay in the server environment.
-The form can enable **filing-dated financial factors** and, by default for new form
+The form can enable **publication-dated financial factors** and, by default for new form
 submissions, **research only on new evidence**. Unchanged prices, selected issuer news,
 quarterly filings and matured outcomes skip the study before paid calls; collection
 failures stay visible. Saved templates offer **Check & run** and **Force run**. Local
@@ -67,13 +67,26 @@ To let business hypotheses select revenue growth and operating-margin factors:
 quant-rsi research-study KO --news-research --financials --output /tmp/ko-business-study
 ```
 
-KO and AAPL have SEC company-facts mappings; calculations are shared. The report shows
+KO and AAPL support SEC company facts and official issuer earnings statements; calculations
+are shared. `--financials-source auto` (default) tries SEC, then the configured issuer
+archive if SEC is unavailable. Use `sec` or `issuer` to require a specific source. The report shows
 availability, selected factors, MAE/Sharpe and a same-row diagnostic with financial
 columns removed (up to **one additional fit**, separate from the research budget).
 Only reported quarterly USD facts available by each feature cutoff are used. Missing
-facts disable the affected factor; they are not invented or filled with zero. Access
-to SEC may be denied in some environments; that is reported as unavailable. See the
+facts disable the affected factor; they are not invented or filled with zero. Source failures and fallback choices remain visible. See the
 [financial data contract and offline example](docs/connected_research_study.md#financial-business-factors).
+
+Check target prices, current news and financial-factor coverage before any LLM calls or fits:
+
+```bash
+quant-rsi research-study KO --financials --check-inputs --output /tmp/ko-input-check
+```
+
+The workbench **Check inputs** button offers the same check for a watchlist. Its table
+shows data sources and missing required rows. It does not test LLM credentials, active
+news searches or peer prices. Every ordinary study also saves `input_report.html` before
+its first LLM request. Checks produce no forecast and do not consume new-evidence research.
+
 
 XOM also has a complete study configuration, using its official issuer RSS and
 a dated CVX business relationship. Run the same flow with

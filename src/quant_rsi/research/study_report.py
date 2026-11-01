@@ -653,6 +653,19 @@ def render_study(result):
                 for d in result["study"]["financial_data"]["definitions"]
             ],
         )
+        data = result["study"]["financial_data"]
+        section("Financial source", data.get("provider", "unknown"))
+        table(
+            ["Source", "Status", "Reason"],
+            [
+                [a["provider"], a["status"], a.get("reason", "")]
+                for a in data.get("source_attempts", [])
+            ],
+        )
+        table(
+            ["Unavailable statement", "Reason"],
+            [[f["release_url"], f["error"]] for f in data.get("source_failures", [])],
+        )
         section("With / without financial factors", financial["notice"])
         section("Financial diagnostic cost", f"{financial['extra_fits']} additional fits.")
         if financial["status"] == "completed":

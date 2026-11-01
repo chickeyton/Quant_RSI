@@ -99,9 +99,22 @@ def main(argv: list[str] | None = None) -> int:
             demo.add_argument(
                 "--financials",
                 action="store_true",
-                help="SEC financial features plus at most one diagnostic ablation fit",
+                help="publication-dated financial features with one optional diagnostic fit",
             )
-            demo.add_argument("--financials-dir", type=Path, help="retained SEC snapshot directory")
+            demo.add_argument(
+                "--financials-dir", type=Path, help="retained financial snapshot directory"
+            )
+            demo.add_argument(
+                "--financials-source",
+                choices=("auto", "sec", "issuer"),
+                default="auto",
+                help="auto tries SEC then the configured official issuer archive",
+            )
+            demo.add_argument(
+                "--check-inputs",
+                action="store_true",
+                help="check target prices, news and financial coverage without LLM calls or fits",
+            )
             demo.add_argument("--model", choices=("lightgbm", "ridge"), default="lightgbm")
             demo.add_argument(
                 "--compare-qlib",
@@ -425,6 +438,9 @@ def main(argv: list[str] | None = None) -> int:
             from quant_rsi.research.study_resume import resume_arguments
 
             result = run_study(resume_arguments(args.directory, ui=args.ui), resume=True)
+            if result.get("kind") == "input_check":
+                print(f"Input check completed: {args.directory.resolve() / 'input_report.html'}")
+                return 0
             print(
                 f"Research completed: {args.directory.resolve() / 'report.html'}\n"
                 + result["study"]["conclusion"]
@@ -471,6 +487,17 @@ def main(argv: list[str] | None = None) -> int:
             if args.ui is None:
                 args.ui = sys.stderr.isatty() and not args.json
             result = run_study(args)
+            if args.check_inputs:
+                print(
+                    json.dumps(result, indent=2, allow_nan=False)
+                    if args.json
+                    else f"Input check completed: {args.output.resolve() / 'input_report.html'}"
+                )
+                if args.ui:
+                    import webbrowser
+
+                    webbrowser.open((args.output.resolve() / "input_report.html").as_uri())
+                return 0
             print(
                 json.dumps(result, indent=2, allow_nan=False)
                 if args.json

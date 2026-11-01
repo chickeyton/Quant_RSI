@@ -27,6 +27,7 @@ def study_options(options):
         "llm_model": "",
         "news_research": True,
         "financials": False,
+        "financials_source": "auto",
         "only_new_evidence": False,
         "rounds": 2,
         "max_fits": None,
@@ -39,6 +40,7 @@ def study_options(options):
     for key, allowed in (
         ("llm", {"codex", "api", "simulated"}),
         ("model", {"lightgbm", "ridge"}),
+        ("financials_source", {"auto", "sec", "issuer"}),
         ("data", {"daily", "synthetic"}),
         ("selection_metric", {"mae", "sharpe"}),
     ):
@@ -102,7 +104,7 @@ def study_arguments(task, workspace, symbol, options):
     if options["news_research"]:
         arguments += ["--news-research"]
     if options["financials"]:
-        arguments += ["--financials"]
+        arguments += ["--financials", "--financials-source", options["financials_source"]]
     return arguments
 
 
@@ -137,7 +139,11 @@ def run_task(task):
         else:
             arguments = manifest["arguments"]
             skip = False
-            if manifest.get("only_new_evidence") and arguments[0] == "research-study":
+            if (
+                manifest.get("only_new_evidence")
+                and manifest.get("action", "research") == "research"
+                and arguments[0] == "research-study"
+            ):
                 from quant_rsi.research.study_trigger import refresh_evidence
 
                 trigger, arguments = refresh_evidence(task, manifest)

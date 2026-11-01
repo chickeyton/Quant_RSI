@@ -197,12 +197,41 @@ def _terminal_view(output):
 
 
 def visual_output(stage, output, previous, symbol):
+    if stage == "check_inputs":
+        financials = output["financials"]
+        return {
+            "kind": "facts",
+            "facts": {
+                "price_source": output["prices"]["provider"],
+                "first_session": output["prices"]["first_session"],
+                "last_session": output["prices"]["last_session"],
+                "training_rows": output["prices"]["training_rows"],
+                "development_rows": output["prices"]["development_rows"],
+                "news_source": output["news"]["provider"],
+                "news_items": output["news"]["items"],
+                "financial_source": financials["provider"],
+                **{
+                    d["factor_id"]: "Available"
+                    if d["runnable"]
+                    else f"Unavailable: {d['missing_required_rows']} missing required rows"
+                    for d in financials["definitions"]
+                },
+            },
+            "note": output["notice"] + " " + financials["notice"],
+        }
     if stage == "load_financials":
         return {
             "kind": "factors",
             "factors": _factors(output.get("definitions", [])),
             "catalog": True,
-            "note": output["notice"],
+            "note": output["notice"]
+            + " Source: "
+            + output.get("provider", "unknown")
+            + ". "
+            + "; ".join(
+                a["provider"] + ": " + a["status"] + " " + a.get("reason", "")
+                for a in output.get("source_attempts", [])
+            ),
         }
     if stage == "financial_comparison":
         return {

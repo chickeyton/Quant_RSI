@@ -1,4 +1,4 @@
-"""Shared quarterly business features from retained, filing-dated SEC facts."""
+"""Shared quarterly business features from retained, publication-dated public facts."""
 
 import json
 import math
@@ -22,7 +22,9 @@ METRICS = {
 }
 
 
-def collect_financials(symbol, directory, factor_root):
+def collect_financials(symbol, directory, factor_root, source="auto"):
+    if source not in {"auto", "sec", "issuer"}:
+        raise ValueError("Unknown financial data source")
     directory = Path(directory)
     profile_path = Path(factor_root) / "US" / symbol / "financials.json"
     if not profile_path.exists():
@@ -33,14 +35,70 @@ def collect_financials(symbol, directory, factor_root):
     retained = directory / "snapshot.json"
     if retained.exists():
         snapshot = json.loads(retained.read_bytes())
+        payload = (
+            snapshot.get("records")
+            if snapshot["provider"] == "issuer_earnings"
+            else snapshot["companyfacts"]
+        )
         if (
             snapshot["symbol"] != symbol
             or snapshot["profile"] != profile
-            or int(snapshot["companyfacts"]["cik"]) != int(profile["cik"])
-            or digest(canonical(snapshot["companyfacts"])) != snapshot["sha256"]
+            or (
+                snapshot["provider"] != "issuer_earnings"
+                and int(snapshot["companyfacts"]["cik"]) != int(profile["cik"])
+            )
+            or digest(canonical(payload)) != snapshot["sha256"]
         ):
             raise ValueError("Retained financial snapshot identity changed")
+        if (
+            source != "auto"
+            and snapshot["provider"]
+            != {"issuer": "issuer_earnings", "sec": "sec_companyfacts"}[source]
+        ):
+            raise ValueError("Retained financial provider differs from requested source")
+        for resource in snapshot.get("resources", []):
+            if (
+                Path(resource["file"]).name != resource["file"]
+                or digest((directory / resource["file"]).read_bytes()) != resource["sha256"]
+            ):
+                raise ValueError("Retained financial document identity changed")
         return snapshot
+    attempts = []
+    directory.mkdir(parents=True, exist_ok=True)
+    snapshot = None
+    if source in {"auto", "sec"}:
+        try:
+            snapshot = collect_sec(symbol, profile)
+            attempts.append({"provider": "sec_companyfacts", "status": "available"})
+        except (OSError, ValueError, KeyError) as exc:
+            attempts.append(
+                {"provider": "sec_companyfacts", "status": "unavailable", "reason": str(exc)}
+            )
+            atomic_write(directory / "source_attempts.json", canonical(attempts))
+            if source == "sec":
+                raise
+    if snapshot is None:
+        from quant_rsi.research.issuer_financials import collect_issuer
+
+        if "issuer" not in profile:
+            raise ValueError("Financial profile has no official issuer source")
+        try:
+            snapshot = collect_issuer(symbol, directory, profile)
+        except (OSError, ValueError, KeyError) as exc:
+            attempts.append(
+                {"provider": "issuer_earnings", "status": "unavailable", "reason": str(exc)}
+            )
+            atomic_write(directory / "source_attempts.json", canonical(attempts))
+            raise
+        attempts.append({"provider": "issuer_earnings", "status": "available"})
+    snapshot["source_attempts"] = attempts
+    atomic_write(directory / "source_attempts.json", canonical(attempts))
+    directory.mkdir(parents=True, exist_ok=True)
+    atomic_write(retained, canonical(snapshot))
+    return snapshot
+
+
+def collect_sec(symbol, profile):
     url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{int(profile['cik']):010d}.json"
     request = Request(
         url,
@@ -58,7 +116,7 @@ def collect_financials(symbol, directory, factor_root):
     facts = json.loads(raw)
     if int(facts["cik"]) != int(profile["cik"]):
         raise ValueError("SEC company identity mismatch")
-    snapshot = {
+    return {
         "symbol": symbol,
         "provider": "sec_companyfacts",
         "url": url,
@@ -68,12 +126,11 @@ def collect_financials(symbol, directory, factor_root):
         "sha256": digest(canonical(facts)),
         "notice": NOTICE,
     }
-    directory.mkdir(parents=True, exist_ok=True)
-    atomic_write(retained, canonical(snapshot))
-    return snapshot
 
 
 def quarterly_records(snapshot):
+    if snapshot["provider"] == "issuer_earnings":
+        return snapshot["records"]
     records = []
     for field, tags in snapshot["profile"]["fields"].items():
         for priority, tag in enumerate(tags):
@@ -131,11 +188,13 @@ def at_cutoff(records, cutoff):
     for (start, end), fields in periods.items():
         selected = {}
         for field, versions in fields.items():
-            rank = max((r["filed"], -r["priority"]) for r in versions)
-            choices = [r for r in versions if (r["filed"], -r["priority"]) == rank]
+            rank = max((r["available_at"], -r["priority"]) for r in versions)
+            choices = [r for r in versions if (r["available_at"], -r["priority"]) == rank]
             if len({r["value"] for r in choices}) != 1:
                 continue
-            selected[field] = sorted(choices, key=lambda r: r["accession"])[-1]
+            selected[field] = sorted(
+                choices, key=lambda r: r.get("statement_id", r.get("accession"))
+            )[-1]
         if "revenue" in selected and selected["revenue"]["value"] > 0:
             quarters.append({"start": start, "end": end, "facts": selected})
     if not quarters:
@@ -147,15 +206,23 @@ def at_cutoff(records, cutoff):
         q
         for q in quarters
         if 350 <= (date.fromisoformat(latest["end"]) - date.fromisoformat(q["end"])).days <= 380
-        and abs((date.fromisoformat(latest["start"]) - date.fromisoformat(q["start"])).days - 365)
-        <= 15
+        and (
+            latest["start"] is None
+            or q["start"] is None
+            or abs(
+                (date.fromisoformat(latest["start"]) - date.fromisoformat(q["start"])).days - 365
+            )
+            <= 15
+        )
     ]
     prior = max(previous, key=lambda q: q["end"]) if previous else None
 
     def margin(quarter):
         facts = quarter["facts"]
         income, revenue = facts.get("operating_income"), facts["revenue"]
-        if income and income["accession"] == revenue["accession"]:
+        if income and income.get("statement_id", income.get("accession")) == revenue.get(
+            "statement_id", revenue.get("accession")
+        ):
             return income["value"] / revenue["value"]
         return None
 
@@ -186,7 +253,7 @@ def prepare_financials(snapshot, cutoffs, required):
             {
                 "factor_id": identity,
                 "kind": "numeric",
-                "input_kind": "filing_dated_financials",
+                "input_kind": "publication_dated_financials",
                 "description": description,
                 "recipe": {"op": "financial", "metric": metric},
                 "runnable": missing == 0,
@@ -204,6 +271,15 @@ def prepare_financials(snapshot, cutoffs, required):
         "notice": snapshot["notice"],
         "snapshot_sha256": snapshot["sha256"],
         "provider": snapshot["provider"],
+        "source_attempts": snapshot.get("source_attempts", []),
+        "source_failures": snapshot.get("failures", []),
+        "coverage": {
+            "reported_periods": sorted({r["end"] for r in records}),
+            "first_available_at": min((r["available_at"] for r in records), default=None),
+            "last_available_at": max((r["available_at"] for r in records), default=None),
+            "required_rows": len(required),
+            "runnable_factors": sum(d["runnable"] for d in definitions),
+        },
     }
 
 

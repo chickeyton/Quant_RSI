@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Reproducible development experiments for quant research"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["numpy>=2,<3", "lightgbm>=4.6,<5", "pydantic>=2.10,<3"]
+dependencies = ["numpy>=2,<3", "lightgbm>=4.6,<5", "pydantic>=2.10,<3", "pypdf>=6.21.4,<7", "fonttools>=4.68,<5"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.11"]
