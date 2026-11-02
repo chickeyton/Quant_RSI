@@ -82,7 +82,9 @@ def main(argv: list[str] | None = None) -> int:
                 help="reuse a retained issuer RSS snapshot without fetching RSS again",
             )
             demo.add_argument(
-                "--history-dir", type=Path, help="shared study receipts, outcomes and news archive"
+                "--history-dir",
+                type=Path,
+                help="shared study receipts, outcomes, news and industry publications",
             )
             demo.add_argument(
                 "--factor-root",

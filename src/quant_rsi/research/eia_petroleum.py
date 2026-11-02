@@ -14,6 +14,7 @@ from urllib.request import Request, build_opener
 
 from quant_rsi.core.artifacts import atomic_write, canonical, digest
 from quant_rsi.market.news_feed import NoRedirect
+from quant_rsi.research.eia_price_history import collect_price_publications
 from quant_rsi.research.eia_prices import PRICE_FIELDS, parse_prices
 
 ARCHIVE_URL = "https://www.eia.gov/petroleum/supply/weekly/archive/"
@@ -28,7 +29,10 @@ NOTICE = (
     "EIA archived weekly petroleum inventories, reconstructed from documents retrieved now. "
     "Inventory changes describe US industry stocks, not the target company's inventory. "
     "When linked by a dated archive, Table 11 adds WTI/Brent five-observation daily-price "
-    "returns; weekly-average columns are excluded. Price-table gaps remain missing. "
+    "returns; weekly-average columns are excluded. Current EIA daily-history pages add "
+    "their latest six quotes together at that page's publication date, never at each quote's "
+    "observation date. Shared study history retains successive publications. "
+    "Earlier gaps remain missing. "
     "Date-only releases become usable at 05:00 UTC the following day; the observation week "
     "is not the publication date. Retained documents do not prove their exact historical "
     "version. Values expire 14 days after availability; missing data are not filled with zero."
@@ -134,7 +138,7 @@ def _download(url):
     return raw
 
 
-def collect_petroleum(directory, since, through, *, cache_directory=None):
+def collect_petroleum(directory, since, through, *, cache_directory=None, history_directory=None):
     """Reuse retained inputs; fresh collection never overwrites an existing snapshot."""
     directory = Path(directory)
     since, through = date.fromisoformat(since), date.fromisoformat(through)
@@ -195,9 +199,20 @@ def collect_petroleum(directory, since, through, *, cache_directory=None):
         resources.append(item)
         return raw, item
 
-    index, _ = fetch(ARCHIVE_URL)
+    links = []
+    try:
+        index, _ = fetch(ARCHIVE_URL)
+    except OSError as exc:
+        failures.append({"url": ARCHIVE_URL, "error_type": type(exc).__name__, "reason": str(exc)})
+    else:
+        try:
+            links = release_links(index, since, through)
+        except ValueError as exc:
+            failures.append(
+                {"url": ARCHIVE_URL, "error_type": type(exc).__name__, "reason": str(exc)}
+            )
     records = []
-    for released, page_url in release_links(index, since, through):
+    for released, page_url in links:
         url = page_url
         try:
             page, _ = fetch(page_url)
@@ -227,6 +242,12 @@ def collect_petroleum(directory, since, through, *, cache_directory=None):
                 )
             except (ValueError, OSError) as exc:
                 failures.append({"url": url, "error_type": type(exc).__name__, "reason": str(exc)})
+    prices, publications, errors = collect_price_publications(
+        fetch, directory, since, through, history_directory
+    )
+    records.extend(prices)
+    resources.extend(publications)
+    failures.extend(errors)
     snapshot = {
         "provider": "eia_weekly_petroleum",
         "bounds": bounds,
@@ -235,7 +256,7 @@ def collect_petroleum(directory, since, through, *, cache_directory=None):
         "resources": resources,
         "failures": failures,
         "notice": NOTICE,
-        "price_tables": "archived_daily_prices",
+        "price_tables": "archived_and_retained_daily_price_publications",
     }
     atomic_write(retained, canonical(snapshot))
     return snapshot
@@ -254,9 +275,12 @@ def prepare_petroleum(snapshot, cutoffs, required):
             available = datetime.fromisoformat(record["available_at"])
             if timedelta(0) <= cutoff - available <= timedelta(days=14):
                 field = record["field"]
-                if (
-                    field not in selected
-                    or record["available_at"] > selected[field]["available_at"]
+                if field not in selected or (
+                    record["available_at"],
+                    record.get("observation_date", ""),
+                ) > (
+                    selected[field]["available_at"],
+                    selected[field].get("observation_date", ""),
                 ):
                     selected[field] = record
         evidence.append(selected)
@@ -282,7 +306,7 @@ def prepare_petroleum(snapshot, cutoffs, required):
                 ),
                 "description": (
                     f"EIA {label}: latest daily quote / fifth preceding daily observation - 1; "
-                    "available after archive publication, not on the quoted date."
+                    "available after publication, not on the quoted date."
                     if price
                     else f"EIA US {label}: current / prior week inventory - 1."
                 ),

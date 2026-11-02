@@ -837,7 +837,7 @@ performed and the report explains why.
 
 The workbench gives every daily-data batch a fresh EIA resource cache, shared by its
 research or input-check tasks. Within that batch, requests with identical history bounds
-download each successful archive/page/table URL once. The same path is used with the
+download each successful archive/page/table/current-price URL once. The same path is used with the
 new-evidence check enabled or disabled and for forced runs. A different batch or date
 window collects afresh; this is not a permanent URL cache that could hide new releases
 or source corrections. Failed requests are not cached as successful evidence.
@@ -891,12 +891,36 @@ five oil-price observations need not coincide with five equity trading sessions.
 Like inventories, the factor becomes visible after release, not on the quote date.
 
 The inspected 2026 archive contains Table 11 links through October 15; October 21
-and 28 pages have no such link. A missing link leaves the price factors unavailable
-once the last release expires. The collector neither guesses retired table URLs nor
-backfills this gap with a current spot-price snapshot. Price-table failures do not
+and 28 pages have no such link. New collections also read the official
+[WTI](https://www.eia.gov/dnav/pet/hist/RWTCD.htm) and
+[Brent](https://www.eia.gov/dnav/pet/hist/rbrted.htm) daily-history pages. Each must identify
+the requested series, USD/barrel units and one explicit release date. The latest six
+nonmissing daily quotes produce one return, available at 05:00 UTC the day after that
+release. These are daily observations with a page-level publication date, not a live feed.
+The collector never exposes these six quotes at their individual observation dates or
+uses a later publication to fill earlier missing rows. A page released after the study's
+final date contributes no rows. When two sources share a publication time, the more recent
+quote wins. The collector neither guesses retired table URLs nor backfills earlier gaps.
+Price-table failures do not
 discard successfully collected inventory records, and inventory-table failures do
 not discard valid prices from the same dated page. Older retained inventory-only
 snapshots are not upgraded or rewritten; collect into a new directory to include prices.
+
+For continuous use, reuse `--history-dir` across studies with fresh output directories.
+The workbench already supplies a shared history directory. Under `eia_price_publications/`,
+the collector preserves the first raw page, hash and receipt for each series/release date.
+Subsequent batches retain prior publications even after the provider's page advances;
+they still fetch the current page through the fresh batch cache. An unavailable current
+source can use unexpired historical publications. Different bytes for the same release
+are reported as a conflict and do not replace the first version. This conservative rule
+can also flag cosmetic page changes; it never silently applies corrections to old research.
+Each study copies the relevant raw publications and original receipts into its own
+snapshot, so replay does not depend on keeping the shared history or cache. Without a
+shared history, standalone runs retain only that run's current page and dated archive.
+
+The pages are mutable: a release label and later receipt do not prove their exact
+historical version. These reconstructed development inputs do not establish a prospective
+data record. Existing snapshots, historical experiments and forecasts are not refreshed.
 
 The collector follows dated [EIA archive links](https://www.eia.gov/petroleum/supply/weekly/archive/)
 and verifies the page's publication date and the CSV's observation week. It
