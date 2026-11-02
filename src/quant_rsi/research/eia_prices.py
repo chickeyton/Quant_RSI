@@ -20,22 +20,34 @@ def parse_prices(raw, released, week_ending):
         i
         for i, row in enumerate(rows)
         if row[:3] == ["STUB_1", "STUB_2", "STUB_3"]
-        and len(row) == 15
+        and 14 <= len(row) <= 16
         and re.fullmatch(r"[A-Z][a-z]{2} \d{1,2}/\d{1,2}", row[3])
     ]
     if len(headers) != 1:
         raise ValueError("Missing unambiguous EIA recent-price section")
     header = headers[0]
-    # The first two dated columns are WEEKLY AVERAGES, not daily closes.
+    labels = rows[header]
+    width = len(labels) - int(labels[-1] == "")
+    if width not in (14, 15):
+        raise ValueError("Unsupported EIA recent-price width")
+    # Some CSVs omit one weekly-average column or append an empty column.
+    # The final ten dated columns are the two Monday-Friday daily blocks.
+    daily_start = width - 10
+    if any(not cell.startswith("Fri ") for cell in labels[3:daily_start]):
+        raise ValueError("Unsupported EIA weekly-average columns")
     dates = []
-    for cell in rows[header][5:]:
+    for index, cell in enumerate(labels[daily_start:width]):
         match = re.fullmatch(r"([A-Z][a-z]{2}) (\d{1,2})/(\d{1,2})", cell)
         if not match:
             raise ValueError("Unsupported EIA daily-price date")
         observed = date(released.year, int(match[2]), int(match[3]))
         if observed > released:
             observed = observed.replace(year=observed.year - 1)
-        if not 0 < (released - observed).days <= 40 or observed.strftime("%a") != match[1]:
+        if (
+            not 0 < (released - observed).days <= 40
+            or observed.strftime("%a") != match[1]
+            or observed.weekday() != index % 5
+        ):
             raise ValueError("EIA daily-price dates do not match release year")
         dates.append(observed)
     if dates != sorted(set(dates)) or not 0 <= (week_ending - dates[-1]).days <= 3:
@@ -49,11 +61,11 @@ def parse_prices(raw, released, week_ending):
             for row in rows[header + 1 :]
             if len(row) >= 2 and row[0].strip() == "Crude Oil" and row[1].strip() == label
         ]
-        if len(selected) != 1 or len(selected[0]) != 15:
+        if len(selected) != 1 or len(selected[0]) != len(labels) or any(selected[0][width:]):
             raise ValueError(f"Missing or duplicate EIA daily-price row: {label}")
         observations = []
-        for observed, cell in zip(dates, selected[0][5:], strict=True):
-            if cell.strip() in {"", "–", "—", "NA", "N/A"}:
+        for observed, cell in zip(dates, selected[0][daily_start:width], strict=True):
+            if cell.strip() in {"", "-", "–", "—", "NA", "N/A"}:
                 continue
             value = float(cell.replace(",", ""))
             if not math.isfinite(value) or value <= 0:

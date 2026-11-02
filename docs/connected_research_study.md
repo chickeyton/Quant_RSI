@@ -882,7 +882,9 @@ an established causal relationship or evidence of predictive improvement.
 Fresh collections also follow the archive's actual Table 11 CSV link when present.
 `external.eia_wti_5obs_return` and `external.eia_brent_5obs_return` calculate the last
 daily quote divided by its fifth preceding available daily observation, minus one.
-The recent-price section begins with two **weekly averages**; these are excluded.
+The recent-price section begins with **weekly averages**; these are excluded.
+The parser recognizes the final two Monday-Friday daily blocks, including CSVs
+with one omitted weekly-average column or an extra empty column.
 At least six valid daily quotes and the latest dated daily quote are required. The
 original daily dates, USD/barrel quotes, source URL and hash are retained. These
 five oil-price observations need not coincide with five equity trading sessions.

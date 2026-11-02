@@ -35,6 +35,19 @@ def test_missing_daily_quotes_are_not_replaced_with_weekly_averages():
     assert parse_prices(one_missing, RELEASE, WEEK)[0]["prior_value"] == 100
 
 
+@pytest.mark.parametrize("weekly_columns", [1, 2])
+@pytest.mark.parametrize("trailing_empty", [False, True])
+def test_native_january_csv_layouts_preserve_daily_column_alignment(weekly_columns, trailing_empty):
+    rows = [row.split(",") for row in TABLE.decode().splitlines()]
+    for row in rows:
+        if weekly_columns == 1:
+            del row[4]
+        if trailing_empty:
+            row.append("")
+    raw = ("\n".join(",".join(row) for row in rows) + "\n").encode()
+    assert parse_prices(raw, RELEASE, WEEK) == parse_prices(TABLE, RELEASE, WEEK)
+
+
 @pytest.mark.parametrize(
     "raw",
     [
