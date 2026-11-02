@@ -837,10 +837,20 @@ performed and the report explains why.
 
 The workbench gives every daily-data batch a fresh EIA resource cache, shared by its
 research or input-check tasks. Within that batch, requests with identical history bounds
-download each successful archive/page/table URL once. The same path is used with the
+download each successful archive/page/table/current-price URL once. The same path is used with the
 new-evidence check enabled or disabled and for forced runs. A different batch or date
 window collects afresh; this is not a permanent URL cache that could hide new releases
 or source corrections. Failed requests are not cached as successful evidence.
+
+EIA archives and issuer financial archives collect at most four independent releases
+concurrently per collector. Discovery of the archive index remains first; each release's
+page, tables and fallback documents retain their existing checks and order. Completed
+release results are joined in archive order, so network completion order cannot change
+record precedence or reorder source failures. The EIA cache locks each URL separately:
+different releases can proceed together, while concurrent tasks still share one successful
+download and its original receipt for the same URL. Raw files remain atomically written,
+and one failed release does not discard successful siblings. This changes collection
+scheduling, not publication availability, feature calculations or study fit budgets.
 
 Each task copies the original bytes, hashes and receipt timestamps into its own retained
 snapshot, so deleting the shared batch cache does not break completed-task replay or
@@ -891,12 +901,36 @@ five oil-price observations need not coincide with five equity trading sessions.
 Like inventories, the factor becomes visible after release, not on the quote date.
 
 The inspected 2026 archive contains Table 11 links through October 15; October 21
-and 28 pages have no such link. A missing link leaves the price factors unavailable
-once the last release expires. The collector neither guesses retired table URLs nor
-backfills this gap with a current spot-price snapshot. Price-table failures do not
+and 28 pages have no such link. New collections also read the official
+[WTI](https://www.eia.gov/dnav/pet/hist/RWTCD.htm) and
+[Brent](https://www.eia.gov/dnav/pet/hist/rbrted.htm) daily-history pages. Each must identify
+the requested series, USD/barrel units and one explicit release date. The latest six
+nonmissing daily quotes produce one return, available at 05:00 UTC the day after that
+release. These are daily observations with a page-level publication date, not a live feed.
+The collector never exposes these six quotes at their individual observation dates or
+uses a later publication to fill earlier missing rows. A page released after the study's
+final date contributes no rows. When two sources share a publication time, the more recent
+quote wins. The collector neither guesses retired table URLs nor backfills earlier gaps.
+Price-table failures do not
 discard successfully collected inventory records, and inventory-table failures do
 not discard valid prices from the same dated page. Older retained inventory-only
 snapshots are not upgraded or rewritten; collect into a new directory to include prices.
+
+For continuous use, reuse `--history-dir` across studies with fresh output directories.
+The workbench already supplies a shared history directory. Under `eia_price_publications/`,
+the collector preserves the first raw page, hash and receipt for each series/release date.
+Subsequent batches retain prior publications even after the provider's page advances;
+they still fetch the current page through the fresh batch cache. An unavailable current
+source can use unexpired historical publications. Different bytes for the same release
+are reported as a conflict and do not replace the first version. This conservative rule
+can also flag cosmetic page changes; it never silently applies corrections to old research.
+Each study copies the relevant raw publications and original receipts into its own
+snapshot, so replay does not depend on keeping the shared history or cache. Without a
+shared history, standalone runs retain only that run's current page and dated archive.
+
+The pages are mutable: a release label and later receipt do not prove their exact
+historical version. These reconstructed development inputs do not establish a prospective
+data record. Existing snapshots, historical experiments and forecasts are not refreshed.
 
 The collector follows dated [EIA archive links](https://www.eia.gov/petroleum/supply/weekly/archive/)
 and verifies the page's publication date and the CSV's observation week. It
@@ -1078,8 +1112,22 @@ metric. Ties, missing metrics and worse results retain the incumbent. Subsequent
 calls receive its hypothesis/feedback plus all previous trial hypotheses, factor IDs,
 development metrics and decisions, including rejected trials. The same training rows,
 development origins, strategy costs and baselines are used throughout. The final
-latest forecast comes from the selected fitted model, even when an intermediate round
-wins; it is not refitted or silently replaced with the last trial.
+latest forecast uses the selected round's factors, even when an intermediate round
+wins. Daily studies default to `--latest-fit refit`: after terminal evaluation, one
+separate publication fit uses all finite retained feature rows from the 30-session
+warmup through the last origin whose label has matured at the latest price close.
+Missing training rows are listed, not imputed; fewer than 12 usable rows or missing
+latest inputs withhold publication. Model settings and factor choices remain frozen.
+This adds at most one fit outside `--max-fits`, declared as `publication_fit_budget`.
+Its trained state uses the existing checkpoint mechanism, so recovery reuses it.
+
+`latest_fit.json` records training/excluded sessions, selected factors, fit count and
+the new forecast with its training cutoff. The report and UI show a publication stage;
+shared history registers this forecast and later supplies its actual outcome to research.
+Development, terminal and diagnostic scores still describe their original models and
+are not accuracy estimates for the publication fit. `--latest-fit selected` reuses the
+original selected research model, preserving the earlier behavior. Synthetic runs have
+no publication fit. Existing completed studies and histories are not rewritten.
 
 The UI reuses the feedback/revision/prediction nodes on each round and exposes every
 stage in its selector. Decision cards show fit usage and the incumbent. The final
@@ -1176,8 +1224,8 @@ Node outputs use visual views rather than a raw JSON wall:
 - Prediction and conclusion views trace news citations → hypothesis → fitted inputs.
   Each round lists actual fitted columns separately from unselected or unavailable news
   definitions, with coverage reasons. This is provenance, not feature attribution or a
-  measured causal news effect. Rejected trials remain visible; only the selected model
-  supplies the latest forecast.
+  measured causal news effect. Rejected trials remain visible; only the selected factors
+  enter the publication model. Its training cutoff and extra fit count are shown separately.
 - Factor cards show executable recipes. Revision views distinguish additions, removals,
   parameter changes and recipe replacements with different IDs.
 - Prediction charts compare observed prices, both attempts and the unchanged-price baseline,
@@ -1233,7 +1281,7 @@ quant-rsi research-history observe KO --history-dir /tmp/ko-research-history \
 quant-rsi research-history status KO --history-dir /tmp/ko-research-history
 ```
 
-The first command saves the **selected round's** latest forecast, factor IDs,
+The first command saves the **publication model's** latest forecast, selected factor IDs,
 training cutoff, costs and original result in the existing content-addressed store
 and Journal. A post-commit clock witness uses the existing publication confirmation
 rule: issuance and confirmation must occur after the origin close and before the
@@ -1495,8 +1543,10 @@ population standard deviation; constant columns use scale one. It minimizes
 five-session log returns, with an unpenalized intercept. A NumPy augmented
 least-squares solve supports duplicate/constant columns without adding a dependency.
 The trace records means, scales, coefficients and intercept in `factor_ids` order.
-Evaluation rows and latest forecast inputs never fit the scaler. The selected
-attempt's model and scaler produce its latest forecast without a third fit.
+Research evaluation rows never fit the research scaler. With `--latest-fit refit`,
+the publication model fits its own scaler on its mature-label training rows; the latest
+prediction row remains excluded. `--latest-fit selected` reuses the research model and
+scaler without an additional fit.
 
 LightGBM retains its existing deterministic parameters and 24 boosting rounds,
 without scaling. Both model choices retain the same maturity rules, common news

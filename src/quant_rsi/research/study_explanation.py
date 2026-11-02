@@ -118,6 +118,10 @@ def continuity(prior, selected_ids=None):
             {
                 "study_id": entry["study_id"],
                 "target_session": (entry.get("forecast") or {}).get("target_session"),
+                "fit_mode": (entry.get("forecast") or {}).get(
+                    "fit_mode", "selected_research_model"
+                ),
+                "training_cutoff": (entry.get("forecast") or {}).get("training_information_cutoff"),
                 "status": entry["status"],
                 "reason": entry.get("reason"),
                 "predicted_price": (entry.get("forecast") or {}).get("predicted_price"),

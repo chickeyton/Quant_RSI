@@ -24,6 +24,7 @@ def study_options(options):
     defaults = {
         "llm": "codex",
         "model": "lightgbm",
+        "latest_fit": "refit",
         "data": "daily",
         "llm_model": "",
         "news_research": True,
@@ -47,6 +48,7 @@ def study_options(options):
     for key, allowed in (
         ("llm", {"codex", "api", "simulated"}),
         ("model", {"lightgbm", "ridge"}),
+        ("latest_fit", {"refit", "selected"}),
         ("financials_source", {"auto", "sec", "issuer"}),
         ("data", {"daily", "synthetic"}),
         ("selection_metric", {"mae", "sharpe"}),
@@ -111,6 +113,7 @@ def study_arguments(task, workspace, symbol, options, *, batch_id=None):
     for key, flag in (
         ("llm", "llm"),
         ("model", "model"),
+        ("latest_fit", "latest-fit"),
         ("data", "prices"),
         ("rounds", "rounds"),
         ("max_fits", "max-fits"),

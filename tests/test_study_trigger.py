@@ -141,7 +141,8 @@ def test_external_evidence_reuses_prepared_directory_and_changes_trigger(
 
     value, collected, stages = [1.0], [], []
 
-    def collect(directory, since, through, *, cache_directory=None):
+    def collect(directory, since, through, *, cache_directory=None, history_directory=None):
+        assert history_directory == tmp_path / "history/daily"
         assert cache_directory is None
         collected.append((directory, since, through))
         return {"records": [{"value": value[0]}], "failures": []}
@@ -166,7 +167,7 @@ def test_external_evidence_reuses_prepared_directory_and_changes_trigger(
 
 
 def test_watchlist_external_cache_is_shared_only_within_batch(evidence, tmp_path, monkeypatch):
-    from test_eia_petroleum import INDEX, PAGE, PAGE_TEXT, TABLE
+    from test_eia_price_history import source_fixture
 
     from quant_rsi.research import eia_petroleum as eia
 
@@ -176,7 +177,7 @@ def test_watchlist_external_cache_is_shared_only_within_batch(evidence, tmp_path
 
     def download(url):
         calls.append(url)
-        return INDEX if url == eia.ARCHIVE_URL else PAGE_TEXT if url == PAGE else TABLE
+        return source_fixture(url)
 
     monkeypatch.setattr(eia, "_download", download)
     workbench = Workbench(tmp_path)
@@ -196,10 +197,10 @@ def test_watchlist_external_cache_is_shared_only_within_batch(evidence, tmp_path
             group.append(shared)
             directory = args[args.index("--external-drivers-dir") + 1]
             snapshot = eia.collect_petroleum(directory, "2026-10-30", "2026-10-30")
-            assert len(snapshot["records"]) == 3 and not snapshot["failures"]
+            assert len(snapshot["records"]) == 5 and not snapshot["failures"]
         assert len(set(group)) == 1
         caches.append(group[0])
-        assert len(calls) == 3 * (cycle + 1)
+        assert len(calls) == 5 * (cycle + 1)
     assert caches[0] != caches[1]
     assert receipts[0]["fingerprint"] == receipts[2]["fingerprint"]
     assert receipts[1]["fingerprint"] == receipts[3]["fingerprint"]

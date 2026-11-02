@@ -82,7 +82,9 @@ def main(argv: list[str] | None = None) -> int:
                 help="reuse a retained issuer RSS snapshot without fetching RSS again",
             )
             demo.add_argument(
-                "--history-dir", type=Path, help="shared study receipts, outcomes and news archive"
+                "--history-dir",
+                type=Path,
+                help="shared study receipts, outcomes, news and industry publications",
             )
             demo.add_argument(
                 "--factor-root",
@@ -136,6 +138,12 @@ def main(argv: list[str] | None = None) -> int:
                 help="shared EIA resource cache; use a fresh directory for each research cycle",
             )
             demo.add_argument("--model", choices=("lightgbm", "ridge"), default="lightgbm")
+            demo.add_argument(
+                "--latest-fit",
+                choices=("refit", "selected"),
+                default="refit",
+                help="daily prices: refit on mature labels (one extra fit), or reuse research fit",
+            )
             demo.add_argument(
                 "--compare-qlib",
                 action="store_true",

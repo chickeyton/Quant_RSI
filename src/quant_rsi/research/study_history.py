@@ -124,7 +124,9 @@ def register_study(directory, run_root, result, snapshot=None):
         now = market_contracts.trusted_now()
         selected = result["iterations"]["selected_round"]
         attempt = result["iterations"]["attempts"][selected - 1]
-        forecast = attempt["prediction"].get("latest_forecast")
+        from quant_rsi.research.study_latest import publication_prediction
+
+        forecast = publication_prediction(result).get("latest_forecast")
         sessions, publication = [], None
         status, reason = "unavailable", "selected_latest_forecast_unavailable"
         if forecast and snapshot:
