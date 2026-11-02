@@ -3,6 +3,7 @@
 import io
 import json
 import subprocess
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.error import HTTPError
@@ -190,3 +191,115 @@ def test_api_configuration_and_http_errors_are_actionable_without_leaking_key(mo
     monkeypatch.setattr(llm, "urlopen", urlopen)
     with pytest.raises(ValueError, match=r"^OpenAI API request failed \(HTTP 401\)$"):
         provider._api("test", {})
+
+
+def test_deepseek_transport_uses_json_mode_without_exposing_the_key(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
+    seen = {}
+
+    def urlopen(request, *, timeout):
+        assert request.full_url == "https://api.deepseek.com/chat/completions"
+        assert request.get_header("Authorization") == "Bearer deepseek-secret"
+        assert timeout == 12
+        body = json.loads(request.data)
+        seen.update(body)
+        return io.BytesIO(
+            json.dumps(
+                {
+                    "choices": [{"message": {"content": '{"hypothesis": "x"}'}}],
+                    "usage": {
+                        "prompt_tokens": 3,
+                        "completion_tokens": 4,
+                        "prompt_cache_hit_tokens": 1,
+                    },
+                }
+            ).encode()
+        )
+
+    usage = []
+    monkeypatch.setattr(llm, "urlopen", urlopen)
+    provider = llm.LLMHypothesizer("deepseek", timeout=12, on_usage=usage.append)
+    assert provider._deepseek("Return JSON", {"type": "object"}) == '{"hypothesis": "x"}'
+    assert seen["model"] == "deepseek-chat"
+    assert seen["response_format"] == {"type": "json_object"}
+    assert "JSON_SCHEMA:" in seen["messages"][0]["content"]
+    assert usage == [
+        {
+            "mode": "deepseek",
+            "input_tokens": 3,
+            "cached_input_tokens": 1,
+            "output_tokens": 4,
+        }
+    ]
+    assert "deepseek-secret" not in json.dumps(usage)
+
+
+def test_deepseek_and_cursor_do_not_invent_a_web_search():
+    with pytest.raises(ValueError, match="codex or --llm api"):
+        llm.LLMHypothesizer("deepseek").search("prompt", {})
+    with pytest.raises(ValueError, match="codex or --llm api"):
+        llm.LLMHypothesizer("cursor", handoff_dir=Path("/tmp")).search("prompt", {})
+
+
+def test_cursor_handoff_reads_a_replaced_response(tmp_path):
+    provider = llm.LLMHypothesizer("cursor", timeout=5, handoff_dir=tmp_path)
+
+    def write():
+        request = tmp_path / "round-1.request.json"
+        while not request.is_file():
+            threading.Event().wait(0.05)
+        (tmp_path / "round-1.response.json").write_text('{"factor_ids": ["a"]}', encoding="utf-8")
+
+    thread = threading.Thread(target=write)
+    thread.start()
+    assert provider._cursor("PROMPT", {"type": "object"}) == '{"factor_ids": ["a"]}'
+    thread.join()
+    saved = json.loads((tmp_path / "round-1.request.json").read_text(encoding="utf-8"))
+    assert saved["prompt"] == "PROMPT" and saved["round"] == 1
+
+
+def test_cursor_handoff_timeout_names_the_response_path(tmp_path):
+    provider = llm.LLMHypothesizer("cursor", timeout=0.35, handoff_dir=tmp_path)
+    with pytest.raises(ValueError, match="round-1.response.json"):
+        provider._cursor("prompt", {})
+
+
+def test_cli_rejects_incompatible_llm_choices(tmp_path, capsys):
+    assert main(["research-demo", "--llm", "cursor"]) == 1
+    assert "requires --cursor-dir" in capsys.readouterr().err
+    assert main(["research-demo", "--llm", "simulated", "--cursor-dir", str(tmp_path)]) == 1
+    assert "only used with --llm cursor" in capsys.readouterr().err
+    assert (
+        main(
+            [
+                "research-study",
+                "KO",
+                "--output",
+                str(tmp_path / "study"),
+                "--llm",
+                "deepseek",
+                "--news-research",
+                "--no-ui",
+            ]
+        )
+        == 1
+    )
+    assert "web search requires --llm codex or --llm api" in capsys.readouterr().err
+
+
+def test_deepseek_missing_key_stops_the_demo(monkeypatch, capsys):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    assert main(["research-demo", "--catalog", str(CATALOG), "--llm", "deepseek"]) == 1
+    error = capsys.readouterr().err
+    assert "DEEPSEEK_API_KEY" in error and "deepseek-secret" not in error
+
+
+def test_workbench_can_select_cursor_without_news_search(tmp_path):
+    from quant_rsi.research.study_queue import study_arguments, study_options
+
+    with pytest.raises(ValueError, match="web search"):
+        study_options({"llm": "deepseek"})
+    options = study_options({"llm": "cursor", "news_research": False, "data": "synthetic"})
+    arguments = study_arguments(tmp_path / "task", tmp_path, "KO", options)
+    assert arguments[arguments.index("--llm") + 1] == "cursor"
+    assert arguments[arguments.index("--cursor-dir") + 1].endswith("task/study/cursor-llm")

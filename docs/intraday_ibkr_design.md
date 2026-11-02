@@ -405,12 +405,31 @@ All features are trailing and computed per instrument from final bars only:
 | Session context | minutes since open; overnight gap `open[session] / close[prev session] - 1` |
 | Oscillator | relative strength index (Wilder, 14 bars), scaled to [-1, 1] |
 | Cross-asset | SPY and industry-ETF k-bar returns on the same grid (same conId binding rules) |
+| Daily history (`d_` leaves) | log return over 1, 5 and 20 sessions; 20-session close-to-close volatility; 14-session ATR / close; today's move from the previous close in ATRs; distance of the current close from the 20- and 50-session mean close; previous session's range, close position and distance of the current close from its high and low |
 | Daily context (optional) | last sealed daily forecast, as of the previous close only |
 
 Same-time-of-day statistics use only earlier sessions. Any leaf whose lookback goes past
 the session open uses the previous session's bars only if
 `allow_cross_session_lookback: true` is registered. The default is false; leaves are
 missing until the warm-up completes.
+
+**Daily history leaves** read whole earlier sessions, like `gap` and `vol_z_20`, so they
+do not need `allow_cross_session_lookback`. Their rules:
+- **Daily bar.** Each earlier session becomes one daily bar from its regular-hours decision
+  bars: the first open, the maximum high, the minimum low and the last close. The bar
+  exists only if every decision bar of that session is valid. Its close is therefore the
+  last regular-hours bar's close, not the official closing auction price.
+- **Availability.** Only sessions that closed before the current session opened are read.
+  The leaves that use the current price (`d_move_atr`, `d_ma_*_dist`, `d_prev_*_dist`) read
+  only bar `t` of today, and are missing when that bar is.
+- **Missing data.** A leaf is missing when any session in its window lacks a daily bar,
+  during warm-up (the first 50 sessions for `d_ma_50_dist`), and when two consecutive
+  calendar sessions are more than 5 days apart. A gap that large means the calendar is
+  missing sessions, so the window would silently span the wrong period. A single missed
+  session within a normal weekend gap cannot be detected this way; snapshots and archived
+  paper sessions must therefore be contiguous.
+- **Same in replay and paper.** The live panel supplies earlier sessions through the same
+  interface, so a paper episode computes the same values as the replay.
 
 ### 5.5 Model, folds and evaluation
 

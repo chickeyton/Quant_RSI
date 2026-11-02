@@ -1526,8 +1526,9 @@ company suggestions. RSS news limits apply per issuer; see
 
 | Option | Default and meaning |
 | --- | --- |
-| `--llm` | `codex`; also `api` or `simulated` |
-| `--llm-model`, `--llm-timeout` | Optional Codex model; API model required; timeout 180 seconds per call |
+| `--llm` | `codex`; also `api`, `deepseek`, `cursor` or `simulated` |
+| `--llm-model`, `--llm-timeout` | Optional Codex or DeepSeek model (DeepSeek default `deepseek-chat`); API model required; timeout 180 seconds per call |
+| `--cursor-dir` | Directory for `--llm cursor` request and response files; default `OUTPUT/cursor-llm` |
 | `--model` | `lightgbm` by default; `ridge` uses a reviewed regularized linear model on the same rows and features |
 | `--ridge-alpha` | Positive finite penalty for Ridge, default 1.0; rejected when supplied with LightGBM |
 | `--related`, `--news`, `--prices` | `profile`, `issuer-rss`, `daily`; each also accepts `simulated`, except prices use `synthetic` |
@@ -1543,7 +1544,12 @@ company suggestions. RSS news limits apply per issuer; see
 | `--selection-metric` | `mae` by default (lower is better); optionally `sharpe` (higher is better) for development-only adoption |
 | `--quiet` | Hide stderr progress; timing and usage artifacts are still saved |
 
-API mode requires `OPENAI_API_KEY` and `--llm-model MODEL_ID`; see
+API mode requires `OPENAI_API_KEY` and `--llm-model MODEL_ID`. DeepSeek mode requires
+`DEEPSEEK_API_KEY` and calls `https://api.deepseek.com/chat/completions` with JSON
+mode; omit `--llm-model` to use `deepseek-chat`. Cursor mode does not call a model
+service: each hypothesis writes `round-N.request.json` under `--cursor-dir` and waits
+until `round-N.response.json` is replaced into that directory. News-research web
+search stays on Codex or the OpenAI API. See
 [LLM prerequisites](simulated_research_loop.md#use-a-real-llm-for-hypotheses).
 Service errors stop the study without silent fallback. Explicit `research-resume` or
 **Continue study** retries the failed work using retained checkpoints.

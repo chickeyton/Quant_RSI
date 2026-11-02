@@ -39,6 +39,15 @@ def default_history_dir(prices):
     return (Path(root) if root else Path.home() / ".quant_rsi" / "history") / prices
 
 
+def _check_llm_choice(args):
+    if args.cursor_dir is not None and args.llm != "cursor":
+        raise ValueError("--cursor-dir is only used with --llm cursor")
+    if args.command == "research-demo" and args.llm == "cursor" and args.cursor_dir is None:
+        raise ValueError("research-demo --llm cursor requires --cursor-dir")
+    if getattr(args, "news_research", False) and args.llm in {"deepseek", "cursor"}:
+        raise ValueError("News research web search requires --llm codex or --llm api")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Bounded quant research and development observations"
@@ -62,11 +71,21 @@ def main(argv: list[str] | None = None) -> int:
         demo.add_argument("--json", action="store_true", help="emit the complete trace as JSON")
         demo.add_argument(
             "--llm",
-            choices=("simulated", "codex", "api"),
+            choices=("simulated", "codex", "api", "deepseek", "cursor"),
             default="codex" if study else "simulated",
         )
-        demo.add_argument("--llm-model", help="model ID; required for API, optional for Codex")
+        demo.add_argument(
+            "--llm-model",
+            help="model ID; required for API, optional for Codex and DeepSeek "
+            "(DeepSeek default: deepseek-chat)",
+        )
         demo.add_argument("--llm-timeout", type=float, default=180, help="seconds per LLM call")
+        demo.add_argument(
+            "--cursor-dir",
+            type=Path,
+            help="directory where --llm cursor reads hypothesis JSON "
+            "(research-study default: OUTPUT/cursor-llm)",
+        )
         demo.add_argument(
             "--related",
             choices=("simulated", "profile"),
@@ -611,6 +630,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "research-study":
             from quant_rsi.research.study import run_study
 
+            _check_llm_choice(args)
             if args.ui is None:
                 args.ui = sys.stderr.isatty() and not args.json
             if args.no_history:
@@ -638,6 +658,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if args.command == "research-demo":
+            _check_llm_choice(args)
             from quant_rsi.research.demo import (
                 load_catalog,
                 render_demo,
@@ -678,7 +699,9 @@ def main(argv: list[str] | None = None) -> int:
             if args.llm != "simulated":
                 from quant_rsi.research.llm import LLMHypothesizer
 
-                hypothesize = LLMHypothesizer(args.llm, args.llm_model, args.llm_timeout)
+                hypothesize = LLMHypothesizer(
+                    args.llm, args.llm_model, args.llm_timeout, handoff_dir=args.cursor_dir
+                )
             if args.related == "profile":
                 from quant_rsi.research.demo_related import profile_related
 
