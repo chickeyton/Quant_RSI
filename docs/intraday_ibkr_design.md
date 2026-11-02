@@ -440,10 +440,12 @@ Their rules:
   one snapshot digest per target instrument; evaluation refuses a missing, altered or
   substituted snapshot, and a plan may declare `fundamentals` only when it uses an `f_` leaf.
 - **Availability.** Values are computed as of the session's open, so only facts usable before
-  trading began are read. They are constant across the session's decision bars. SEC facts
-  become usable at 05:00 UTC on the day after filing; issuer releases at their recorded
-  publication time. `f_days_since_report` is the time from the latest revenue report's
-  availability to the open, in days.
+  trading began are read. They are constant across the session's decision bars. Both
+  sources record dates, not times, so facts become usable at 05:00 UTC on the day after the
+  SEC filing or the issuer's publication (or later revision). A pre-market earnings release
+  is therefore first seen the session after its release day, never on it.
+  `f_days_since_report` is the time from the latest revenue report's availability to the
+  open, in days.
 - **Missing data.** A metric is missing when the snapshot has no comparable reported period
   as of that open (for example no prior-year quarter, or a latest quarter older than 270
   days). Nothing is filled.

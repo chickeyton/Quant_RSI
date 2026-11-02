@@ -1,9 +1,10 @@
 """Publication-dated financial facts as session-constant intraday leaves (design section 5.4).
 
 A session's `f_` values are the research study's quarterly business metrics computed as of
-that session's open, so only facts usable before trading began are read. SEC facts become
-usable at 05:00 UTC on the day after filing; issuer press releases at their recorded
-publication time. The values then hold for every decision bar of the session.
+that session's open, so only facts usable before trading began are read. Both sources record
+dates only, so facts become usable at 05:00 UTC on the day after the SEC filing or the
+issuer's publication; a release-day session never sees its own release. The values then hold
+for every decision bar of the session.
 """
 
 import json
