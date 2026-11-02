@@ -842,6 +842,16 @@ new-evidence check enabled or disabled and for forced runs. A different batch or
 window collects afresh; this is not a permanent URL cache that could hide new releases
 or source corrections. Failed requests are not cached as successful evidence.
 
+EIA archives and issuer financial archives collect at most four independent releases
+concurrently per collector. Discovery of the archive index remains first; each release's
+page, tables and fallback documents retain their existing checks and order. Completed
+release results are joined in archive order, so network completion order cannot change
+record precedence or reorder source failures. The EIA cache locks each URL separately:
+different releases can proceed together, while concurrent tasks still share one successful
+download and its original receipt for the same URL. Raw files remain atomically written,
+and one failed release does not discard successful siblings. This changes collection
+scheduling, not publication availability, feature calculations or study fit budgets.
+
 Each task copies the original bytes, hashes and receipt timestamps into its own retained
 snapshot, so deleting the shared batch cache does not break completed-task replay or
 relabel historical receipts as newly received. A resource lock protects concurrent cache

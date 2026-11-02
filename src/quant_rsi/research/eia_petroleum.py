@@ -7,6 +7,7 @@ import io
 import json
 import math
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urljoin
@@ -168,10 +169,10 @@ def collect_petroleum(directory, since, through, *, cache_directory=None, histor
     )
     shared.mkdir(parents=True, exist_ok=True)
 
-    def fetch(url):
+    def fetch(url, retained_resources):
         identity = digest(url.encode())
         # Keep the bytes/receipt pair consistent for concurrent cache readers and writers.
-        with (shared / ".resources.lock").open("a") as lock:
+        with (shared / f".{identity}.lock").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             local = directory / f"{identity}.json"
             storage = directory if local.exists() else shared
@@ -196,12 +197,12 @@ def collect_petroleum(directory, since, through, *, cache_directory=None, histor
                 # Every task stays independently replayable if the batch cache is removed.
                 atomic_write(directory / body.name, raw)
                 atomic_write(local, canonical(item))
-        resources.append(item)
+        retained_resources.append(item)
         return raw, item
 
     links = []
     try:
-        index, _ = fetch(ARCHIVE_URL)
+        index, _ = fetch(ARCHIVE_URL, resources)
     except OSError as exc:
         failures.append({"url": ARCHIVE_URL, "error_type": type(exc).__name__, "reason": str(exc)})
     else:
@@ -211,22 +212,26 @@ def collect_petroleum(directory, since, through, *, cache_directory=None, histor
             failures.append(
                 {"url": ARCHIVE_URL, "error_type": type(exc).__name__, "reason": str(exc)}
             )
-    records = []
-    for released, page_url in links:
+
+    def collect_release(link):
+        released, page_url = link
+        records, retained_resources, release_failures = [], [], []
         url = page_url
         try:
-            page, _ = fetch(page_url)
+            page, _ = fetch(page_url, retained_resources)
             _page_dates(page, released)
         except (ValueError, OSError) as exc:
-            failures.append({"url": url, "error_type": type(exc).__name__, "reason": str(exc)})
-            continue
+            release_failures.append(
+                {"url": url, "error_type": type(exc).__name__, "reason": str(exc)}
+            )
+            return records, retained_resources, release_failures
         for table in (4, 11):
             url = page_url
             try:
                 url, observation = parse_release_page(page, page_url, released, table)
                 if url is None:
                     continue
-                raw, resource = fetch(url)
+                raw, resource = fetch(url, retained_resources)
                 parsed = (
                     parse_table(raw, released)
                     if table == 4
@@ -241,9 +246,20 @@ def collect_petroleum(directory, since, through, *, cache_directory=None, histor
                     for record in parsed
                 )
             except (ValueError, OSError) as exc:
-                failures.append({"url": url, "error_type": type(exc).__name__, "reason": str(exc)})
+                release_failures.append(
+                    {"url": url, "error_type": type(exc).__name__, "reason": str(exc)}
+                )
+        return records, retained_resources, release_failures
+
+    records = []
+    # map preserves archive order even when later releases finish first.
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        for rows, items, errors in executor.map(collect_release, links):
+            records.extend(rows)
+            resources.extend(items)
+            failures.extend(errors)
     prices, publications, errors = collect_price_publications(
-        fetch, directory, since, through, history_directory
+        lambda url: fetch(url, resources), directory, since, through, history_directory
     )
     records.extend(prices)
     resources.extend(publications)

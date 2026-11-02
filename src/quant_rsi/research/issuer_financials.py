@@ -3,6 +3,7 @@
 import io
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -236,7 +237,7 @@ def collect_issuer(symbol, directory, profile):
     source = profile["issuer"]
     resources, failures = [], []
 
-    def fetch(url, extension):
+    def fetch(url, extension, retained_resources):
         parsed = urlsplit(url)
         if (
             parsed.scheme != "https"
@@ -259,10 +260,10 @@ def collect_issuer(symbol, directory, profile):
         sha = digest(raw)
         file = f"{sha}.{extension}"
         atomic_write(directory / file, raw)
-        resources.append({"url": url.split("?")[0], "file": file, "sha256": sha})
+        retained_resources.append({"url": url.split("?")[0], "file": file, "sha256": sha})
         return raw
 
-    index = fetch(source["index_url"], "html").decode("utf-8")
+    index = fetch(source["index_url"], "html", resources).decode("utf-8")
     if source["archive"] == "q4_public_feed":
         key = re.search(r"Q4ApiKey\s*=\s*'([^']+)'", index)
         if not key:
@@ -277,7 +278,7 @@ def collect_issuer(symbol, directory, profile):
             "reportTypes": "First Quarter|Second Quarter|Third Quarter|Fourth Quarter",
         }
         feed_url = urljoin(source["index_url"], "/feed/FinancialReport.svc/GetFinancialReportList")
-        feed = json.loads(fetch(feed_url + "?" + urlencode(params), "json"))
+        feed = json.loads(fetch(feed_url + "?" + urlencode(params), "json", resources))
         releases = [
             d["DocumentPath"]
             for r in feed["GetFinancialReportListResult"][:MAX_RELEASES]
@@ -293,10 +294,11 @@ def collect_issuer(symbol, directory, profile):
             )
         )[:MAX_RELEASES]
     releases = list(dict.fromkeys(releases))[:MAX_RELEASES]
-    records = []
-    for release in releases:
+
+    def collect_release(release):
+        records, retained_resources, release_failures = [], [], []
         try:
-            text = fetch(release, "html").decode("utf-8")
+            text = fetch(release, "html", retained_resources).decode("utf-8")
             published, page_modified = publication(text)
             sections = [("income", source)]
             if "cashflow" in source:
@@ -322,7 +324,7 @@ def collect_issuer(symbol, directory, profile):
                         raise ValueError(
                             f"Expected one supported issuer financial {extension.upper()}"
                         )
-                    raw = fetch(links[0], extension)
+                    raw = fetch(links[0], extension, retained_resources)
                     parser = parse_spreadsheet if extension == "xlsx" else parse_statement
                     for section, definition in sections:
                         try:
@@ -335,7 +337,7 @@ def collect_issuer(symbol, directory, profile):
                             key = "sheet" if extension == "xlsx" else "page"
                             rows.extend(row | {key: location} for row in parsed)
                         except (ValueError, PyPdfError) as exc:
-                            failures.append(
+                            release_failures.append(
                                 {
                                     "release_url": release,
                                     "source_url": links[0],
@@ -347,11 +349,11 @@ def collect_issuer(symbol, directory, profile):
                         break  # Keep one statement/version per release, including partial coverage.
                 except (OSError, ValueError, KeyError, PyPdfError) as exc:
                     rows = []
-                    failures.append(
+                    release_failures.append(
                         {"release_url": release, "pdf_pattern": pattern, "error": str(exc)}
                     )
             if not rows:
-                continue
+                return records, retained_resources, release_failures
             date_reader = spreadsheet_date if extension == "xlsx" else statement_date
             effective = date_reader(raw, published, page_modified)
             available = datetime.combine(
@@ -377,7 +379,16 @@ def collect_issuer(symbol, directory, profile):
                 for row in rows
             ]
         except (OSError, ValueError, KeyError, PyPdfError) as exc:
-            failures.append({"release_url": release, "error": str(exc)})
+            release_failures.append({"release_url": release, "error": str(exc)})
+        return records, retained_resources, release_failures
+
+    records = []
+    # Keep the archive's precedence and failure order independent of request timing.
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        for rows, items, errors in executor.map(collect_release, releases):
+            records.extend(rows)
+            resources.extend(items)
+            failures.extend(errors)
     if not records:
         atomic_write(directory / "issuer_failures.json", canonical(failures))
         raise ValueError("No usable quarterly issuer statements; see issuer_failures.json")
