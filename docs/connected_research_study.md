@@ -1217,7 +1217,11 @@ quant-rsi research-study KO --output /tmp/ko-study-offline \
 
 ### Continue research across market days
 
-Opt into one shared history directory while keeping each study output directory fresh:
+Studies share one history directory while each study output directory stays fresh.
+Without `--history-dir`, the CLI uses `~/.quant_rsi/history/<daily|synthetic>`
+(or the same layout under `$QUANT_RSI_HISTORY_DIR`), matching the workbench's
+per-price-source layout. Pass `--no-history` for a self-contained run, or name a
+directory explicitly:
 
 ```bash
 quant-rsi research-study KO --news-research \
@@ -1266,7 +1270,7 @@ The existing UI adds a forecast-history table. Opening it again reads current hi
 `research-history ... --ui` opens the latest study view after observing. Saved HTML
 and each study report remain snapshots. The table shows the latest 50 entries for the
 symbol; at most 20 mature outcomes from that view enter the LLM context. All receipts
-and corrections remain in the journal. Without `--history-dir`, studies stay isolated.
+and corrections remain in the journal. Only `--no-history` studies stay isolated.
 
 The **Continuing the previous research** view uses the history snapshot retained in
 `prior_outcomes.json` and the target trace at this run's start. It shows which settled
@@ -1278,7 +1282,7 @@ live history table, which may receive new observations after the run completes.
 
 ### Reusing selected factor recipes
 
-With `--history-dir` (already provided by the workbench), a new study reads selected
+With shared history (the CLI default, also provided by the workbench), a new study reads selected
 recipes from the latest five studies of the same stock. It reads immutable history
 artifacts, not the prior run's mutable filesystem path. Older entries can recover the
 selected definitions from their frozen catalogs without rewriting those entries.
@@ -1299,6 +1303,28 @@ outcome path supplies observed errors. Unselected candidates remain in retained 
 This is not global factor deletion, automatic promotion, or an independent assessment
 of factor effectiveness. Studies without shared history remain isolated.
 New memory alone does not count as new external evidence for scheduled research.
+
+### Factor ledger
+
+Each registered study also records every attempted round, not only the selected one:
+its factor IDs, the frozen definitions of every attempted factor, development price
+MAE beside the unchanged-price baseline, direction hit rate, costed strategy Sharpe and
+net return, and whether the round was selected. Entries registered before the ledger
+recover the same records from their retained results; nothing is rewritten.
+
+The next study supplies a per-factor summary as `context.factor_ledger` for the same
+symbol and horizon across research questions (the 40 most recently tried factors):
+rounds tried and selected, rounds beating the unchanged-price baseline, best development
+MAE and Sharpe, and settled selected forecasts. It helps the researcher avoid repeating
+rejected sets. Rejected recipes are not restored as catalog candidates; the researcher
+must propose them again. These are adaptive development measurements on each study's
+own window, not a cross-period ranking or evidence that a factor works. Inspect the
+ledger without another fit:
+
+```bash
+quant-rsi research-history factors KO          # default daily history
+quant-rsi research-history factors KO --history-dir /tmp/ko-research-history --json
+```
 
 A real-service check on 2026-11-01 registered the retained KO study from the financial
 source acceptance into a separate history at the current receipt time, then ran a new

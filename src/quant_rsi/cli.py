@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -30,6 +31,12 @@ from quant_rsi.research.research import create_research, inspect_research, resum
 from quant_rsi.research.researcher import ResearchPlan
 from quant_rsi.research.trajectory import init_trajectory, inspect_trajectory, resume_trajectory
 from quant_rsi.research.trajectory_state import TrajectoryPlan
+
+
+def default_history_dir(prices):
+    """Same per-source layout as the workbench; real and synthetic outcomes never mix."""
+    root = os.environ.get("QUANT_RSI_HISTORY_DIR")
+    return (Path(root) if root else Path.home() / ".quant_rsi" / "history") / prices
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -82,7 +89,15 @@ def main(argv: list[str] | None = None) -> int:
                 help="reuse a retained issuer RSS snapshot without fetching RSS again",
             )
             demo.add_argument(
-                "--history-dir", type=Path, help="shared study receipts, outcomes and news archive"
+                "--history-dir",
+                type=Path,
+                help="shared study receipts, outcomes, factor ledger and news archive "
+                "(default: $QUANT_RSI_HISTORY_DIR or ~/.quant_rsi/history, per price source)",
+            )
+            demo.add_argument(
+                "--no-history",
+                action="store_true",
+                help="do not read or record shared study history for this run",
             )
             demo.add_argument(
                 "--factor-root",
@@ -235,9 +250,14 @@ def main(argv: list[str] | None = None) -> int:
     history = commands.add_parser(
         "research-history", help="inspect or observe saved study forecasts"
     )
-    history.add_argument("action", choices=("status", "observe"))
+    history.add_argument("action", choices=("status", "observe", "factors"))
     history.add_argument("symbol")
-    history.add_argument("--history-dir", type=Path, required=True)
+    history.add_argument(
+        "--history-dir",
+        type=Path,
+        help="default: the daily-price directory under $QUANT_RSI_HISTORY_DIR "
+        "or ~/.quant_rsi/history",
+    )
     history.add_argument("--json", action="store_true", help="emit all retained history fields")
     history.add_argument(
         "--ui",
@@ -498,6 +518,30 @@ def main(argv: list[str] | None = None) -> int:
             )
 
             symbol = args.symbol.strip().upper()
+            if args.history_dir is None:
+                args.history_dir = default_history_dir("daily")
+            if args.action == "factors":
+                from quant_rsi.research.study_history import factor_ledger
+
+                if args.prices_dir is not None:
+                    raise ValueError("research-history factors does not read prices")
+                ledger = factor_ledger(args.history_dir, symbol)
+                if args.json:
+                    print(json.dumps(ledger, indent=2, allow_nan=False))
+                else:
+                    print(
+                        f"{symbol}: {len(ledger['factors'])} remembered factors from "
+                        f"{ledger['study_count']} studies in {args.history_dir}"
+                    )
+                    for item in ledger["factors"]:
+                        mae = item["best_mae_price"]
+                        print(
+                            f"  {item['factor_id']}: tried {item['rounds_tried']} rounds, "
+                            f"selected {item['rounds_selected']}, best development MAE "
+                            + ("n/a" if mae is None else f"{mae:.4f}")
+                            + f", last seen {item['last_seen']}"
+                        )
+                return 0
             if args.action == "observe":
                 if args.prices_dir is None:
                     raise ValueError("research-history observe requires --prices-dir")
@@ -530,6 +574,11 @@ def main(argv: list[str] | None = None) -> int:
 
             if args.ui is None:
                 args.ui = sys.stderr.isatty() and not args.json
+            if args.no_history:
+                if args.history_dir is not None:
+                    raise ValueError("--no-history cannot be combined with --history-dir")
+            elif args.history_dir is None:
+                args.history_dir = default_history_dir(args.prices)
             result = run_study(args)
             if args.check_inputs:
                 print(

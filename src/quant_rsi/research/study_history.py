@@ -152,6 +152,7 @@ def register_study(directory, run_root, result, snapshot=None):
                 "result_ref": result_ref,
             }
             status, reason = "not_prospective", "publication_confirmation_missing"
+        from quant_rsi.research.study_factor_ledger import attempt_records, attempted_definitions
         from quant_rsi.research.study_factor_memory import selected_definitions
 
         entry = {
@@ -166,6 +167,8 @@ def register_study(directory, run_root, result, snapshot=None):
             "selected_round": selected,
             "factor_ids": attempt["prediction"]["factor_ids"],
             "factor_definitions": selected_definitions(result),
+            "attempts": attempt_records(result),
+            "attempted_definitions": attempted_definitions(result),
             "input_mode": result["configuration"].get("prices", "unknown"),
             "forecast": forecast,
             "publication": publication,
@@ -374,6 +377,9 @@ def mature_feedback(directory, symbol, *, horizon_sessions=5, question=""):
         "factor_memory": recent_factor_recipes(
             directory, symbol, horizon_sessions=horizon_sessions, question=question
         ),
+        "factor_ledger": factor_ledger(
+            directory, symbol, horizon_sessions=horizon_sessions, limit=40
+        ),
         "entries": [e for e in view["entries"] if e["status"] == "settled"][-20:],
         "history": {
             "entries": [
@@ -419,3 +425,50 @@ def recent_factor_recipes(directory, symbol, *, horizon_sessions=5, question="")
                 }
             )
         return result
+
+
+def ledger_studies(directory, symbol, *, horizon_sessions=None):
+    """Attempt records for every retained study; older entries read their frozen result."""
+    if not (Path(directory) / "journal.sqlite").exists():
+        return []
+    from quant_rsi.research.study_factor_ledger import attempt_records, attempted_definitions
+
+    with _ledger(directory) as (journal, store):
+        studies = []
+        for entry in _entries(journal, store).values():
+            if entry["symbol"] != symbol or (
+                horizon_sessions is not None
+                and entry.get("horizon_sessions", 5) != horizon_sessions
+            ):
+                continue
+            attempts = entry.get("attempts")
+            definitions = entry.get("attempted_definitions")
+            if attempts is None or definitions is None:
+                retained = store.json(entry["result_ref"])
+                attempts = attempt_records(retained)
+                definitions = attempted_definitions(retained)
+            latest = entry["observations"][-1] if entry["observations"] else entry
+            studies.append(
+                {
+                    "study_id": entry["study_id"],
+                    "run_directory": entry.get("run_directory"),
+                    "issued_at": entry["issued_at"],
+                    "question": entry.get("question", ""),
+                    "horizon_sessions": entry.get("horizon_sessions", 5),
+                    "outcome_status": latest["status"],
+                    "attempts": attempts,
+                    "definitions": definitions,
+                }
+            )
+        return studies
+
+
+def factor_ledger(directory, symbol, *, horizon_sessions=None, limit=None):
+    from quant_rsi.research.study_factor_ledger import summarize
+
+    studies = ledger_studies(directory, symbol, horizon_sessions=horizon_sessions)
+    return summarize(studies, limit=limit) | {
+        "symbol": symbol,
+        "horizon_sessions": horizon_sessions,
+        "study_count": len(studies),
+    }
