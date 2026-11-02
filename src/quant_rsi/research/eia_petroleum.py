@@ -1,6 +1,7 @@
 """Retain dated EIA weekly inventory releases for external business hypotheses."""
 
 import csv
+import fcntl
 import html
 import io
 import json
@@ -120,7 +121,7 @@ def _download(url):
     return raw
 
 
-def collect_petroleum(directory, since, through):
+def collect_petroleum(directory, since, through, *, cache_directory=None):
     """Reuse retained inputs; fresh collection never overwrites an existing snapshot."""
     directory = Path(directory)
     since, through = date.fromisoformat(since), date.fromisoformat(through)
@@ -143,26 +144,41 @@ def collect_petroleum(directory, since, through):
                 raise ValueError("Retained EIA resource changed")
         return snapshot
     resources, failures = [], []
+    shared = (
+        Path(cache_directory) / f"{since.isoformat()}_{through.isoformat()}"
+        if cache_directory is not None
+        else directory
+    )
+    shared.mkdir(parents=True, exist_ok=True)
 
     def fetch(url):
         identity = digest(url.encode())
-        metadata = directory / f"{identity}.json"
-        body = directory / f"{identity}.body"
-        if metadata.exists():
-            item = json.loads(metadata.read_bytes())
-            raw = body.read_bytes()
-            if item["url"] != url or item["sha256"] != digest(raw):
-                raise ValueError("Cached EIA resource changed")
-        else:
-            raw = _download(url)
-            item = {
-                "url": url,
-                "file": body.name,
-                "sha256": digest(raw),
-                "received_at": datetime.now(timezone.utc).isoformat(),
-            }
-            atomic_write(body, raw)
-            atomic_write(metadata, canonical(item))
+        # Keep the bytes/receipt pair consistent for concurrent cache readers and writers.
+        with (shared / ".resources.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            local = directory / f"{identity}.json"
+            storage = directory if local.exists() else shared
+            metadata = storage / f"{identity}.json"
+            body = storage / f"{identity}.body"
+            if metadata.exists():
+                item = json.loads(metadata.read_bytes())
+                raw = body.read_bytes()
+                if item["url"] != url or item["file"] != body.name or item["sha256"] != digest(raw):
+                    raise ValueError("Cached EIA resource changed")
+            else:
+                raw = _download(url)
+                item = {
+                    "url": url,
+                    "file": body.name,
+                    "sha256": digest(raw),
+                    "received_at": datetime.now(timezone.utc).isoformat(),
+                }
+                atomic_write(body, raw)
+                atomic_write(metadata, canonical(item))
+            if storage != directory:
+                # Every task stays independently replayable if the batch cache is removed.
+                atomic_write(directory / body.name, raw)
+                atomic_write(local, canonical(item))
         resources.append(item)
         return raw, item
 

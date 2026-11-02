@@ -835,6 +835,32 @@ diagnostic does not change selection or the latest forecast; it is not independe
 validation. If no external columns or no other controls were selected, no fit is
 performed and the report explains why.
 
+The workbench gives every daily-data batch a fresh EIA resource cache, shared by its
+research or input-check tasks. Within that batch, requests with identical history bounds
+download each successful archive/page/table URL once. The same path is used with the
+new-evidence check enabled or disabled and for forced runs. A different batch or date
+window collects afresh; this is not a permanent URL cache that could hide new releases
+or source corrections. Failed requests are not cached as successful evidence.
+
+Each task copies the original bytes, hashes and receipt timestamps into its own retained
+snapshot, so deleting the shared batch cache does not break completed-task replay or
+relabel historical receipts as newly received. A resource lock protects concurrent cache
+writers; source hashes are checked before reuse. A standalone CLI caller can opt into
+the same mechanism with `--external-drivers-cache-dir PATH`, using a new path for each
+research cycle. `--external-drivers-dir` continues to identify a task's retained snapshot.
+Both directories must remain outside the source checkout. Synthetic runs do not download
+or populate the cache, and the cache does not add LLM calls or model fits.
+
+Validation at `6bed759` ran two native CLI input checks over a preseeded cache of
+retained public XOM prices, RSS and EIA resources. Both checks preserved all 109
+resource hashes/receipts, 159 records and the same two excluded source-date failures;
+all three external factors were usable. Both task snapshots remained readable after
+the shared cache was removed. This made no new network requests, LLM calls or fits.
+A separate offline two-stock batch fixture measured six resource requests before
+sharing versus three after; the next batch requested all three resources again.
+These checks demonstrate request reuse and provenance, not a live-service latency
+or total-storage improvement. Each task deliberately keeps its own raw evidence copy.
+
 ```bash
 quant-rsi research-study XOM --llm codex --news-research --external-drivers \
   --historical-sessions 252 \

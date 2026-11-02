@@ -35,6 +35,9 @@ The form can enable **publication-dated financial factors** and, by default for 
 submissions, **research only on new evidence**. Unchanged prices, selected issuer news,
 quarterly filings and matured outcomes skip the study before paid calls; collection
 failures stay visible. Saved templates offer **Check & run** and **Force run**.
+When external industry drivers are enabled, stocks in the same batch and date window
+share the EIA download. Each task retains its own source bytes and original receipt
+times; a new batch collects afresh, so cached receipts do not mask new evidence.
 Before research starts, the task list and live view show price, news and financial
 collection followed by the new-evidence check. Failed preparations retain their last stage.
 When preparation starts a study, it passes the collected RSS snapshot into that study;
