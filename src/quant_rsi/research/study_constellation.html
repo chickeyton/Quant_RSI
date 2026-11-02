@@ -84,7 +84,7 @@ function fmt(value,digits=4){return value===null||value===undefined?"—":typeof
 const data = DATA || {symbol:"—",stars:[],relations:[],studies:[],categories:{},notice:""};
 // Internal references use execution versions; visible labels remain readable factor names.
 for(const study of data.studies)for(const round of study.round_stack||[]){round.factor_ids=round.node_ids;round.column_share=round.node_column_share;}
-const label = id => (byId[id]||{}).factor_id||id;
+const factorLabel = id => (byId[id]||{}).factor_id||id;
 const parse = text => Date.parse(String(text).replace(/(\.\d{3})\d+/,"$1"));
 const end = data.generated_at ? parse(data.generated_at) : Date.now();
 const start = Math.min(end, ...data.studies.map(s=>parse(s.issued_at)));
@@ -184,7 +184,7 @@ function updateRoundCard(){
     for(const fid of ids){
       const used=rounds.filter(r=>r.factor_ids.includes(fid));
       const adopted=used.filter(r=>r.accepted).map(r=>r.round);
-      card.append(el("p",`${measured?(shareOf(fid)*100).toFixed(1)+"%  ":""}${label(fid)}  · ${used.length}/${rounds.length}${adopted.length?" · adopted "+adopted.join(","):""}`));
+      card.append(el("p",`${measured?(shareOf(fid)*100).toFixed(1)+"%  ":""}${factorLabel(fid)}  · ${used.length}/${rounds.length}${adopted.length?" · adopted "+adopted.join(","):""}`));
     }
     if(!measured)card.append(el("p","Column share was not recorded for this study. Lines show which factors were tried."));
     $("day-number").textContent="ALL";$("day-total").textContent=rounds.length;
@@ -203,7 +203,7 @@ function updateRoundCard(){
   }
   if(round.hypothesis)card.append(el("p",round.hypothesis));
   const ranked=[...round.factor_ids].sort((a,b)=>((round.column_share[b]||0)-(round.column_share[a]||0)));
-  card.append(el("p",ranked.map(fid=>label(fid)+(round.column_share[fid]!=null?` ${(round.column_share[fid]*100).toFixed(0)}%`:"")).join(" · ")));
+  card.append(el("p",ranked.map(fid=>factorLabel(fid)+(round.column_share[fid]!=null?` ${(round.column_share[fid]*100).toFixed(0)}%`:"")).join(" · ")));
 }
 function setMode(mode){
   view.mode=mode;view.selected=null;show(null);
@@ -299,7 +299,7 @@ function show(star){
   panel.append(table);
   if(star.questions&&star.questions.some(Boolean)){panel.append(el("div","Research questions","tag"));const list=el("ul");for(const q of star.questions)list.append(el("li",q||"General research"));panel.append(list);}
   const links=related(star);
-  if(links.length){panel.append(el("div","Relations","tag"));const list=el("ul");for(const r of links){const other=r.source===star.ledger_id?r.target:r.source,item=el("li"),a=el("a",label(other));a.onclick=()=>show(byId[other]);const label={derived:r.source===star.ledger_id?"input of ":"derived from ",co_selected:"selected with ",replaced:r.source===star.ledger_id?"replaced by ":"replaced "}[r.kind];item.append(label,a,` ×${r.weight}`);list.append(item);}panel.append(list);}
+  if(links.length){panel.append(el("div","Relations","tag"));const list=el("ul");for(const r of links){const other=r.source===star.ledger_id?r.target:r.source,item=el("li"),a=el("a",factorLabel(other));a.onclick=()=>show(byId[other]);const label={derived:r.source===star.ledger_id?"input of ":"derived from ",co_selected:"selected with ",replaced:r.source===star.ledger_id?"replaced by ":"replaced "}[r.kind];item.append(label,a,` ×${r.weight}`);list.append(item);}panel.append(list);}
   if(star.recipe){panel.append(el("div","Recipe","tag"),el("pre",JSON.stringify(star.recipe,null,2)));}
   panel.append(el("div",data.notice,"notice"));panel.style.display="block";
 }

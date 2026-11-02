@@ -2,6 +2,8 @@
 
 import json
 import re
+import shutil
+import subprocess
 import threading
 from urllib.error import HTTPError
 from urllib.request import urlopen
@@ -237,3 +239,46 @@ def test_constellation_rejects_symbol_path_escape(tmp_path, capsys):
         != 0
     )
     assert not list(tmp_path.rglob("*.html"))
+
+
+def test_browser_script_opens_version_details_and_round_stack(tmp_path):
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node is required for browser-script regression checks")
+    register(
+        tmp_path,
+        "s1",
+        "2026-01-01T21:00:00Z",
+        [attempt(1, ["research.a", "research.b"], 1)],
+        1,
+        [{"factor_id": "research.a"}, {"factor_id": "research.b"}],
+    )
+    script = re.search(r"<script>(.*?)</script>", render(constellation(tmp_path, "KO")), re.S)[1]
+    dom = r"""
+const assert = require('node:assert/strict');
+const gradient = {addColorStop(){}};
+const mockContext = new Proxy({}, {get: (_, key) =>
+ key === 'createRadialGradient' ? () => gradient : () => {}});
+function element(){return {children:[], childNodes:[{}], style:{},
+ classList:{toggle(){},add(){},remove(){}},
+ append(...items){this.children.push(...items);},replaceChildren(){this.children=[];},
+ addEventListener(){},getContext(){return mockContext;}};}
+const nodes = new Map();
+global.document={getElementById(id){if(!nodes.has(id))nodes.set(id,element());
+ return nodes.get(id);},
+ createElement:element};
+global.window={devicePixelRatio:1};global.innerWidth=1440;global.innerHeight=1000;
+global.addEventListener=()=>{};global.requestAnimationFrame=()=>{};
+"""
+    checks = r"""
+show(stars[0]);
+assert.equal(document.getElementById('panel').style.display,'block');
+setMode('rounds');drawRounds();showRound(stars[0]);
+assert(stars.every(star => star.screen));
+assert.equal(document.getElementById('panel').style.display,'block');
+assert.equal(new Set(roundStack()[0].factor_ids).size,2);
+"""
+    result = subprocess.run(
+        [node, "-e", dom + script + checks], capture_output=True, text=True, timeout=10
+    )
+    assert result.returncode == 0, result.stderr
