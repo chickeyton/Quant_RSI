@@ -39,7 +39,8 @@ def profile_related(symbol):
         profile = RelationshipProfile.model_validate_json(path.read_bytes())
     except FileNotFoundError:
         raise ValueError(
-            f"No relationship profile for {symbol}; currently configured: KO"
+            f"No relationship profile for {symbol}; "
+            f"configure instruments/US/{symbol}/relationships.json"
         ) from None
     if profile.instrument != symbol:
         raise ValueError("Relationship profile binding differs from selected instrument")

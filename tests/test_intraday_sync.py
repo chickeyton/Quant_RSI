@@ -9,7 +9,7 @@ from pathlib import Path, PurePosixPath
 import pytest
 from intraday_helpers import build_snapshot
 
-from quant_rsi.core.artifacts import digest
+from quant_rsi.core.artifacts import decode, digest
 from quant_rsi.intraday import sync
 from quant_rsi.intraday.sync import RemoteError, ServerConfig, SshRemote
 
@@ -89,6 +89,17 @@ def test_push_snapshot_refuses_a_corrupt_local_snapshot(tmp_path, remote):
     with pytest.raises(ValueError, match="integrity"):
         sync.push_snapshot(remote, remote.config, tmp_path / "store", ref, "runs/ko/store")
     assert remote.extracted == []
+
+
+def test_push_snapshot_refuses_corrupt_raw_evidence_before_transfer(tmp_path, remote):
+    store, ref = build_snapshot(tmp_path, count=3)
+    snapshot = store.load(ref)
+    raw = store.put_raw("history", b"[]", {"instrument": "KO"})
+    ref = store.commit(snapshot.contract, snapshot.blocks.values(), raw_refs=[raw])
+    store._path(decode(store.get(raw))["body_ref"]).write_bytes(b"corrupt")
+    with pytest.raises(ValueError, match="integrity"):
+        sync.push_snapshot(remote, remote.config, store.root, ref, "runs/ko/store")
+    assert not remote.extracted
 
 
 @pytest.mark.parametrize("command", ["collect", "resolve", "ibkr-check", "paper-run", None])

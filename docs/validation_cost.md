@@ -35,8 +35,15 @@ With no selectors, all repository `test_*.py` and `*_test.py` modules under `tes
 are included. Explicit file or node selectors produce focused evidence only.
 Selectors belonging to the same file stay in one process, even if interleaved on
 the command line. If only one module is selected, only one process is needed.
-There is no cross-run fixture cache or duration-based scheduling. Shards can be
-imbalanced; compare measured CPU/setup work as well as wall time.
+Parallel runs schedule whole modules by estimated duration, placing the longest
+first into the least-loaded shard. Thirteen modules have rounded timing hints
+from [successful CI 41346746509](https://github.com/natureofnature/Quant_RSI/actions/runs/41346746509);
+other modules use three seconds, the rounded mean of modules below 30 seconds in
+that run. Hints affect placement only: no tests are omitted and module fixtures
+remain together. Single-process runs preserve selector-group order. There is no
+cross-run fixture cache. Estimates can become stale, and focused node selections
+may take less time than their whole-module hint; compare actual shard durations,
+CPU/setup work and wall time before updating the hints.
 
 CI runs the complete suite through the same command with `--shards 2`, keeping
 each module in one process. This aims to reduce wall time, not total CPU work.
@@ -72,6 +79,29 @@ not a misleading global timeout. Do not translate local timing to a portable SLA
 
 ## Initial observations
 
+### Whole-module balancing follow-up
+
+The successful calibration run above spent 1,750 and 743 seconds in its two
+shards. A subsequent full run (41350144193, which failed one workbench fixture)
+spent 2,413 and 810 seconds. Reassigning their recorded module times using the
+same hints projects a 27–31% reduction in the longest shard's summed test time.
+This is a scheduling projection, not measured wall-time improvement.
+
+The follow-up target is at least 20% lower full-suite profiling wall time against
+the parent revision's CI run 41354176687, using the same two-process Linux/Python
+3.12 workflow. All tests and required checks remain enabled. Compare actual
+per-shard durations and test outcomes as well as the total; hosted-runner
+contention is uncontrolled, so one comparison cannot establish a stable speedup.
+The final [follow-up CI](https://github.com/natureofnature/Quant_RSI/actions/runs/41355481123)
+passed 1,671 core tests (12 optional skips) and 14 Qlib tests. Every parent case
+was retained exactly once; one scheduling regression was added. Core wall time
+fell from 2,156.72 to 1,480.61 seconds (31.35%); shard times changed from
+2,156.70 / 538.04 to 1,480.58 / 1,425.17 seconds. This comparison meets the target.
+Child CPU time increased from 2,229.65 to 2,756.98 seconds (23.65%), so it does
+not establish reduced total compute cost or a stable wall-time speedup.
+
+### Original fixture-grouping change
+
 Earlier two-process full runs took about 28 minutes but alternated individual
 node IDs between processes. That repeats module-scoped real-worker fixtures in
 both processes, including local C5, protected comparisons and committed
@@ -93,7 +123,7 @@ KeyboardInterrupt in this environment, so the diagnostic logs were inspected
 and are explicitly excluded from validation evidence. The regular helper invokes
 pytest directly and preserves its exit status.
 
-The production change is limited to a 4,096-entry LRU cache for exact built-in
+The original #41 production change was limited to a 4,096-entry LRU cache for exact built-in
 timestamp strings up to 128 characters. It stores only string-to-UTC-datetime
 conversion. Long strings, string subclasses, datetime/custom-timezone inputs,
 `trusted_now`, receipt corrections and evidence verification remain uncached.
@@ -115,3 +145,56 @@ hands-on time and time to its final report, before and after. Those end-to-end
 research usability measurements and a final-revision whole-suite timing are
 still needed; the profiling helper alone does not complete #39's engineering-cost
 acceptance.
+
+## Feature-view batching measurement (2026-11-01)
+
+A later sample of the finite-trajectory workload attributed about 30% of parent-process
+CPU samples to JSON encoding, mostly repeated hashing of the same snapshot for each
+training/prediction session. Repeated label visibility scans accounted for about 19
+seconds of a 177.52-second baseline; optimizing that part alone was unlikely to meet
+the predeclared 20% elapsed-time target.
+
+The legacy local development path now builds feature views in one synchronous batch.
+It hashes the snapshot once per batch, while still recomputing visible revisions,
+eligibility and source references for every decision. No snapshot hash or visibility
+decision is reused across calls. Training hashes each completed view once for its
+instrument rows. Development predictions use the existing lazy model reader within
+that one call, as the forecast path already did. The standalone feature-view API
+retains its inputs and outputs; forecasts retain their existing training path.
+
+The same unchanged finite-chain test, including actual workers and saturation/replay
+assertions, passed before and after:
+
+| Local measurement | Before | After |
+| --- | ---: | ---: |
+| Elapsed seconds | 177.5246 | 121.9604 |
+| Child user CPU seconds | 172.8555 | 116.3706 |
+| Child system CPU seconds | 2.1285 | 2.3779 |
+| Pytest outcome | 1 passed | 1 passed |
+| Source changed during run | false | false |
+
+This is a **31.3% reduction for this workload**, above its 20% target, not a claim
+about the complete suite or normal connected-study latency. These were one before/after
+pair on the same 16-CPU Linux/Python 3.12 host, separate processes, fresh workspaces,
+one numerical thread, no concurrent local study, and uncontrolled OS caches. The baseline
+was `c7a9163` (the same tree as `main@f82488c`); the candidate changes feature batching
+and model decoding in the local development path. Repeated measurements are needed to
+estimate timing variability. Profiling runs were diagnostic and excluded from this pair.
+
+Reproduce the measured workload on each revision with fresh output directories:
+
+```bash
+python examples/profile_validation.py --output /tmp/quant-rsi-batch-cost \
+  --cache-note 'Record host contention and cache conditions for this run' \
+  tests/test_trajectory.py::test_actual_finite_chain_seals_saturation_at_fully_occupied_capacity
+```
+
+A separate comparison with the saved original implementations produced byte-identical
+canonical outputs for 48 feature views across operators, windows, knowledge bases and
+watermarks. Two offline engineering fixtures with actual LightGBM fits also preserved both
+34-by-3 training matrices,
+labels, training-view/provenance metadata, all 12 development predictions per model,
+and account results. Automated regressions cover batch/individual equality, fresh
+hashes and visibility after changed input, watermark rejection, output independence,
+and one-call versus fresh-per-view model decoding. Full required CI remains the merge
+gate; focused timings do not replace it or establish a whole-suite speedup.

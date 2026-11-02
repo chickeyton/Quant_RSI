@@ -1,4 +1,4 @@
-"""Numerical features and LightGBM fits on synthetic or retained public daily prices."""
+"""Shared numerical study path with LightGBM or standardized ridge fits."""
 
 from copy import deepcopy
 from datetime import datetime
@@ -15,10 +15,13 @@ from quant_rsi.research.demo_features import (
     price_feature,
     price_metrics,
 )
+from quant_rsi.research.study_business import business_column
+from quant_rsi.research.study_estimators import StandardizedRidge, model_configuration
+from quant_rsi.research.study_factor_profiles import prepare_bound_features
 
 
 class LightGBMDemo:
-    """Two development fits share fixed origins and one mature-label training window."""
+    """Development fits share fixed origins and one mature-label training window."""
 
     def __init__(
         self,
@@ -26,17 +29,44 @@ class LightGBMDemo:
         *,
         prices=None,
         evaluation_sessions=1,
+        terminal_sessions=0,
         news_history=None,
         news_cutoffs=None,
         news_symbol=None,
+        estimator="lightgbm",
+        ridge_alpha=None,
+        fit_cache=None,
+        horizon_sessions=5,
+        walk_forward_folds=0,
     ):
+        from quant_rsi.research.study_walk_forward import extra_history, freeze_windows
+
+        self.fit_cache = fit_cache
+        self.model_configuration = model_configuration(
+            estimator, ridge_alpha, horizon_sessions=horizon_sessions
+        )
+        self.estimator = estimator
+        self.model_label = "LightGBM" if estimator == "lightgbm" else "Ridge"
         if type(evaluation_sessions) is not int or not 1 <= evaluation_sessions <= 20:
             raise ValueError("evaluation_sessions must be an integer from 1 through 20")
         self.evaluation_sessions = evaluation_sessions
+        if type(terminal_sessions) is not int or not 0 <= terminal_sessions <= 20:
+            raise ValueError("terminal_sessions must be an integer from 0 through 20")
+        if terminal_sessions and evaluation_sessions == 1:
+            raise ValueError("Terminal evaluation requires a multi-origin study")
+        self._fits = []
+        self._terminal_started = False
         self._news_configuration_open = True
         self._news_history = None
+        self._guidance_history = None
+        self.guidance_support = []
         self._news_columns = {}
         self.news_feature_support = None
+        self.peer_features = None
+        self.profile_features = None
+        self.financial_features = None
+        self.external_features = None
+        self._has_predicted = False
         self.library = deepcopy(library)
         self.library["definitions"] = [
             item for item in self.library["definitions"] if item["kind"] == "numeric"
@@ -53,14 +83,15 @@ class LightGBMDemo:
         ]
         if len(recipes) < 2:
             raise ValueError("LightGBM demo needs at least two numeric factors for one revision")
-        self.horizon = 5
+        self.horizon = horizon_sessions
+        extra_sessions = extra_history(walk_forward_folds, evaluation_sessions, self.horizon)
         self.price_info = None
         if prices is None:
-            self.origin = 100
+            self.origin = 100 + 2 * (self.horizon - 5) + extra_sessions
             self.data = synthetic_data(
                 DataSpec(
                     source="synthetic",
-                    sessions=128,
+                    sessions=128 + 3 * (self.horizon - 5) + extra_sessions,
                     instruments=1,
                     train_cutoff=self.origin,
                     seed=7,
@@ -68,20 +99,33 @@ class LightGBMDemo:
             )
         else:
             self.data, self.price_info = prices
+            if self.price_info.get("horizon_sessions", 5) != self.horizon:
+                raise ValueError("Retained price calendar was prepared for another horizon")
             self.origin = len(self.data.dates) - 1 - self.horizon
         self.price_provider = "public_daily_prices" if self.price_info else "synthetic_price_series"
+        self.terminal_origins = np.arange(self.origin - terminal_sessions + 1, self.origin + 1)
+        if terminal_sessions:
+            # Development labels AND account valuations end before the terminal window.
+            self.origin = int(self.terminal_origins[0]) - self.horizon - 1
         self.origins = np.arange(self.origin - evaluation_sessions + 1, self.origin + 1)
+        self.walk_forward_plan = freeze_windows(
+            self.data, self.origin, self.horizon, evaluation_sessions, walk_forward_folds
+        )
         if evaluation_sessions == 1:
             # Keep the original demonstration's window and output unchanged.
             self.train = np.arange(
-                max(recipe.window for recipe in recipes), self.origin - self.horizon + 1
+                max(recipe.window for recipe in recipes) + extra_sessions,
+                self.origin - self.horizon + 1,
             )
         else:
             # Reserve enough history for every safe proposed window (1..30).
             # No training label reaches even the first evaluation origin.
-            self.train = np.arange(30, self.origins[0] - self.horizon)
+            # Additional older rows belong only to the optional diagnostic. Merely
+            # enabling it must not enlarge the research fit's training allowance.
+            self.train = np.arange(30 + extra_sessions, self.origins[0] - self.horizon)
         if len(self.train) < 12:
             raise ValueError("Insufficient mature training rows for the selected price window")
+        self._planned_development_end = self.data.dates[self.origins[-1] + self.horizon]
         if news_history is not None:
             self.configure_news(news_history, news_cutoffs, news_symbol)
 
@@ -116,7 +160,11 @@ class LightGBMDemo:
         training = self.train[available[self.train]]
         origins = self.origins[available[self.origins]]
         runnable = len(training) >= 12 and len(origins) >= 2
-        reasons = {reason for item in evidence for reason in item["reasons"]}
+        reasons = {
+            reason
+            for index in np.concatenate((self.train, self.origins))
+            for reason in evidence[index]["reasons"]
+        }
         if len(training) < 12:
             reasons.add("insufficient_news_training_rows")
         if len(origins) < 2:
@@ -147,23 +195,110 @@ class LightGBMDemo:
         )
         return deepcopy(self.news_feature_support)
 
+    def configure_guidance(self, history):
+        if self._has_predicted or self._guidance_history is not None or self._news_history is None:
+            raise ValueError("Guidance must be configured once after news and before prediction")
+        self._guidance_history = deepcopy(history)
+        indices = np.concatenate((self.train, self.origins))
+        for days in (7, 30):
+            recipe = {"op": "guidance_direction", "window_days": days}
+            values, evidence = self._news_column(recipe)
+            reasons = sorted({reason for i in indices for reason in evidence[i]["reasons"]})
+            definition = {
+                "factor_id": f"news.guidance_direction_{days}",
+                "kind": "news",
+                "input_kind": "retained_issuer_guidance",
+                "recipe": recipe,
+                "description": "Latest explicit issuer guidance: raised +1, lowered -1, "
+                "reaffirmed 0; no statement in the inspected window also 0. "
+                "Not a stock-return forecast. Missing extraction is unavailable.",
+                "runnable": bool(np.isfinite(values[indices]).all()),
+                "reasons": reasons,
+            }
+            self.guidance_support.append(definition)
+        self.library["definitions"].extend(deepcopy(self.guidance_support))
+        self.library["execution_note"] += (
+            " Guidance-direction definitions marked runnable use source-bound extractions "
+            "on the same frozen rows; they can be selected or omitted each round."
+        )
+
     def _news_column(self, recipe):
         key = canonical(recipe)
         if key not in self._news_columns:
+            guidance = recipe.get("op") == "guidance_direction"
+            history = self._guidance_history if guidance else self._news_history
+            if history is None:
+                raise ValueError("News feature history is not configured")
             evidence = [
-                deepcopy(self._news_history.evaluate(recipe, self._news_symbol, cutoff))
+                deepcopy(history.evaluate(recipe, self._news_symbol, cutoff))
                 for cutoff in self._news_cutoffs
             ]
             values = np.array(
                 [np.nan if item["value"] is None else float(item["value"]) for item in evidence]
             )
             if any(
-                item["value"] is not None and (not np.isfinite(value) or value < 0)
+                item["value"] is not None
+                and (not np.isfinite(value) or (value not in {-1, 0, 1} if guidance else value < 0))
                 for item, value in zip(evidence, values, strict=True)
             ):
-                raise ValueError("News executor returned an invalid count")
+                raise ValueError("News executor returned an invalid numeric feature")
             self._news_columns[key] = values, evidence
         return self._news_columns[key]
+
+    def configure_peers(self, bundle):
+        if self._has_predicted or self.peer_features is not None:
+            raise ValueError("Related prices must be configured once before prediction")
+        self.peer_features = deepcopy(bundle)
+        self.library["definitions"].extend(deepcopy(bundle["definitions"]))
+        self.library["execution_note"] += (
+            " Related-price recipes marked runnable share the fixed training/evaluation rows. "
+            "Current company suggestions inform retrospective selection, not causal evidence."
+        )
+
+    def configure_financials(self, bundle):
+        if self._has_predicted or self.financial_features is not None:
+            raise ValueError("Financial features must be configured once before prediction")
+        existing = {item["factor_id"] for item in self.library["definitions"]}
+        if existing.intersection(item["factor_id"] for item in bundle["definitions"]):
+            raise ValueError("Financial factor IDs overlap existing definitions")
+        self.financial_features = deepcopy(bundle)
+        self.library["definitions"].extend(deepcopy(bundle["definitions"]))
+        self.library["execution_note"] += (
+            " Financial ratios are computed from filing-dated retained facts; "
+            "missing rows are not filled or dropped."
+        )
+
+    def configure_external(self, bundle):
+        if self._has_predicted or self.external_features is not None:
+            raise ValueError("External features must be configured once before prediction")
+        existing = {item["factor_id"] for item in self.library["definitions"]}
+        if existing.intersection(item["factor_id"] for item in bundle["definitions"]):
+            raise ValueError("External factor IDs overlap existing definitions")
+        self.external_features = deepcopy(bundle)
+        self.library["definitions"].extend(deepcopy(bundle["definitions"]))
+        self.library["execution_note"] += " " + bundle["notice"]
+
+    def configure_profile(self, profile):
+        if self._has_predicted or self.profile_features is not None:
+            raise ValueError("Factor profile must be configured once before prediction")
+        bundle = prepare_bound_features(
+            profile, self.data, self.peer_features or {}, np.concatenate((self.train, self.origins))
+        )
+        existing = {item["factor_id"] for item in self.library["definitions"]}
+        if existing.intersection(item["factor_id"] for item in bundle["definitions"]):
+            raise ValueError("Bound factor conflicts with an existing study definition")
+        self.profile_features = bundle
+        self.library["definitions"].extend(deepcopy(bundle["definitions"]))
+        self.library.pop("instrument_profile", None)
+        self.library["profile_resolution"] = {
+            "market": profile["market"],
+            "instrument": profile["instrument"],
+            "status": "runtime_resolved_on_training_and_development_rows",
+        }
+        self.library["execution_note"] += (
+            " Bound factors retain exact source and ownership metadata; composites use explicit "
+            "binding leaves. Pending sources cannot be replaced with target share prices."
+        )
 
     def context(self, symbol):
         self._news_configuration_open = False
@@ -175,7 +310,9 @@ class LightGBMDemo:
             "provider": self.price_provider,
             "reference_price": float(self.data.closes[self.origin, 0]),
             "origin_session": self.data.dates[self.origin],
-            "model_mode": "lightgbm",
+            "model_mode": self.estimator,
+            "horizon_sessions": self.horizon,
+            "model_configuration": deepcopy(self.model_configuration),
             "price_evidence": deepcopy(self.price_info),
             "model_note": (
                 (
@@ -194,10 +331,10 @@ class LightGBMDemo:
             result["model_note"] = (
                 "Retrospective development study on "
                 + ("retained public daily prices. " if self.price_info else "synthetic prices. ")
-                + "Both revisions use the same training window and evaluation origins. "
+                + "All revisions use the same training window and evaluation origins. "
                 "Current news guides retrospective factor selection, not historically available "
-                "features. The second revision reuses disclosed development outcomes, so this "
-                "is not independent holdout validation. Five-session outcomes overlap."
+                "features. Each revision reuses disclosed development outcomes, so this "
+                f"is not independent holdout validation. {self.horizon}-session outcomes overlap."
             )
         if self.news_feature_support is not None:
             result["news_feature_support"] = deepcopy(self.news_feature_support)
@@ -205,22 +342,129 @@ class LightGBMDemo:
                 " Retained issuer-headline features are optional and use only snapshots available "
                 "at each supplied session cutoff. Missing coverage is not a zero count."
             )
+        if self.peer_features is not None:
+            result["related_price_support"] = deepcopy(self.peer_features["support"])
+        if self._guidance_history is not None:
+            result["guidance_feature_support"] = deepcopy(self.guidance_support)
+        if self.profile_features is not None:
+            result["factor_profile"] = deepcopy(self.library["profile_resolution"])
+        if self.financial_features is not None:
+            result["financial_features"] = {
+                "definitions": deepcopy(self.financial_features["definitions"]),
+                "coverage_gaps": deepcopy(self.financial_features.get("coverage_gaps", [])),
+                "sample_coverage": deepcopy(self.financial_features.get("sample_coverage", [])),
+                "latest_visible_facts": deepcopy(self.financial_features.get("evidence", [{}])[-1]),
+                "notice": self.financial_features["notice"],
+            }
+        if self.external_features is not None:
+            result["external_features"] = {
+                "definitions": deepcopy(self.external_features["definitions"]),
+                "sample_coverage": deepcopy(self.external_features.get("sample_coverage", [])),
+                "failures": deepcopy(self.external_features.get("failures", [])),
+                "notice": self.external_features["notice"],
+            }
         return result
 
     def predict(self, context, factors, hypothesis):
         import lightgbm as lgb
 
+        if self._terminal_started:
+            raise ValueError("Research fitting is closed after terminal evaluation starts")
         self._news_configuration_open = False
+        self._has_predicted = True
         if not factors or any(item["kind"] not in {"numeric", "news"} for item in factors):
             raise ValueError(
                 "LightGBM demo accepts only selected numeric or supported news factors"
             )
         news_factors = [item for item in factors if item["kind"] == "news"]
-        if news_factors and not (self.news_feature_support or {}).get("runnable"):
+        headline_factors = [
+            f for f in news_factors if f["recipe"].get("op") != "guidance_direction"
+        ]
+        if headline_factors and not (self.news_feature_support or {}).get("runnable"):
             raise ValueError("News factor execution is unavailable for this study")
+        for factor in news_factors:
+            if factor["recipe"].get("op") == "guidance_direction" and not any(
+                d["runnable"]
+                and d["factor_id"] == factor["factor_id"]
+                and d["recipe"] == factor["recipe"]
+                for d in self.guidance_support
+            ):
+                raise ValueError("Guidance factor lacks its exact usable retained recipe")
         columns, news_inputs, news_evidence = [], [], {}
+        bound = {
+            item["factor_id"]: item for item in (self.profile_features or {}).get("definitions", [])
+        }
+        effective = {item["factor_id"]: item for item in factors}
+        bound_inputs = []
         for item in factors:
+            if item.get("recipe", {}).get("op") in {"financial_expression", "business_expression"}:
+                values, dependencies = business_column(
+                    item, self.financial_features, self.external_features
+                )
+                columns.append(values)
+                bound_inputs.append({"factor_id": item["factor_id"], "inputs": dependencies})
+                effective.update(
+                    {dependency["factor_id"]: dependency for dependency in dependencies}
+                )
+                continue
+            source_op = item.get("recipe", {}).get("op")
+            if source_op in {"financial", "external"}:
+                bundle = (
+                    self.financial_features if source_op == "financial" else self.external_features
+                )
+                retained = next(
+                    (
+                        d
+                        for d in (bundle or {}).get("definitions", [])
+                        if d["factor_id"] == item["factor_id"]
+                    ),
+                    None,
+                )
+                if retained is None or not retained["runnable"] or retained != item:
+                    raise ValueError(
+                        f"{source_op.title()} factor lacks its exact retained usable source"
+                    )
+                columns.append(np.asarray(bundle["columns"][item["factor_id"]], dtype=float))
+                continue
+            if item["factor_id"] in bound:
+                retained = bound[item["factor_id"]]
+                if (
+                    not retained["runnable"]
+                    or retained["recipe"] != item.get("recipe")
+                    or retained.get("source") != item.get("source")
+                ):
+                    raise ValueError("Bound factor lacks its exact usable retained source/recipe")
+                columns.append(self.profile_features["columns"][item["factor_id"]])
+                dependencies = [bound[key] for key in retained["input_factor_ids"]]
+                bound_inputs.append(
+                    {"factor_id": item["factor_id"], "inputs": deepcopy(dependencies)}
+                )
+                for dependency in dependencies:
+                    effective[dependency["factor_id"]] = dependency
+                    peer_id = dependency.get("runtime_dependency_id")
+                    if peer_id:
+                        effective[peer_id] = next(
+                            d
+                            for d in self.peer_features["definitions"]
+                            if d["factor_id"] == peer_id
+                        )
+                continue
             if item["kind"] == "numeric":
+                if item["recipe"].get("op") in {"peer_return", "relative_return"}:
+                    definitions = {
+                        d["factor_id"]: d for d in (self.peer_features or {}).get("definitions", [])
+                    }
+                    retained = definitions.get(item["factor_id"])
+                    if (
+                        not retained
+                        or not retained["runnable"]
+                        or retained["recipe"] != item["recipe"]
+                    ):
+                        raise ValueError(
+                            "Related factor lacks a usable retained recipe on the fixed sample"
+                        )
+                    columns.append(self.peer_features["columns"][item["factor_id"]])
+                    continue
                 columns.append(price_feature(self.data, item["recipe"]))
                 continue
             values, evidence = self._news_column(item["recipe"])
@@ -246,16 +490,61 @@ class LightGBMDemo:
             raise ValueError("Non-finite numerical training inputs")
         if not np.isfinite(matrix[self.origins]).all():
             raise ValueError("Non-finite numerical evaluation inputs")
-        model = lgb.train(
-            MODEL_PARAMETERS | {"seed": 7}, lgb.Dataset(x, label=y), num_boost_round=BOOST_ROUNDS
-        )
-        predicted_returns = np.asarray(model.predict(matrix[self.origins], num_threads=1))
+
+        def fit():
+            if self.estimator == "ridge":
+                return StandardizedRidge(x, y, self.model_configuration["parameters"]["alpha"])
+            return lgb.train(
+                MODEL_PARAMETERS | {"seed": 7},
+                lgb.Dataset(x, label=y),
+                num_boost_round=BOOST_ROUNDS,
+            )
+
+        model = None
+
+        def fit_state():
+            nonlocal model
+            model = fit()
+            return (
+                model.state()
+                if self.estimator == "ridge"
+                else {"model_string": model.model_to_string()}
+            )
+
+        if self.fit_cache:
+            state = self.fit_cache.call(
+                f"fit_{len(self._fits) + 1}",
+                {
+                    "x": x.tolist(),
+                    "y": y.tolist(),
+                    "configuration": self.model_configuration,
+                    "factors": factors,
+                },
+                fit_state,
+            )
+            if model is None:
+                model = (
+                    StandardizedRidge.from_state(state)
+                    if self.estimator == "ridge"
+                    else lgb.Booster(model_str=state["model_string"])
+                )
+        else:
+            model = fit()
+        if self.estimator == "ridge":
+            predict = model.predict
+        else:
+
+            def predict(rows):
+                return model.predict(rows, num_threads=1)
+
+        predicted_returns = np.asarray(predict(matrix[self.origins]))
         value = float(predicted_returns[-1])
         price = float(self.data.closes[self.origin, 0] * np.exp(value))
         if not np.isfinite(price) or price <= 0:
-            raise ValueError("LightGBM demo produced an invalid price")
+            raise ValueError("Study model produced an invalid price")
         result = {
-            "provider": "lightgbm",
+            "provider": self.estimator,
+            "model_configuration": deepcopy(self.model_configuration),
             "price_provider": self.price_provider,
             "predicted_price": price,
             "predicted_log_return": value,
@@ -269,23 +558,51 @@ class LightGBMDemo:
             "training_rows": len(self.train),
             "training_feature_columns": x.shape[1],
             "last_training_label_session": self.data.dates[self.train[-1] + self.horizon],
-            "training_target": "five_session_close_log_return",
-            "boost_rounds": BOOST_ROUNDS,
+            "training_target": self.model_configuration["target"],
         }
+        if self.estimator == "ridge":
+            result["fitted_model"] = model.state()
+        else:
+            result["boost_rounds"] = BOOST_ROUNDS
         if self.evaluation_sessions > 1:
             result["development"] = self._development(predicted_returns, float(y.mean()))
+        self._fits.append((predict, matrix, y.copy(), deepcopy(result["factor_ids"])))
         if self.news_feature_support is not None:
             result["news_feature_support"] = deepcopy(self.news_feature_support)
         if news_factors:
             result["news_feature_inputs"] = news_inputs
             result["news_feature_evidence"] = news_evidence
+        if self.peer_features is not None:
+            result["input_usage"] = self._input_usage(list(effective.values()))
+        if bound_inputs:
+            result["bound_factor_inputs"] = bound_inputs
         if self.price_info:
             if not np.isfinite(matrix[-1:]).all():
-                if not news_factors:
+                external_factors = [
+                    item for item in factors if item["recipe"].get("op") == "external"
+                ]
+                peer_factors = [
+                    item
+                    for item in factors
+                    if item["recipe"].get("op") in {"peer_return", "relative_return"}
+                ]
+                if (
+                    not news_factors
+                    and not peer_factors
+                    and not bound_inputs
+                    and not external_factors
+                ):
                     raise ValueError("Non-finite numerical latest-forecast inputs")
                 result["latest_forecast_unavailable"] = {
                     "origin_session": self.data.dates[-1],
-                    "reasons": ["latest_news_features_unavailable"],
+                    "reasons": ["latest_news_features_unavailable"]
+                    if not peer_factors and not bound_inputs and not external_factors
+                    else ["latest_selected_features_unavailable"],
+                    "missing_factor_ids": [
+                        item["factor_id"]
+                        for index, item in enumerate(factors)
+                        if not np.isfinite(matrix[-1, index])
+                    ],
                     "news_feature_evidence": {
                         item["factor_id"]: deepcopy(self._news_column(item["recipe"])[1][-1])
                         | {"cutoff": self._news_cutoffs[-1]}
@@ -293,10 +610,10 @@ class LightGBMDemo:
                     },
                 }
                 return result
-            latest_return = float(model.predict(matrix[-1:], num_threads=1)[0])
+            latest_return = float(predict(matrix[-1:])[0])
             latest_price = float(self.data.closes[-1, 0] * np.exp(latest_return))
             if not np.isfinite(latest_price) or latest_price <= 0:
-                raise ValueError("LightGBM produced an invalid latest forecast")
+                raise ValueError("Study model produced an invalid latest forecast")
             result["latest_forecast"] = {
                 "origin_session": self.data.dates[-1],
                 "reference_price": float(self.data.closes[-1, 0]),
@@ -308,11 +625,12 @@ class LightGBMDemo:
                 ],
                 "outcome": "not_observed",
             }
-            if news_factors:
+            if news_factors or self.peer_features is not None:
                 result["latest_forecast"]["feature_values"] = {
                     item["factor_id"]: float(matrix[-1, index])
                     for index, item in enumerate(factors)
                 }
+            if news_factors:
                 result["latest_forecast"]["news_feature_evidence"] = {
                     item["factor_id"]: deepcopy(self._news_column(item["recipe"])[1][-1])
                     | {"cutoff": self._news_cutoffs[-1]}
@@ -320,14 +638,200 @@ class LightGBMDemo:
                 }
         return result
 
-    def _development(self, predicted_returns, training_mean):
+    def _input_usage(self, factors):
+        selected = {item["factor_id"] for item in factors}
+        usage = [
+            {
+                "source": "target_prices",
+                "status": "used",
+                "factor_ids": [
+                    item["factor_id"]
+                    for item in factors
+                    if item["kind"] == "numeric"
+                    and item["recipe"].get("op")
+                    not in {
+                        "peer_return",
+                        "financial",
+                        "financial_expression",
+                        "external",
+                        "business_expression",
+                    }
+                ],
+                "reason": "target_labels_and_reference_prices",
+            }
+        ]
+        for source, bundle in (
+            ("publication_dated_financials", self.financial_features),
+            ("publication_dated_external_drivers", self.external_features),
+        ):
+            if bundle is None:
+                continue
+            ids = sorted(selected.intersection(d["factor_id"] for d in bundle["definitions"]))
+            usage.append(
+                {
+                    "source": source,
+                    "status": "used" if ids else "not_selected",
+                    "factor_ids": ids,
+                    "reason": bundle["notice"],
+                }
+            )
+        for peer in self.peer_features["support"]:
+            used = sorted(selected.intersection(peer["factor_ids"]))
+            usage.append(
+                {
+                    "source": peer["symbol"],
+                    "status": "used"
+                    if used
+                    else "not_selected"
+                    if peer["status"] == "available"
+                    else peer["status"],
+                    "factor_ids": used,
+                    "reason": peer["reason"],
+                    "provider": peer.get("provider"),
+                    "relationship_status": peer["relationship_status"],
+                }
+            )
+        guidance_ids = [
+            item["factor_id"]
+            for item in factors
+            if item.get("recipe", {}).get("op") == "guidance_direction"
+        ]
+        if self._guidance_history is not None:
+            usage.append(
+                {
+                    "source": "issuer_guidance",
+                    "factor_ids": guidance_ids,
+                    "status": "used"
+                    if guidance_ids
+                    else "not_selected"
+                    if any(d["runnable"] for d in self.guidance_support)
+                    else "unavailable",
+                    "reason": "source_bound_extraction_on_fixed_sample",
+                }
+            )
+        news_ids = [
+            item["factor_id"]
+            for item in factors
+            if item["kind"] == "news" and item["factor_id"] not in guidance_ids
+        ]
+        support = self.news_feature_support or {}
+        usage.append(
+            {
+                "source": "archived_headlines",
+                "status": "used"
+                if news_ids
+                else "not_selected"
+                if support.get("runnable")
+                else "unavailable",
+                "factor_ids": news_ids,
+                "reason": ", ".join(support.get("reasons", [])),
+            }
+        )
+        usage.append(
+            {
+                "source": "current_news",
+                "status": "context_only",
+                "factor_ids": [],
+                "reason": "hypothesis_context_not_backdated_training_data",
+            }
+        )
+        return usage
+
+    def comparison_inputs(self, selected_round):
+        """Copy the selected fit's exact inputs; evaluation labels are deliberately absent."""
+        if type(selected_round) is not int or not 1 <= selected_round <= len(self._fits):
+            raise ValueError("Comparison requires a completed selected fit")
+        _, matrix, training_labels, factor_ids = self._fits[selected_round - 1]
+        segments = {}
+        for name, indices in (
+            ("train", self.train),
+            ("development", self.origins),
+            ("terminal", self.terminal_origins),
+        ):
+            values = matrix[indices]
+            segments[name] = {
+                "sessions": [self.data.dates[i] for i in indices],
+                "features": np.where(np.isfinite(values), values, None).tolist(),
+                "available": bool(len(indices) and np.isfinite(values).all()),
+            }
+        segments["train"]["labels"] = training_labels.tolist()
+        segments["train"]["label_sessions"] = [
+            self.data.dates[i + self.horizon] for i in self.train
+        ]
+        return {
+            "selected_round": selected_round,
+            "horizon_sessions": self.horizon,
+            "symbol": self.data.instruments[0],
+            "factor_ids": deepcopy(factor_ids),
+            "model_configuration": deepcopy(self.model_configuration),
+            "segments": segments,
+        }
+
+    def terminal_plan(self):
+        """Dates only: frozen before research, with no terminal values or outcomes."""
+        return {
+            "status": "reserved" if len(self.terminal_origins) else "disabled",
+            "horizon_sessions": self.horizon,
+            "sample_count": len(self.terminal_origins),
+            "origin_sessions": [self.data.dates[i] for i in self.terminal_origins],
+            "target_sessions": [self.data.dates[i + self.horizon] for i in self.terminal_origins],
+            "development_last_target_session": self._planned_development_end,
+            "rule": "select_on_development_then_evaluate_selected_fitted_model_once_no_refit",
+            "limitation": "Reserved from research feedback and selection, but retrospective. "
+            "Current news and pretrained LLM knowledge are not historically isolated. "
+            "This is not prospective validation or calibrated evidence of predictive gain.",
+        }
+
+    def evaluate_terminal(self, selected_round):
+        if not len(self.terminal_origins):
+            raise ValueError("No terminal observations were reserved")
+        if self._terminal_started:
+            raise ValueError("Terminal evaluation can only run once")
+        if type(selected_round) is not int or not 1 <= selected_round <= len(self._fits):
+            raise ValueError("Selected round must identify a completed fitted model")
+        self._terminal_started = True
+        predict, matrix, training_labels, factor_ids = self._fits[selected_round - 1]
+        result = self.terminal_plan() | {
+            "selected_round": selected_round,
+            "factor_ids": factor_ids,
+            "refitted": False,
+        }
+        missing = [
+            {
+                "origin_session": self.data.dates[origin],
+                "factor_ids": [
+                    factor_ids[j]
+                    for j in range(len(factor_ids))
+                    if not np.isfinite(matrix[origin, j])
+                ],
+            }
+            for origin in self.terminal_origins
+            if not np.isfinite(matrix[origin]).all()
+        ]
+        if missing:
+            return result | {
+                "status": "unavailable",
+                "reason": "missing_selected_features",
+                "missing_inputs": missing,
+            }
+        evaluation = self._development(
+            np.asarray(predict(matrix[self.terminal_origins])),
+            float(training_labels.mean()),
+            origins=self.terminal_origins,
+        )
+        evaluation["evaluation_note"] = "retrospective_terminal_reserved_from_feedback_selection"
+        return result | {"status": "completed", "evaluation": evaluation}
+
+    def _development(self, predicted_returns, training_mean, *, origins=None):
+        origins = self.origins if origins is None else origins
+
         def rows(returns):
             result = []
-            for origin, value in zip(self.origins, returns, strict=True):
+            for origin, value in zip(origins, returns, strict=True):
                 reference = float(self.data.closes[origin, 0])
                 predicted = float(reference * np.exp(value))
                 if not np.isfinite(predicted) or predicted <= 0:
-                    raise ValueError("LightGBM study produced an invalid development price")
+                    raise ValueError("Study model produced an invalid development price")
                 result.append(
                     {
                         "origin_session": self.data.dates[origin],
@@ -343,7 +847,7 @@ class LightGBMDemo:
         predicted = rows(predicted_returns)
         baselines = {}
         for name, value in (("unchanged_price", 0.0), ("training_label_mean", training_mean)):
-            baseline_rows = rows(np.full(len(self.origins), value))
+            baseline_rows = rows(np.full(len(origins), value))
             baselines[name] = {
                 "prediction": "zero_log_return"
                 if name == "unchanged_price"
@@ -364,8 +868,8 @@ class LightGBMDemo:
                 "sample_count": "observations",
             },
             "currency": self.price_info.get("currency") if self.price_info else None,
-            "first_evaluation_session": self.data.dates[self.origins[0]],
-            "last_evaluation_session": self.data.dates[self.origins[-1]],
+            "first_evaluation_session": self.data.dates[origins[0]],
+            "last_evaluation_session": self.data.dates[origins[-1]],
             "evaluation_note": "retrospective_development_same_data_feedback_reuse",
         }
 
@@ -388,7 +892,7 @@ class LightGBMDemo:
         result = {
             "provider": "development_model_summary",
             "text": (
-                f"{context['symbol']}: two real LightGBM fits on {source} prices. "
+                f"{context['symbol']}: two real {self.model_label} fits on {source} prices. "
                 f"Initial price error {feedback['error']:+.4f}; revised price error "
                 f"{second_error:+.4f} against the same disclosed {source} observation. "
                 "The revised estimate has used this feedback; it is not independent validation "
@@ -419,6 +923,6 @@ class LightGBMDemo:
             result["text"] += (
                 f" Metrics describe the same {len(self.origins)} matured origins; "
                 "news informs retrospective selection and the revised fit reuses these disclosed "
-                "outcomes. Overlapping five-session labels are not independent samples."
+                f"outcomes. Overlapping {self.horizon}-session labels are not independent samples."
             )
         return result

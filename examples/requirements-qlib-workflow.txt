@@ -1,0 +1,5 @@
+# Optional actual upstream fit/predict/recorder environment, separate from normal development.
+-r ../requirements-dev.lock
+pyqlib==0.9.7
+mlflow==3.17.2
+pandas==2.3.3

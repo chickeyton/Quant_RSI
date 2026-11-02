@@ -2,7 +2,7 @@
 
 `ibapi` is imported only when this transport is constructed. It is never vendored into this
 repository; install it from the TWS API distribution (see docs/intraday_ibkr_design.md).
-This module cannot be exercised in CI; the fake transport covers the protocol behaviour.
+CI exercises callback and connection lifecycle behaviour with an offline API double.
 """
 
 import queue
@@ -216,6 +216,12 @@ class RealIbapiTransport:
         self.thread: threading.Thread | None = None
 
     def connect(self, host: str, port: int, client_id: int) -> None:
+        self.disconnect()
+        # EClient.disconnect emits connectionClosed, including during intentional teardown.
+        # A new connection must not consume that callback or race the old reader. Broker
+        # reconciliation recovers order facts from the previous connection.
+        self.inbox = queue.Queue()
+        self.bridge = build(self.ibapi)(self.inbox)
         self.bridge.connect(host, port, client_id)
         if not self.bridge.isConnected():
             raise ConnectionError(f"could not connect to TWS/IB Gateway at {host}:{port}")
@@ -225,6 +231,11 @@ class RealIbapiTransport:
 
     def disconnect(self) -> None:
         self.bridge.disconnect()
+        if self.thread is not None:
+            self.thread.join(timeout=5.0)
+            if self.thread.is_alive():
+                raise ConnectionError("IBKR reader did not stop; refusing to reuse the connection")
+            self.thread = None
 
     def is_connected(self) -> bool:
         return bool(self.bridge.isConnected())

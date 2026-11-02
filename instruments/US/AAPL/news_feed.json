@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "instrument": "AAPL",
+  "provider_id": "aapl_newsroom_feed",
+  "source_id": "retained_issuer_news",
+  "url": "https://www.apple.com/newsroom/rss-feed.rss",
+  "allowed_item_hosts": [
+    "www.apple.com"
+  ],
+  "capability": "rss_polling",
+  "content_extent": "rss_title_and_summary",
+  "event_template": {
+    "template_id": "issuer.earnings_release_title",
+    "description": "Exact registered issuer earnings-title indicator; no semantic or predictive claim",
+    "ttl_hours": 168
+  }
+}

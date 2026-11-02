@@ -6,8 +6,9 @@ from pydantic import TypeAdapter
 from quant_rsi.core.data import features
 from quant_rsi.core.schemas import FactorSpec
 from quant_rsi.factors.price_adapters import CandidatePriceRecipe, evaluate_price_adapter
+from quant_rsi.research.demo_proposals import StudyVolatilityRecipe
 
-PRICE_RECIPE = TypeAdapter(FactorSpec | CandidatePriceRecipe)
+PRICE_RECIPE = TypeAdapter(FactorSpec | CandidatePriceRecipe | StudyVolatilityRecipe)
 
 
 def price_feature(data, recipe):
@@ -17,6 +18,12 @@ def price_feature(data, recipe):
         return features(data, recipe)[:, 0, 0]
     prices = data.closes[:, 0]
     result = np.full(len(prices), np.nan)
+    if isinstance(recipe, StudyVolatilityRecipe):
+        for index in range(recipe.window, len(prices)):
+            window = prices[index - recipe.window : index + 1]
+            if np.isfinite(window).all() and (window > 0).all():
+                result[index] = np.std(np.diff(np.log(window)), ddof=1)
+        return result
     for index in range(recipe.observations - 1, len(prices)):
         value = evaluate_price_adapter(
             recipe, prices[index + 1 - recipe.observations : index + 1].tolist()

@@ -113,14 +113,14 @@ quant-rsi research-demo KO --related profile --news issuer-rss --llm codex
 
 The default is `--related simulated`. Profile mode loads
 [`instruments/US/KO/relationships.json`](../instruments/US/KO/relationships.json):
-CCEP is a bottling relationship and MNST a distribution relationship. The profile
+CCEP and KOF are bottling relationships; MNST is a distribution relationship. The profile
 records supporting source links and `reviewed_on: 2026-10-29`. These are configured
 business links, not automatically discovered peers or measured price correlations.
 Profiles allow one to three related issuers. Sources are reviewed configuration,
 not reverified on each run; an absent or invalid profile stops profile mode.
 
 With `--news issuer-rss`, the target and profile companies are routed to registered
-issuer feeds. Only KO currently has a verified feed configuration. CCEP and MNST
+issuer feeds. Only KO currently has a verified feed configuration. CCEP, MNST and KOF
 are explicitly reported as `not_configured`; their presence in the relationship
 profile does not mean their news was fetched. KO's target feed remains required.
 Coverage is therefore `partial`. A configured partner feed that fails or returns
@@ -156,7 +156,7 @@ at 256 KiB and at most 128 parsed items, selecting up to the requested limit.
 Responses reaching the byte limit or exceeding the item bound are rejected.
 It does not search
 the web, fetch article bodies or poll additional pages. Profile relationships
-enable routing to registered related-company feeds; currently CCEP/MNST have none.
+enable routing to registered related-company feeds; currently CCEP/MNST/KOF have none.
 
 Each selected item includes its ID, symbol, URL, title (up to 300 characters) and
 summary (up to 2,000 characters), with HTML stripped and truncation flagged,

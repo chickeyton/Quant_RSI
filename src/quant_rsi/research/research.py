@@ -729,10 +729,17 @@ def stop_reason(plan, checkpoint, journal, *, budget=None):
     used = sum(a["worker_seconds"] for a in journal.attempts())
     if used + budget["worker_timeout_seconds"] > budget["max_worker_seconds"]:
         return "worker_budget_exhausted"
-    if checkpoint["no_progress"] >= plan.policy.max_no_progress:
+    if (
+        plan.policy.algorithm == "neighbor_search_v1"
+        and checkpoint["no_progress"] >= plan.policy.max_no_progress
+    ):
         return "no_progress_limit"
     if researcher.next_factor(plan, checkpoint) is None:
-        return "registered_neighborhood_exhausted"
+        return (
+            "registered_search_space_exhausted"
+            if plan.policy.algorithm == "neighbor_exploration_v1"
+            else "registered_neighborhood_exhausted"
+        )
     return None
 
 

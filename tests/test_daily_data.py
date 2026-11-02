@@ -335,7 +335,7 @@ def test_invalid_inputs_leave_failure_receipt_and_original_response(tmp_path, mo
         result["meta"][key] = {
             "symbol": "OTHER",
             "currency": "EUR",
-            "exchange": "NMS",
+            "exchange": "LSE",
             "type": "CRYPTOCURRENCY",
         }[problem]
     elif problem == "array":
@@ -452,3 +452,64 @@ def test_public_binary_float_prices_fit_registered_decimal_precision():
         daily_data._price(1e-13)
     with pytest.raises(ValueError, match="magnitude"):
         daily_data._price(1e16)
+
+
+NASDAQ_CALENDAR = (
+    "<table><tr><th>Market</th><th>Hours</th></tr>"
+    "<tr><td>The Nasdaq Stock Market</td><td>9:30 am – 4:00 pm (ET)</td></tr></table>"
+    "<table><tr><th>Holiday</th><th>Date</th><th>Market Status</th></tr>"
+    + "".join(
+        f"<tr><td>Holiday</td><td>{date.fromisoformat(day).strftime('%B %d, %Y')}</td>"
+        "<td>Closed</td></tr>"
+        for day in sorted(HOLIDAYS)
+    )
+    + "<tr><td>Early Close</td><td>November 27, 2026</td><td>1:00 p.m.</td></tr>"
+    "<tr><td>Early Close</td><td>December 24, 2026</td><td>1:00 p.m.</td></tr></table>"
+).encode()
+
+
+@pytest.mark.parametrize("exchange", ["NMS", "NGM", "NCM"])
+def test_nasdaq_uses_own_calendar_and_preserves_holidays_and_early_close(
+    tmp_path, monkeypatch, exchange
+):
+    data = chart(last="2026-11-25")
+    meta = data["chart"]["result"][0]["meta"]
+    meta.update(symbol="AAPL", exchangeName=exchange, instrumentType="EQUITY")
+    calls = []
+
+    def get(request, timeout):
+        calls.append(request.full_url)
+        return Response(
+            NASDAQ_CALENDAR
+            if request.full_url == daily_data.NASDAQ_CALENDAR_URL
+            else json.dumps(data).encode(),
+            request.full_url,
+        )
+
+    monkeypatch.setattr(daily_data, "urlopen", get)
+    monkeypatch.setattr(
+        daily_data, "_now", lambda: datetime.fromisoformat("2026-11-26T12:00:00+00:00")
+    )
+    result = daily_data.collect_daily("AAPL", tmp_path / exchange)
+    assert daily_data.NASDAQ_CALENDAR_URL in calls
+    assert daily_data.CALENDAR_URL not in calls
+    contract = DataContract.model_validate_json(json.dumps(result["contract"]))
+    sessions = {s.session_id: s for s in contract.calendar.sessions}
+    assert "2026-11-26" not in sessions
+    assert sessions["2026-11-27"].close_at.hour == 13
+    assert contract.calendar.calendar_id.startswith("nasdaq_core_")
+    assert (tmp_path / exchange / "nasdaq_hours_calendar.html").read_bytes() == NASDAQ_CALENDAR
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        NASDAQ_CALENDAR.replace(b"1:00 p.m.", b"2:00 p.m."),
+        NASDAQ_CALENDAR.replace(b"January 01, 2026", b"January 02, 2027"),
+        NASDAQ_CALENDAR.replace(b"9:30 am", b"8:30 am"),
+        CALENDAR,
+    ],
+)
+def test_nasdaq_rejects_changed_or_incomplete_calendar(body):
+    with pytest.raises(ValueError):
+        daily_data._nasdaq_calendar(body)

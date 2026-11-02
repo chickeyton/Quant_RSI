@@ -6,9 +6,10 @@ from pydantic import Field, model_validator
 
 from quant_rsi.core.contracts_base import StrictModel
 from quant_rsi.core.schemas import FactorSpec
+from quant_rsi.factors.expressions import FactorExpression
+from quant_rsi.factors.expressions import Name as Name
 from quant_rsi.factors.price_adapters import CandidatePriceRecipe
 
-Name = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
 FactorId = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$", max_length=160)]
 InstrumentId = Annotated[str, Field(pattern=r"^[A-Z0-9][A-Z0-9._-]{0,31}$")]
 
@@ -62,6 +63,12 @@ class FactorBinding(StrictModel):
     source: SourceBinding
 
 
+class FactorComposition(FactorDefinition):
+    """An instrument-owned expression over its explicit binding names."""
+
+    expression: FactorExpression
+
+
 class InstrumentFactors(StrictModel):
     schema_version: Literal[1]
     kind: Literal["instrument_factor_config"]
@@ -70,6 +77,7 @@ class InstrumentFactors(StrictModel):
     catalogs: tuple[Name, ...]
     definitions: tuple[Definition, ...]
     bindings: tuple[FactorBinding, ...] = Field(min_length=1)
+    compositions: tuple[FactorComposition, ...] = ()
 
     @model_validator(mode="after")
     def unique_references(self) -> Self:

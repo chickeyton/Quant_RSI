@@ -8,11 +8,232 @@ After [installation](#installation-and-usage), run from the repository root:
 quant-rsi research-study KO --output /tmp/ko-study
 ```
 
+In an interactive terminal, this opens a local live UI: an animated research graph,
+clickable stage outputs, and the final comparison report. Use `--no-ui` for terminal-only
+runs, or `--ui` to open it explicitly. Completed views are saved as `live.html` alongside
+the report; no frontend install is needed. Node outputs include news cards, factor changes,
+interactive prediction/NAV charts and metric tables, with raw JSON available on demand.
+See the [live UI guide](docs/connected_research_study.md#live-research-ui).
+
+To start studies from the browser and return to previous tasks, open the local workbench:
+
+```bash
+quant-rsi research-ui --workspace /tmp/quant-rsi-workbench
+```
+
+Enter a watchlist (for example `KO, XOM, AAPL`), choose the researcher, model,
+rounds, fit budget and MAE/Sharpe selection, then queue a cycle. Each stock gets
+an observation task followed by a study; one failure does not block the next stock.
+An optional **Research question** focuses news discovery and both hypothesis rounds;
+it is saved with the template, task, report and forecast history.
+Save these settings as a template and optionally enable recurring cycles. Scheduling
+requires the workbench server to stay running; closing the browser is fine.
+The durable queue, history and **Continue study** controls survive reopening the
+same workspace. Comparison tables keep development metrics separate from matured
+forecast outcomes. API credentials stay in the server environment.
+The form can enable **publication-dated financial factors** and, by default for new form
+submissions, **research only on new evidence**. Unchanged prices, selected issuer news,
+quarterly filings and matured outcomes skip the study before paid calls; collection
+failures stay visible. Saved templates offer **Check & run** and **Force run**.
+When external industry drivers are enabled, stocks in the same batch and date window
+share the EIA download. Each task retains its own source bytes and original receipt
+times; a new batch collects afresh, so cached receipts do not mask new evidence.
+Before research starts, the task list and live view show price, news and financial
+collection followed by the new-evidence check. Failed preparations retain their last stage.
+When preparation starts a study, it passes the collected RSS snapshot into that study;
+the same news and original receipt times are reused instead of fetching RSS twice.
+Local completion/failure notices appear while the page is open. Existing saved options keep
+their previous behavior until edited.
+See [task operations and recovery](docs/connected_research_study.md#local-workbench-and-recovery).
+
+Shared study history retains selected factor recipes and feedback for the same stock,
+horizon and research question. Leave the question blank for general research.
+Later studies can reuse price/news recipes after checking current inputs; financial, peer and
+composed factors still require their current configured data/bindings. The report shows
+which historical candidates were available and selected again. This is recipe reuse,
+not proof that a previous factor was effective. News proposals may declare a finite
+reuse lifetime for an event-specific hypothesis. New studies exclude expired recipes;
+re-selection never renews the deadline, and old reports and feature values remain intact.
+
+
+
 This connects configured company relationships, issuer news, daily prices, two
 Codex hypothesis calls and two real LightGBM fits. Open `/tmp/ko-study/report.html`
 for prediction baselines, initial/revised strategies versus buy-and-hold, costs,
 Sharpe, volatility, maximum drawdown and the latest forecast. Use a new output path
-for each study. Risk statistics use short development samples, not independent validation.
+for each study. Before research, the study reserves 10 terminal observations. After
+development selection, it evaluates the chosen fitted model once on that interval,
+with separate forecast and costed strategy tables. Risk statistics remain short-sample
+descriptions; current-news/LLM knowledge prevents treating this as prospective validation.
+
+To let the LLM search current news, read selected public pages and suggest related
+companies with source citations, use the same entry point:
+
+```bash
+quant-rsi research-study KO --news-research --output /tmp/ko-active-study
+```
+
+This adds at most one follow-up search request before the two model fits. Missing
+readable sources trigger that recovery request even if the LLM proposes no follow-up;
+failures and recovery queries stay visible. The UI and report connect cited news to
+each hypothesis and distinguish **fitted**, **not selected**, and **unavailable** factors.
+Citations explain the research rationale, not the size of a source's effect on prediction.
+Current articles are never backdated into historical features.
+
+Choose a prediction horizon with `--horizon-sessions 5`, `20` or `60` (trading
+sessions; default: 5). The workbench provides the same selector. Each run keeps one
+horizon through prediction, strategy evaluation and later observation; history
+feedback is separated by horizon. Longer runs collect additional price history and
+require a published future calendar. See [prediction horizons](docs/connected_research_study.md#prediction-horizon).
+
+Use `--historical-sessions 252` with daily prices, or **Minimum price history** in the
+workbench, to request a longer input window. The horizon and optional time-window
+diagnostic set the minimum; the current maximum is 445 sessions. Existing longer
+collections are used in full and disclosed, while insufficient collections fail without
+being overwritten. Input checks and financial reports distinguish training rows from
+distinct financial values: repeating a quarterly value each day does not add independent
+financial observations. See [history and coverage](docs/connected_research_study.md#price-history-and-financial-variation).
+
+For a post-selection check across time windows, add `--walk-forward-folds 3`
+(or select two/three windows in the workbench). This freezes the selected recipe,
+refits on three chronological windows and reports forecast errors, costs, Sharpe,
+drawdown and buy-and-hold per window. It allows up to three additional fits and
+does not change adoption or publish a different forecast. See
+[time-window diagnostics](docs/connected_research_study.md#frozen-recipe-time-window-diagnostic).
+
+To let business hypotheses select revenue growth, operating-margin, cash-flow and inventory factors:
+
+```bash
+quant-rsi research-study KO --news-research --financials --output /tmp/ko-business-study
+```
+
+To focus that study on a concrete business question, add
+`--question "Could inventory growth indicate weaker demand? Which available variables can test it?"`.
+This guides the researcher; the chosen horizon and MAE/Sharpe selection remain fixed.
+With a question, Codex/API rounds also map each proposed claim to the selected factors
+and disclose missing measurements and limitations. The live view and final report
+distinguish proposed inputs, actual fitted columns and claims with no measured input;
+fitting a column does not confirm the claim. No additional LLM call is needed.
+
+With financial data or external drivers enabled, Codex/API researchers can also propose bounded business
+expressions, such as **inventory growth minus revenue growth**, execute them in the model,
+and revise their inputs or arithmetic after feedback. Expressions can also combine
+financial variables with EIA inventory changes, or compare two industry inventory changes.
+They preserve each source's publication cutoffs and periods; they cannot invent
+missing business data. The report displays their source bindings and operations, and the
+source-removal diagnostics remove dependent derived columns too. See
+[business expressions](docs/connected_research_study.md#business-factor-expressions).
+
+KO, AAPL and XOM support SEC company facts and official issuer earnings statements; calculations
+are shared. `--financials-source auto` (default) tries SEC, then the configured issuer
+archive if SEC is unavailable. Use `sec` or `issuer` to require a specific source. The report shows
+availability, selected factors, MAE/Sharpe and a same-row diagnostic with financial
+columns removed (up to **one additional fit**, separate from the research budget).
+Inventory growth uses comparable prior-year balance-sheet dates, not the preceding fiscal
+year-end or inventory changes from the cash-flow statement. Income factors use reported
+quarterly USD facts; cash-flow factors compare matching reported
+3/6/9/12-month periods. Each fact must be available by the feature cutoff. Missing
+facts disable the affected factor; they are not invented or filled with zero. Source failures and fallback choices remain visible. See the
+[financial data contract and offline example](docs/connected_research_study.md#financial-business-factors).
+
+For an energy-sector hypothesis, add **External drivers** in the workbench, or run:
+
+```bash
+quant-rsi research-study XOM --news-research --external-drivers \
+  --historical-sessions 252 --output /tmp/xom-industry-study
+```
+
+This offers EIA US petroleum inventory changes and, where archived price tables
+cover the required rows, WTI/Brent five-observation price returns. The researcher
+can select, combine and revise these industry variables alongside company factors;
+the report shows which columns were used. Archived release dates constrain availability.
+Missing price tables are not backfilled from today's prices; expired selected inputs
+can prevent the latest forecast while preserving completed historical fits. Retained
+older inventory-only snapshots remain unchanged. See
+[external business drivers](docs/connected_research_study.md#external-business-drivers).
+
+Check target prices, current news and financial-factor coverage before any LLM calls or fits:
+
+```bash
+quant-rsi research-study KO --financials --check-inputs --output /tmp/ko-input-check
+```
+
+The workbench **Check inputs** button offers the same check for a watchlist. Its table
+shows data sources, missing required rows, grouped reasons and suggested next steps.
+The live financial/input nodes and final report show the same gaps; the final table also
+distinguishes selected factors from available factors the researcher did not select.
+These diagnostics do not change feature values or make missing inputs usable.
+The check does not test LLM credentials, active
+news searches or peer prices. Every ordinary study also saves `input_report.html` before
+its first LLM request. Checks produce no forecast and do not consume new-evidence research.
+
+
+XOM also has a complete study configuration, using its official issuer RSS and
+a dated CVX business relationship. Run the same flow with
+`quant-rsi research-study XOM --news-research --output /tmp/xom-active-study`.
+Its local factor combines XOM and CVX returns; the engine and model are shared.
+Add `--financials --financials-source issuer` to research revenue, cash-flow and
+inventory hypotheses using XOM's official statements, including a configured Excel
+fallback when its PDF statements are unreadable. Inventory combines
+both reported inventory components; operating-margin factors remain unavailable because
+the configured statements do not separately report operating income. See the
+[XOM financial-data scope](docs/connected_research_study.md#xom-business-data).
+See the [second-stock example](docs/connected_research_study.md#second-stock-example-xom)
+for coverage and evidence limits.
+
+AAPL provides a Nasdaq example with Apple's official Atom news feed and a dated
+QCOM supplier relationship: `quant-rsi research-study AAPL --news-research --output /tmp/aapl-study`.
+Nasdaq daily prices use Nasdaq's own published holiday/early-close calendar. KO's CCEP
+peer can now use the same price path; MNST is recognized but its current retained window
+contains a split and remains unavailable under the existing corporate-action checks.
+See [Nasdaq coverage](docs/connected_research_study.md#nasdaq-example-aapl).
+
+
+With the [optional Qlib environment](docs/qlib_workflow_comparison.md), add
+`--compare-qlib` to run one actual upstream fit on the selected study's frozen
+features and splits. The same report compares forecasts and costed accounts;
+the comparison adds one declared fit and does not change research selection.
+
+The study also resolves the stock's factor profile: shared definitions, local definitions
+and bounded compositions retain their source bindings and ownership. KO can reuse the
+shared momentum recipe for KO and KOF and combine them in its own configured factor.
+Unavailable business sources remain pending. Factor cards and the report show what can
+run and what was selected. Explicit `--catalog` keeps the standalone catalog path;
+see [factor layers and execution](docs/factor_layers.md#execution-in-the-connected-study).
+
+Add `--history-dir /tmp/ko-research-history` to connect separate study runs. The next
+run observes prior forecasts using newly received prices and passes mature outcomes
+to the LLM, while sharing the retained news archive. The UI shows pending and observed
+forecasts with price error, costed return and Sharpe. Use `research-history observe`
+to update outcomes without another fit; see [continuous research](docs/connected_research_study.md#continue-research-across-market-days).
+Late forecasts remain non-prospective, and account results are hypothetical.
+The research view also freezes the history seen at the start of that run, marks which
+mature outcomes were supplied as feedback, and compares the previous selected factor
+set with this run's selected model. Pending outcomes remain unknown.
+
+The study adopts a revision only when its **development MAE strictly improves**;
+otherwise it retains the incumbent for the latest forecast. To choose strategy
+Sharpe instead, set `--selection-metric sharpe` before the run. Ties and unavailable
+comparisons retain the incumbent. All attempts remain in the report; this is
+development selection, not independent validation. Stage progress goes to stderr
+(`--quiet` hides it); `runtime.json` records elapsed time, call counts and reported
+token usage without estimating a monetary cost.
+
+For a bounded multi-round study, keep the same entry point:
+
+```bash
+quant-rsi research-study KO --rounds 5 --max-fits 4 --patience 2 \
+  --news-research --output /tmp/ko-multi-round-study
+```
+
+This permits at most four fits, stopping earlier after two consecutive trials fail to
+improve the incumbent. The UI/report shows each round, its factors, MAE, net return,
+Sharpe, adoption decision and the stopping reason. Later hypotheses receive the
+incumbent's feedback and the complete development trial history. Terminal evaluation
+does not consume another fit or feed another revision. The defaults remain two fits
+and 10 reserved terminal observations. Use `--terminal-sessions 0` for the previous
+development-only window. See [iteration limits](docs/connected_research_study.md#bounded-research-iterations)
+and [terminal evaluation](docs/connected_research_study.md#reserved-terminal-evaluation).
 
 To try the same report offline, with real model fits on synthetic inputs:
 
@@ -23,7 +244,10 @@ quant-rsi research-study KO --output /tmp/ko-study-offline \
 
 The [connected study guide](docs/connected_research_study.md) explains prerequisites,
 options, artifacts and interpretation. Feedback revises bounded price recipes and
-headline-count recipes when receipt-time news history supports them;
+headline-count recipes when receipt-time news history supports them. `--news-research`
+also extracts issuer earnings-guidance changes with source quotes and completion times.
+The resulting guidance factors can enter training when retained history supports them,
+and can be removed in the next research round;
 both attempts use the same development observations, so a better second result
 is not independent evidence of improvement. The latest forecast has no observed
 outcome. RSI means **recursive self-improvement** here; testing whether research
@@ -108,23 +332,25 @@ at a time.
 | Connected research study | One command produces a trace and HTML/Markdown report with bounded recipe proposals, two model fits, prediction baselines and costed strategy comparisons; development feedback is reused |
 | Simulated product loop | One stock-symbol command shows context, catalog-based factor selection, prediction, feedback, revised selection and a second prediction; each simulated service can be replaced independently |
 | Live LLM hypotheses | Optional Codex CLI or OpenAI Responses API makes two independent calls with explicit feedback; current news is research context, not historical training data |
-| Company relationships | Optional KO profile lists source-backed CCEP bottling and MNST distribution links; configured relationships, not automatic discovery or statistical correlations |
-| Live news in the product loop | Routes target and configured related issuers to registered RSS feeds; KO is available, CCEP/MNST are explicitly `not_configured`; no general search or article fetching |
-| News features in the connected study | Literal keyword counts over retained target headlines, gated by original receipt time and freshness; insufficient history leaves proposals pending, while the offline synthetic demo can exercise actual news columns |
-| LightGBM in the product loop | Numeric feature calculation and two fits on synthetic or collected daily prices; feedback informs a development reestimate at the same origin, with no independent improvement claim |
-| Daily prices in the product loop | Collect once or reuse verified daily evidence; report development errors separately from the latest-bar five-session forecast, whose outcome is unobserved |
+| Company relationships and prices | Configured links and optional source-cited suggestions feed bounded related-price collection (up to three symbols). Aligned peer-return and target-minus-peer-return factors can enter both fits; unavailable markets/history stay explicit. LLM suggestions remain unverified and do not rewrite profiles |
+| Live news in the product loop | Registered RSS remains the default; optional active research uses Codex/API web search, bounded public-page reads and one optional follow-up request, with receipts, citations and failures in the report |
+| News features in the connected study | Retained headline counts and, with active research, source-bound issuer guidance direction. Receipt/extraction clocks gate execution; insufficient history leaves factors pending. The synthetic demo exercises numerical news columns and their removal |
+| Models in the product loop | LightGBM by default; `research-study --model ridge` uses a regularized linear alternative with training-only scaling on the same feature/maturity path. Two actual fits reuse development feedback; neither choice implies independent improvement |
+| Actual Qlib workflow | Optional `research-study --compare-qlib` runs upstream DatasetH/LGBModel on the selected common inputs, with one additional fit, local recorder and shared costed account comparisons. This does not compare Qlib's portfolio engine or autonomous research |
+| Study factor proposals | Momentum, mean return, local Qlib-style ROC/MA, trailing log-return volatility and eligible archived headline counts can enter the feature matrix. The LLM can also select related-price recipes from the run-local catalog; no arbitrary generated code |
+| Daily prices in the product loop | Collect once or reuse verified daily evidence; report development errors separately from the latest-bar forecast at the selected horizon, whose outcome is unobserved |
 | Bounded research workflow | One profile runs bounded discovery, costed per-fold strategy/buy-and-hold reports and linked forecast/paper observation; feedback uses development forecast MAE only |
 | Five-session price forecasting | Available for explicitly supported sources/markets; includes collection, fixed-model research, model sealing and replay |
 | Prospective forecast observation | Offline registration and append-only outcome settlement from observed market receipts; real prospective accumulation and outcome-driven policy updates remain outstanding |
 | Enhanced forecast comparison | Available: three predefined price/context recipes, frozen folds, naive controls and a separate publication fit |
-| Bounded factor research | Available: momentum/mean-return neighbor search and limited, registered research-program changes |
+| Bounded factor research | Momentum/mean-return neighbor search, opt-in [plateau exploration](docs/research_exploration.md) under the same budget/checkpoint path, and limited registered research-program changes |
 | Shared and instrument-specific factors | Numeric bindings can enter bounded discovery; general text definitions remain specifications |
 | Automatic factor discovery | Finite multi-leaf compositions, feedback-dependent exploration and common multi-fold comparisons; no general proposer-program evolution |
 | Candidate factor execution | Opt-in [Qlib ROC and MA close-price adapters](docs/candidate_factor_runtime.md) feed bounded discovery; the remaining survey candidates are not executable |
 | Dynamic event factors | Registered title instances, observed lifecycle transitions, decay and archival; KO RSS observations can enter this path |
 | Multi-branch factor discovery | CALM is a worked specification; its factor tree is not executable |
-| News and financial evidence | Retained KO title indicators can enter opt-in comparisons/discovery; other evidence remains sidecar-only |
-| News collection and extraction | [Bounded KO official RSS observations](docs/news_collection.md), retained-title extraction and revision tracking; provider-side search/full-text extraction remain open in [RFC #28](https://github.com/natureofnature/Quant_RSI/issues/28) |
+| News and financial evidence | Retained title/guidance features and opt-in publication-dated KO/AAPL/XOM business factors can enter connected-study training; available fields, missing inputs and current-context-only evidence are disclosed |
+| News collection and extraction | [Bounded KO official RSS observations](docs/news_collection.md), retained-title extraction and revision tracking; the study adds current search/page text for hypotheses. The [first news-factor slice](docs/news_factor_slice.md) is implemented; general historical text-feature extraction remains under #8/#39 B |
 | Statistical confirmation and promotion | Incomplete; protected evaluation is engineering-only and retains the incumbent |
 | Intraday bars, model and IBKR paper trading | Standalone, offline-tested: IBKR adapter with a paper-only guard, intraday snapshots, intraday and daily-history features, fixed LightGBM development evaluation, replay simulator and paper-account episodes. Not yet wired into the C2/C4/C5 controller or `quant-rsi`; see the [intraday guide](docs/intraday_ibkr.md) |
 | Live trading and general self-modification | Not implemented |
@@ -242,12 +468,12 @@ arbitrary generated code. Detailed contracts are in the
    the native engine alongside compatible mature engines; measure useful results
    and the effort required to test a hypothesis.
 
-Track the [architecture RFC #24](https://github.com/natureofnature/Quant_RSI/issues/24),
-[factor-tree issue #8](https://github.com/natureofnature/Quant_RSI/issues/8),
-[news RFC #28](https://github.com/natureofnature/Quant_RSI/issues/28),
-[factor discovery RFC #31](https://github.com/natureofnature/Quant_RSI/issues/31),
-[minimal-loop RFC #39](https://github.com/natureofnature/Quant_RSI/issues/39) and
-[broader roadmap #1](https://github.com/natureofnature/Quant_RSI/issues/1).
+The [issue audit and ownership map](docs/issue_status.md) separates delivered
+specifications and bounded slices from remaining implementation and research work.
+Track ongoing delivery in [#39](https://github.com/natureofnature/Quant_RSI/issues/39),
+the [broader roadmap #1](https://github.com/natureofnature/Quant_RSI/issues/1) and
+the specific gaps linked in that map. Historical architecture, news and competitive
+RFCs remain useful design records; their closure does not establish scientific results.
 The [architecture specification](docs/architecture.md) describes the target design;
 it is not a declaration that every capability is implemented.
 
@@ -263,6 +489,7 @@ it is not a declaration that every capability is implemented.
 | Understand shared factors and single-stock bindings | [Factor layers](docs/factor_layers.md) |
 | Use the first source-pinned candidate adapters | [Candidate factor runtime](docs/candidate_factor_runtime.md) |
 | Compare native price formulas with actual pinned Qlib operators | [Optional Qlib operator comparison](docs/qlib_operator_comparison.md) |
+| Compare the selected study with an actual upstream Qlib workflow | [Optional Qlib workflow comparison](docs/qlib_workflow_comparison.md) |
 | Inspect a company-specific factor tree | [CALM worked example](docs/calm_factor_discovery_example.md) |
 | Run a five-session baseline or enhanced comparison | [Baseline](docs/forecast_baseline.md), [enhanced workflow](docs/enhanced_forecast_workflow.md) |
 | Run bounded recursive market research | [Recursive market exploration](docs/recursive_market_exploration.md) |
@@ -291,7 +518,10 @@ predictive quality. Start with tests relevant to a change, then run the required
 broader checks; no coverage-percentage threshold is configured. For reproducible
 timings and bounded logs, use `python examples/profile_validation.py --output
 /tmp/quant-rsi-validation` with a fresh directory. Optional `--shards 2` keeps each
-module's shared fixtures in one process; CI uses this two-process mode.
+module's shared fixtures in one process and balances modules using recorded timing
+hints; CI uses this two-process mode without removing tests.
+An additional parallel CI job runs the two [Qlib integration test modules](docs/qlib_workflow_comparison.md)
+in the pinned optional environment; the core suite keeps its normal dependencies.
 [Validation cost and test tiers](docs/validation_cost.md)
 describes focused feedback and final-revision full-suite evidence. CI preserves
 these profiles as artifacts for 14 days.

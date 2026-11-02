@@ -18,8 +18,8 @@ def test_profile_mode_completes_loop_with_simulated_remaining_stages(capsys):
     result = json.loads(capsys.readouterr().out)
     assert result["mode"] == "mixed" and result["summary"]["factors_changed"]
     related = next(item["output"] for item in result["trace"] if item["stage"] == "related_stocks")
-    assert related["stocks"] == ["CCEP", "MNST"]
-    assert related["reviewed_on"] == "2026-10-29"
+    assert related["stocks"] == ["CCEP", "MNST", "KOF"]
+    assert related["reviewed_on"] == "2026-10-30"
     assert related["selection"] == "configured_not_discovered"
     assert "source-backed configuration" in result["notice"]
     assert "News, LLM, prices and predictions are simulated" in result["notice"]

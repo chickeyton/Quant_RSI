@@ -65,6 +65,7 @@ class Position:
     entry_session: int
     entry_cost: Decimal
     exit_proceeds: Decimal = Decimal(0)
+    exit_quantity: int = 0
     exit_pending: bool = False
     exit_reason: str | None = None
     exit_requested_at: int | None = None
@@ -272,12 +273,16 @@ class _Session:
         )
 
     def on_flatten(self, at: int) -> None:
+        self.sim.cancelled_entries += len(self.pending_entries)
+        self.pending_entries.clear()
         for position in list(self.positions.values()):
             if not position.exit_pending:
                 self.schedule_exit(position, at, "flatten")
 
     # Fills -----------------------------------------------------------------------------------
     def on_fill(self, at: int, instrument: str, side: str, quantity: int, index: int, t) -> None:
+        if side == "buy" and instrument not in self.pending_entries:
+            return  # the flatten event cancelled this scheduled entry
         costs, signal = self.sim.plan.costs, self.sim.plan.signal
         execution = self.execution[instrument]
         cap_units = Decimal(costs.participation_cap) * Decimal(
@@ -315,13 +320,13 @@ class _Session:
         fee = commission(filled, notional, costs)
         self.cash += notional - fee
         self.record(at, instrument, side, filled, price, notional, fee, fallback)
-        share = Decimal(filled) / Decimal(position.quantity)
-        cost_share = money(position.entry_cost * share, costs)
-        position.entry_cost -= cost_share
+        position.exit_proceeds += notional - fee
+        position.exit_quantity += filled
         position.quantity -= filled
-        net = notional - fee - cost_share
-        if position.quantity == 0:
-            del self.positions[instrument]
+        if position.quantity > 0:
+            self.retry_exit(position, index)
+            return
+        del self.positions[instrument]
         self.round_trips += 1
         self.sim.round_trips.append(
             {
@@ -334,12 +339,10 @@ class _Session:
                     else self.bar_at(at) - position.entry_bar
                 ),
                 "exit_reason": position.exit_reason,
-                "quantity": filled,
-                "net_pnl": format(net, "f"),
+                "quantity": position.exit_quantity,
+                "net_pnl": format(position.exit_proceeds - position.entry_cost, "f"),
             }
         )
-        if position.quantity > 0:
-            self.retry_exit(position, index)
 
     def retry_exit(self, position: Position, index: int) -> None:
         execution = self.execution[position.instrument]

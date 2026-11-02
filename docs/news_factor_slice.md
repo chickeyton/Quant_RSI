@@ -143,8 +143,13 @@ idempotence. Integration tests pass actual pipeline evidence into the existing w
 including a small synthetic LightGBM pair, and verify common-mask exclusions and replay.
 These are invented engineering fixtures, **not** historical return experiments or alpha claims.
 
-This is an initial A/B/C vertical slice, not completion of every RFC checkbox: there is no
+This completes the selected first A/B/C vertical slice of RFC #28: one supported
+instrument, one explicitly labeled retained-corpus search adapter, one versioned
+boolean extraction task and one factor through the paired worker. This path has no
 live provider integration, full-article retention, generalized entity linking, quantity
-extraction, general retraction interpretation, broad causal factor tree, independent
-statistical confirmation, or production promotion. It cannot supply a historical corpus
-that does not exist. Independent statistical confirmation remains separate under issue #4.
+extraction, general retraction interpretation or broad causal factor tree. The separate
+[connected study](connected_research_study.md) uses current web search and article
+text as hypothesis context; it does not backfill those pages into this historical
+feature pipeline. Missing historical coverage is still missing. Further executable
+text/hierarchy work remains under #8/#39 B, independent confirmation under #4 and
+production promotion under #2. See the [complete issue audit](issue_status.md).

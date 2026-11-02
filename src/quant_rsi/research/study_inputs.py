@@ -1,0 +1,180 @@
+"""Human-readable input coverage before any paid research or model fitting."""
+
+from html import escape
+
+from quant_rsi.core.artifacts import atomic_write, canonical
+
+
+def input_report(root, symbol, model, news, financials, external=None):
+    financials = financials or {
+        "provider": "disabled",
+        "definitions": [],
+        "notice": "Not requested",
+    }
+    report = {
+        "kind": "input_check",
+        "symbol": symbol,
+        "prices": {
+            "provider": model.price_provider,
+            "first_session": str(model.data.dates[0]),
+            "last_session": str(model.data.dates[-1]),
+            "historical_sessions": len(model.data.dates),
+            "training_rows": len(model.train),
+            "development_rows": len(model.origins),
+        },
+        "news": {
+            "provider": news.get("provider"),
+            "items": len(news.get("items", [])),
+            "coverage": news.get("coverage", []),
+        },
+        "financials": {k: v for k, v in financials.items() if k not in {"columns", "evidence"}},
+        "notice": "Input coverage only: no LLM calls or model fits at this point. "
+        "Peer prices, active news searches, article reading and LLM availability are not checked. "
+        "Current news does not establish historical news coverage. "
+        "Unavailable financial factors are excluded; "
+        "available price factors can still be researched.",
+    }
+    if external is not None:
+        report["external_drivers"] = {
+            k: v for k, v in external.items() if k not in {"columns", "evidence"}
+        }
+    atomic_write(root / "input_report.json", canonical(report))
+
+    def table(headers, rows):
+        def cells(row, tag):
+            return "".join(f"<{tag}>{escape(str(x))}</{tag}>" for x in row)
+
+        if not rows:
+            return "<p>None recorded.</p>"
+        return (
+            "<div class='table-scroll'><table><thead><tr>"
+            + cells(headers, "th")
+            + "</tr></thead><tbody>"
+            + "".join("<tr>" + cells(row, "td") + "</tr>" for row in rows)
+            + "</tbody></table></div>"
+        )
+
+    prices = report["prices"]
+    periods = financials.get("coverage", {}).get("reported_periods", [])
+    body = table(
+        ["Input", "Source", "Coverage"],
+        [
+            [
+                "Target prices",
+                prices["provider"],
+                f"{prices['first_session']} → {prices['last_session']}",
+            ],
+            [
+                "Research samples",
+                prices["provider"],
+                f"{prices['historical_sessions']} price sessions · "
+                f"{prices['training_rows']} training rows · "
+                f"{prices['development_rows']} development rows",
+            ],
+            [
+                "Current news",
+                report["news"]["provider"],
+                f"{report['news']['items']} retained items",
+            ],
+            [
+                "Financial statements",
+                financials["provider"],
+                f"{len(periods)} retained periods · {periods[0]} → {periods[-1]}"
+                if periods
+                else "No retained quarterly values",
+            ],
+        ],
+    )
+    body += "<h2>Executable financial factors</h2>" + table(
+        ["Factor", "Available", "Missing required rows", "Definition"],
+        [
+            [
+                d["factor_id"],
+                "Available" if d["runnable"] else "Unavailable",
+                d["missing_required_rows"],
+                d["description"],
+            ]
+            for d in financials["definitions"]
+        ],
+    )
+    body += "<p>" + escape(financials["notice"]) + "</p>"
+    if financials.get("sample_coverage"):
+        body += "<h2>Financial variation on research rows</h2>" + table(
+            [
+                "Factor",
+                "Available training rows",
+                "Distinct training values",
+                "Distinct development values",
+            ],
+            [
+                [
+                    r["factor_id"],
+                    f"{r['training_available_rows']} / {r['training_rows']}",
+                    r["training_distinct_values"],
+                    r["development_distinct_values"],
+                ]
+                for r in financials["sample_coverage"]
+            ],
+        )
+        body += (
+            "<p>Counts use the frozen research rows only. Repeated daily values are not "
+            "independent financial observations; distinct values are not a count of filings. "
+            "A constant training feature cannot explain differences between training rows. "
+            "Coverage does not establish predictive value.</p>"
+        )
+    if financials.get("coverage_gaps"):
+        body += "<h2>Why financial factors are unavailable</h2><div class='coverage-gaps'>" + table(
+            ["Factor", "Missing required rows", "Reason", "Example cutoff", "Next step"],
+            [
+                [
+                    g[k]
+                    for k in (
+                        "factor_id",
+                        "missing_required_rows",
+                        "description",
+                        "example_cutoff",
+                        "next_step",
+                    )
+                ]
+                for g in financials["coverage_gaps"]
+            ],
+        )
+        body += (
+            "</div><p>One primary reason per missing required row; source failures may coexist. "
+            "Suggestions do not guarantee coverage. Use a new collection and study; "
+            "do not fill missing values or move publication dates.</p>"
+        )
+    body += "<h2>Data source attempts</h2>" + table(
+        ["Provider", "Status", "Reason"],
+        [
+            [a["provider"], a["status"], a.get("reason", "")]
+            for a in financials.get("source_attempts", [])
+        ],
+    )
+    body += "<h2>Unavailable statements</h2>" + table(
+        ["Release", "Reason"],
+        [[f["release_url"], f["error"]] for f in financials.get("source_failures", [])],
+    )
+    document = """<!doctype html><html lang="en"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Research input check</title><style>
+body{background:#0b1220;color:#e5edf9;font:16px system-ui;
+max-width:1100px;margin:40px auto;padding:20px}
+h1,h2{color:#72e3d1}p{line-height:1.6}
+.table-scroll{max-width:100%;overflow:auto}table{width:100%;min-width:680px;border-collapse:collapse}
+.coverage-gaps{overflow:auto}.coverage-gaps table{min-width:760px}
+th,td{text-align:left;padding:12px;border-bottom:1px solid #334155;overflow-wrap:anywhere}
+th:first-child,td:first-child{min-width:150px}th:nth-child(2),td:nth-child(2){min-width:180px}
+th{color:#a7bbd8}h2{margin-top:32px;font-size:20px}</style><main>"""
+    if external is not None:
+        body += "<h2>External business drivers</h2>" + table(
+            ["Factor", "Available", "Missing required rows", "Reason"],
+            [
+                [d["factor_id"], d["runnable"], d["missing_required_rows"], d["reason"]]
+                for d in external["definitions"]
+            ],
+        )
+        body += "<p>" + escape(external["notice"]) + "</p>"
+    document += f"<h1>{escape(symbol)} · Input check</h1><p>{escape(report['notice'])}</p>" + body
+    atomic_write(root / "input_report.html", (document + "</main></html>").encode())
+    return report

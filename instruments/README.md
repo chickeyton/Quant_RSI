@@ -6,8 +6,9 @@ All instruments share the engine in `src/quant_rsi/`. Keep instrument-specific c
 
 Shared stock definitions live in [`shared/equities.json`](shared/equities.json).
 Each stock selects them and declares its own sources in `<MARKET>/<SYMBOL>/factors.json`:
-see [CALM](US/CALM/factors.json) and [KO](US/KO/factors.json). CALM's egg-price and
-disease-event definitions stay inside CALM; they are not stock-wide defaults.
+see [CALM](US/CALM/factors.json), [KO](US/KO/factors.json) and [XOM](US/XOM/factors.json).
+CALM's egg-price and disease-event definitions stay inside CALM; they are not
+stock-wide defaults.
 
 Run `quant-rsi factors validate US CALM` to resolve and inspect the configuration.
 This is read-only specification validation, not data collection or forecasting.
@@ -15,6 +16,20 @@ The [factor-layer guide](../docs/factor_layers.md) explains numeric/text types,
 ownership, examples and the remaining execution boundary.
 
 ## Tracked Profiles
+
+For `research-study`, KO and XOM have `relationships.json`, `news_feed.json` and
+`factors.json` configurations. XOM uses its official issuer RSS, a dated CVX
+joint-venture relationship and a local XOM-minus-CVX return composition over
+shared stock definitions. See the [XOM study example](../docs/connected_research_study.md#second-stock-example-xom).
+These are connected-study configurations, not registered `forecast-workflow`
+campaign profiles. A new stock still needs supported public prices and reviewed
+source configuration; adding a symbol alone does not establish those inputs.
+
+KO, AAPL and XOM also have `financials.json` mappings for publication-dated business
+features. XOM's issuer mapping reads revenue and cash flow and sums the two reported
+inventory components. Operating margin remains unavailable. See the
+[XOM financial scope](../docs/connected_research_study.md#xom-business-data) for source
+selection, successor identity and missing-data limits.
 
 Profiles follow `instruments/<MARKET>/<SYMBOL>/forecast.json`. The current US examples explicitly bind SOXL/XSD/SPY and KO/XLP/SPY as target/industry/market roles. They also declare the supported source, calendar, history, horizon, price units, and availability assumption.
 

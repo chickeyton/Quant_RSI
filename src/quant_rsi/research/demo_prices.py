@@ -12,19 +12,36 @@ from quant_rsi.market.market_contracts import DataContract
 from quant_rsi.market.market_data import parse_csv
 
 
-def load_daily_prices(symbol, directory):
+def load_daily_prices(symbol, directory, *, horizon_sessions=5, historical_sessions=None):
+    if type(horizon_sessions) is not int or horizon_sessions not in (5, 20, 60):
+        raise ValueError("Prediction horizon must be 5, 20 or 60 trading sessions")
+    required = HISTORY_SESSIONS + 3 * (horizon_sessions - 5)
+    if historical_sessions is not None:
+        if type(historical_sessions) is not int or not required <= historical_sessions <= 445:
+            raise ValueError("Historical sessions must cover the horizon and not exceed 445")
+        required = historical_sessions
     root = Path(directory).resolve()
     if not root.exists() or not any(root.iterdir()):
-        collect_daily(symbol, root)
+        if horizon_sessions == 5 and required == HISTORY_SESSIONS:
+            collect_daily(symbol, root)
+        else:
+            collect_daily(
+                symbol,
+                root,
+                historical_sessions=required,
+                future_sessions=horizon_sessions,
+            )
     try:
-        return _read_collection(symbol, root)
+        return _read_collection(
+            symbol, root, horizon_sessions=horizon_sessions, historical_sessions=required
+        )
     except (KeyError, TypeError, IndexError):
         raise ValueError(
             "Incomplete daily collection; use a fresh --prices-dir to collect"
         ) from None
 
 
-def _read_collection(symbol, root):
+def _read_collection(symbol, root, *, horizon_sessions=5, historical_sessions=HISTORY_SESSIONS):
     receipt = json.loads((root / "collection_receipt.json").read_bytes())
     if (receipt.get("kind"), receipt.get("status"), receipt.get("ticker")) != (
         "PublicDailyCollection",
@@ -40,11 +57,17 @@ def _read_collection(symbol, root):
     }:
         raise ValueError("Daily collection input hashes differ from the retained receipt")
     contract = DataContract.model_validate_json(contract_raw)
-    if contract.instruments != (symbol,) or receipt["historical_sessions"] != HISTORY_SESSIONS:
+    count = receipt["historical_sessions"]
+    if contract.instruments != (symbol,) or type(count) is not int or count < HISTORY_SESSIONS:
         raise ValueError("Daily collection universe or historical window differs")
-    sessions = contract.calendar.sessions[:HISTORY_SESSIONS]
-    if len(contract.calendar.sessions) < HISTORY_SESSIONS + 5:
-        raise ValueError("Daily collection needs a published five-session future calendar")
+    if count < historical_sessions:
+        raise ValueError("Insufficient retained history for this horizon; use a fresh --prices-dir")
+    sessions = contract.calendar.sessions[:count]
+    if len(contract.calendar.sessions) < count + horizon_sessions:
+        raise ValueError(
+            "Daily collection needs a published future calendar for this horizon; "
+            "use a fresh --prices-dir"
+        )
     events = parse_csv(contract, events_raw, receipt["completed_at"])
     quotes = {}
     for event in events:
@@ -69,6 +92,7 @@ def _read_collection(symbol, root):
     )
     return data, {
         "provider": "public_daily_prices",
+        "horizon_sessions": horizon_sessions,
         "collection_directory": str(root),
         "received_at": receipt["completed_at"],
         "source_id": contract.source_id,
@@ -76,6 +100,8 @@ def _read_collection(symbol, root):
         "price_basis": "raw",
         "currency": contract.currency,
         "qualifications": receipt["qualifications"],
-        "latest_target_session": contract.calendar.sessions[HISTORY_SESSIONS - 1 + 5].session_id,
+        "latest_target_session": contract.calendar.sessions[
+            count - 1 + horizon_sessions
+        ].session_id,
         "session_close_times": [session.close_at.isoformat() for session in sessions],
     }

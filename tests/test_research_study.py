@@ -41,7 +41,7 @@ def test_offline_entry_saves_report_and_complete_account_loop(tmp_path):
     steps = {event["stage"]: event["output"] for event in result["trace"]}
     for key in ("first_prediction", "second_prediction"):
         prediction = steps[key]
-        assert prediction["training_feature_columns"] == 2
+        assert prediction["training_feature_columns"] == 3
         assert prediction["news_feature_support"]["runnable"]
         assert {row["value"] for row in prediction["news_feature_inputs"]} == {0.0, 1.0}
         assert prediction["development"]["metrics"]["sample_count"] == 20
@@ -84,15 +84,21 @@ def test_offline_entry_saves_report_and_complete_account_loop(tmp_path):
 
 
 @pytest.mark.parametrize("use_news", [True, False])
+@pytest.mark.parametrize("model", ["lightgbm", "ridge"])
 def test_codex_proposals_execute_and_feedback_includes_predictions_and_strategy(
     tmp_path,
     monkeypatch,
     use_news,
+    model,
 ):
     calls = []
 
     def codex(self, prompt, schema):
         data = json.loads(prompt.split("\nINPUT_JSON:\n")[1])
+        assert "lightgbm and ridge modes fit real models" in prompt
+        assert data["context"]["model_mode"] == model
+        assert data["context"]["model_configuration"]["name"] == model
+        assert data["context"]["related_price_support"][0]["status"] == "available"
         calls.append(data)
         assert "proposed_factors" in schema["required"]
         revision = data["feedback"] is not None
@@ -110,7 +116,8 @@ def test_codex_proposals_execute_and_feedback_includes_predictions_and_strategy(
         return json.dumps(
             {
                 "hypothesis": "<script>alert('untrusted')</script> test supplied news hypothesis",
-                "factor_ids": [f"research.{op}_{window}"] + (["news.events_7"] if use_news else []),
+                "factor_ids": [f"research.{op}_{window}", "peer.DEMO_PEER_A.peer_return_5"]
+                + (["news.events_7"] if use_news else []),
                 "evidence_news_ids": [data["context"]["news"]["items"][0]["id"]],
                 "event_signal": 0.2,
                 "proposed_factors": [{"op": op, "window": window, "description": "Bounded test"}],
@@ -127,10 +134,12 @@ def test_codex_proposals_execute_and_feedback_includes_predictions_and_strategy(
 
     monkeypatch.setattr(llm.LLMHypothesizer, "_codex", codex)
     root = tmp_path / "connected"
-    assert main(command(root, "--llm", "codex")) == 0
+    assert main(command(root, "--llm", "codex", "--model", model)) == 0
     assert len(calls) == 2 and calls[0]["context"]["news"] == calls[1]["context"]["news"]
     result = json.loads((root / "result.json").read_text())
     assert result["study"]["factor_changes"]["activated"] == ["research.qlib_roc_v1_13"]
+    predictions = [e["output"] for e in result["trace"] if e["stage"].endswith("_prediction")]
+    assert all("peer.DEMO_PEER_A.peer_return_5" in p["feature_values"] for p in predictions)
     assert result["study"]["news_factors"]["support"]["runnable"]
     assert result["study"]["news_factors"]["executed_initial"] == (
         ["news.events_7"] if use_news else []
@@ -160,6 +169,12 @@ def test_failed_revision_keeps_first_fit_and_feedback_without_success_report(tmp
     assert main(command(root, "--llm", "simulated")) == 1
     failure = json.loads((root / "failure.json").read_text())
     assert failure["last_completed_stage"] == "feedback"
+    runtime = json.loads((root / "runtime.json").read_text())
+    assert failure["runtime"] == runtime
+    assert runtime["status"] == "failed"
+    assert runtime["stages"][-1]["stage"] == "revised_hypothesis"
+    assert runtime["stages"][-1]["status"] == "failed"
+    assert runtime["counts"]["model_stages_completed"] == 1
     stages = [json.loads(line)["stage"] for line in (root / "trace.jsonl").read_text().splitlines()]
     assert "first_prediction" in stages
     assert not (root / "result.json").exists() and not (root / "report.html").exists()
@@ -236,4 +251,8 @@ def test_api_study_uses_strict_proposal_schema_and_keeps_key_out_of_artifacts(
     root = tmp_path / "api"
     assert main(command(root, "--llm", "api", "--llm-model", "test-model")) == 0
     assert len(calls) == 2
-    assert all("study-api-test-secret" not in path.read_text() for path in root.iterdir())
+    assert all(
+        "study-api-test-secret" not in path.read_text()
+        for path in root.rglob("*")
+        if path.is_file()
+    )

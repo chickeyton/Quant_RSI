@@ -99,6 +99,10 @@ exceeds the estimated round-trip commission and spread plus `entry_threshold`. W
 `policy_search`, the plan's `signal` is used as written. Declined entries are counted as
 `policy_declined_entries` in evaluation and journaled as `entry_declined` on paper.
 
+Trade counts and hit rates use completed position round trips. Partial exit fills remain
+separate in the fill ledger, but contribute one aggregate net P&L and one trade only when
+the position is fully closed. The simulator cancels pending entries at the flatten time.
+
 Two profiles are checked in, each with a matching development plan:
 
 | Profile | Traded instrument | Context | Development plan |
@@ -168,7 +172,8 @@ development cycle**. Only `collect` reads from TWS; nothing in the cycle places 
 How the sync behaves:
 - **Snapshots:** `push-snapshot` checks the snapshot locally, sends only the store files the
   server lacks, never overwrites one, and then loads the snapshot on the server, which
-  verifies every digest. The local `pacing.sqlite` is not sent.
+  verifies the manifest, columns, and referenced raw response envelopes and bodies. Missing
+  or corrupt raw evidence fails verification. The local `pacing.sqlite` is not sent.
 - **Commands:** `run` accepts only `evaluate` and `fit`. Paths in their arguments are
   relative to the server's repository copy.
 - **Pulls:** `pull` refuses a file whose SHA-256 differs from `--expect-sha256` (use the
@@ -218,7 +223,10 @@ python -m quant_rsi.intraday paper-stop --journal runs/ko/paper.sqlite \
     stopping or suspended.
   - Registration is also refused if the account already holds any of the episode's
     instruments.
-  - To hand over, stop the old episode. It finishes its session flat and terminates.
+  - To hand over, stop the old episode. It terminates only when flat with no unresolved
+    orders. Unconfirmed orders at the close suspend the episode and retain the account.
+    A suspended episode can be stopped and run again to reconcile and finish; this does
+    not re-enable entries.
 - **Timing.**
   - Decisions happen `decision_latency_seconds` after each 5-minute bar ends.
   - Orders are held and submitted at the start of the next 1-minute fill bar.
@@ -246,6 +254,10 @@ python -m quant_rsi.intraday paper-stop --journal runs/ko/paper.sqlite \
   - Open orders, executions and positions are reconciled before each submission.
   - Each entry is re-checked when it is submitted. A risk block, a stop or the flatten time
     arriving after the decision abandons the queued entry.
+  - Notional limits include the proposed buy and the remaining quantities of submitted,
+    unknown and cancelling buys at their limit prices, alongside existing holdings.
+  - A resumed stream clears only its own stale state; any other stale stream still blocks
+    entries.
   - A stop cancels working entries and exits open positions at the next fill bar.
 - **Reconnects.**
   - `paper-run` reconciles before trading and after every reconnect.
@@ -257,6 +269,8 @@ python -m quant_rsi.intraday paper-stop --journal runs/ko/paper.sqlite \
     subscriptions.
   - A disconnect is a pause: the runner reconnects, re-checks the paper guard, reconciles,
     and re-subscribes in recovery mode.
+  - Reconnection waits for the old reader to stop and uses a fresh callback queue, so old
+    connection-close callbacks cannot abort the new handshake.
   - Replayed bars fill the panel but are excluded from the arrival-delay statistics.
     Decisions whose submission window has already passed are skipped.
   - If reconnecting keeps failing, the episode is suspended.

@@ -8,6 +8,7 @@ import pytest
 from intraday_helpers import build_snapshot, contract, plan, sessions
 from pydantic import ValidationError
 
+from quant_rsi.core.artifacts import decode
 from quant_rsi.intraday.contracts import ExecutionTiming, validate_timing
 from quant_rsi.intraday.evaluation import evaluate_development
 from quant_rsi.intraday.features import build_features, default_leaves, session_features
@@ -264,3 +265,57 @@ def test_development_evaluation_runs_end_to_end(tmp_path):
     assert [f["model_digest"] for f in repeat["folds"]] == [
         f["model_digest"] for f in report["folds"]
     ]
+
+
+@pytest.mark.parametrize("reference", ["manifest", "receipt"])
+@pytest.mark.parametrize("artifact", ["envelope", "body"])
+@pytest.mark.parametrize("damage", ["missing", "corrupt"])
+def test_snapshot_verifies_retained_raw_closure(tmp_path, reference, artifact, damage):
+    store, ref = build_snapshot(tmp_path, count=3)
+    snapshot = store.load(ref)
+    raw = store.put_raw("history", b"[]", {"instrument": "KO"})
+    kwargs = {"raw_refs": [raw]} if reference == "manifest" else {"receipts": [{"raw_ref": raw}]}
+    ref = store.commit(snapshot.contract, snapshot.blocks.values(), **kwargs)
+    assert store.load(ref).ref == ref
+    key = raw if artifact == "envelope" else decode(store.get(raw))["body_ref"]
+    if damage == "missing":
+        store._path(key).unlink()
+    else:
+        store._path(key).write_bytes(b"corrupt")
+    with pytest.raises((ValueError, FileNotFoundError)):
+        store.load(ref)
+
+
+def test_partial_exits_count_one_completed_round_trip(tmp_path):
+    store, ref = build_snapshot(tmp_path, count=3)
+    snapshot = store.load(ref)
+    session = snapshot.contract.calendar.sessions[0]
+    key = ("KO", "execution", session.session_id)
+    block = snapshot.blocks[key]
+    columns = {name: values.copy() for name, values in block.columns.items()}
+    columns["volume"][35:45] = 1000
+    snapshot.blocks[key] = Block(block.instrument, block.grid, block.session_id, columns)
+    result = simulate(snapshot, plan(), {("KO", 0, 0): 1.0}, [0])
+    buys = [f for f in result.fills if f["side"] == "buy"]
+    sells = [f for f in result.fills if f["side"] == "sell"]
+    assert len(buys) == 1 and len(sells) > 1
+    assert result.metrics()["round_trips"] == 1
+    assert result.sessions[0].round_trips == 1
+    trip = result.round_trips[0]
+    assert trip["quantity"] == buys[0]["quantity"] == sum(f["quantity"] for f in sells)
+    proceeds = sum(Decimal(f["notional"]) - Decimal(f["commission"]) for f in sells)
+    cost = Decimal(buys[0]["notional"]) + Decimal(buys[0]["commission"])
+    assert Decimal(trip["net_pnl"]) == proceeds - cost
+
+
+def test_flatten_cancels_delayed_entry(tmp_path):
+    store, ref = build_snapshot(
+        tmp_path, count=3, missing={("KO", "2026-01-05"): tuple(range(366, 376))}
+    )
+    snapshot = store.load(ref)
+    development = plan(signal={"horizon_bars": 1}, timing={"max_fill_delay_seconds": 900})
+    result = simulate(snapshot, development, {("KO", 0, 72): 1.0}, [0])
+    assert not result.fills
+    assert not result.round_trips
+    assert result.cancelled_entries == 1
+    assert not result.sessions[0].unresolved

@@ -21,7 +21,7 @@ C2_FINGERPRINT = "16b85204c89093fef074a58f2f445216d17ef81875b4042352babd42dd6423
 
 
 class SearchPolicy(StrictModel):
-    algorithm: Literal["neighbor_search_v1"]
+    algorithm: Literal["neighbor_search_v1", "neighbor_exploration_v1"]
     window_min: int = Field(ge=1, le=30)
     window_max: int = Field(ge=1, le=30)
     min_improvement: float = Field(ge=0)
@@ -68,7 +68,8 @@ class ResearchPlan(StrictModel):
         self.forecast_profile.validate_development(self.development)
         domain = self.neighbor_domain
         if (
-            self.policy.neighbor_order != "window_first"
+            self.policy.algorithm != "neighbor_search_v1"
+            or self.policy.neighbor_order != "window_first"
             or self.policy.window_min != domain.window_min
             or self.policy.window_max not in domain.caps
             or (
@@ -118,7 +119,7 @@ def package_definition(plan: ResearchPlan) -> dict:
             "relationship": "engineering_upgrade_not_promotion",
         },
         "lineage": plan.package_lineage.model_dump(mode="json") if plan.package_lineage else None,
-        "algorithm": "neighbor_search_v1",
+        "algorithm": plan.policy.algorithm,
         "source_digest": digest(Path(__file__).read_bytes()),
         "implementation_files": {
             name: digest(Path(__file__).with_name(name).read_bytes())
@@ -134,6 +135,7 @@ def package_definition(plan: ResearchPlan) -> dict:
             registered_neighbor_domain_ref=domain_ref(plan),
             forecast_recursive_profile_ref=forecast_profile_ref(plan),
         )
+    if plan.schema_version == 3 or plan.policy.algorithm == "neighbor_exploration_v1":
         value["implementation_files"]["task_definition.py"] = digest(
             Path(__file__).with_name("task_definition.py").read_bytes()
         )
@@ -163,7 +165,7 @@ def initial_state(campaign_id: str, package_ref: str, memory_ref: str) -> dict:
 
 
 def next_factor(plan: ResearchPlan, checkpoint: dict) -> dict | None:
-    """Finite grammar preflight; filtered neighbors consume no proposal reservation."""
+    """Finite registered search; rejected/visited factors consume no proposal reservation."""
     if checkpoint["next_position"] == 0:
         return plan.development.proposals[0].factor
     incumbent = checkpoint["incumbent"]
@@ -177,12 +179,26 @@ def next_factor(plan: ResearchPlan, checkpoint: dict) -> dict | None:
     ]
     if plan.policy.neighbor_order == "operator_first":
         neighbors = [neighbors[2], *neighbors[:2]]
+    exploring = plan.policy.algorithm == "neighbor_exploration_v1"
+    if exploring:
+        # A frozen, finite restart order. The existing visited set and no-progress
+        # counter fully determine recovery; no RNG or additional checkpoint is needed.
+        frontier = [
+            (candidate_op, candidate_window)
+            for candidate_window in range(plan.policy.window_min, plan.policy.window_max + 1)
+            for candidate_op in ("momentum", "mean_return")
+        ]
+        neighbors = (
+            frontier
+            if checkpoint["no_progress"] >= plan.policy.max_no_progress
+            else neighbors + frontier
+        )
     for next_op, next_window in neighbors:
         if not plan.policy.window_min <= next_window <= plan.policy.window_max:
             continue
         capacity = (
             training_row_capacity(plan.development, next_window)
-            if plan.schema_version == 3
+            if plan.schema_version == 3 or exploring
             else (plan.development.data.train_cutoff - 1 - next_window)
             * plan.development.data.instruments
         )
@@ -215,6 +231,11 @@ def expected_proposal(plan: ResearchPlan, checkpoint: dict) -> dict:
             "unsupported if improvement or feasibility fails."
         )
     )
+    if previous is not None and plan.policy.algorithm == "neighbor_exploration_v1":
+        rationale += (
+            " Registered neighbor-first exploration uses ascending window/operator frontier "
+            "after a plateau or exhausted neighborhood; only strict improvement changes incumbent."
+        )
     return {"name": f"research_{position:04d}", "hypothesis": rationale, "factor": factor}
 
 

@@ -1,0 +1,53 @@
+{
+  "symbol": "KO",
+  "cik": "21344",
+  "fields": {
+    "revenue": [
+      "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "Revenues",
+      "SalesRevenueNet"
+    ],
+    "operating_income": [
+      "OperatingIncomeLoss"
+    ],
+    "operating_cashflow": [
+      "NetCashProvidedByUsedInOperatingActivities"
+    ],
+    "capital_expenditure": [
+      "PaymentsToAcquirePropertyPlantAndEquipment"
+    ],
+    "inventory": [
+      "InventoryNet"
+    ]
+  },
+  "issuer": {
+    "archive": "html_links",
+    "index_url": "https://investors.coca-colacompany.com/financial-information",
+    "allowed_hosts": [
+      "investors.coca-colacompany.com"
+    ],
+    "release_pattern": "/press-releases/detail/\\d+/coca-cola-reports-.*quarter.*results",
+    "pdf_pattern": "/earnings_release/.*\\.pdf$",
+    "statement_title": "Consolidated Statements of Income",
+    "rows": {
+      "revenue": "Net Operating Revenues",
+      "operating_income": "Operating Income"
+    },
+    "cashflow": {
+      "statement_title": "Consolidated Statements of Cash Flows",
+      "rows": {
+        "operating_cashflow": [
+          "Net Cash Provided by (Used in) Operating Activities",
+          "Net Cash Provided by Operating Activities"
+        ],
+        "capital_expenditure": "Purchases of property, plant and equipment"
+      }
+    },
+    "balance": {
+      "statement_title": "Consolidated Balance Sheets",
+      "rows": {
+        "inventory": "Inventories"
+      }
+    }
+  }
+}

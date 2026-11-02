@@ -1,0 +1,14 @@
+{
+  "instrument": "AAPL",
+  "reviewed_on": "2026-10-31",
+  "relationships": [
+    {
+      "symbol": "QCOM",
+      "relationship": "modem_supplier",
+      "reason": "Qualcomm announced a September 2023 agreement covering smartphone launches in 2024, 2025 and 2026. Dated business context, not a claim about every current device or a causal return relationship.",
+      "source_urls": [
+        "https://investor.qualcomm.com/news-events/press-releases/news-details/2023/Qualcomm-Announces-Agreement-with-Apple-for-Chip-Supply-09-11-2023/default.aspx"
+      ]
+    }
+  ]
+}

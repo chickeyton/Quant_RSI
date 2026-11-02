@@ -46,7 +46,12 @@ def main(argv: list[str] | None = None) -> int:
             else "simulate one complete stock research loop",
         )
         demo.add_argument("symbol", nargs="?", default="KO")
-        demo.add_argument("--catalog", type=Path, default=Path("instruments/shared/equities.json"))
+        demo.add_argument(
+            "--catalog",
+            type=Path,
+            default=None if study else Path("instruments/shared/equities.json"),
+            help="explicit standalone catalog; bypasses study instrument bindings",
+        )
         demo.add_argument("--json", action="store_true", help="emit the complete trace as JSON")
         demo.add_argument(
             "--llm",
@@ -71,19 +76,178 @@ def main(argv: list[str] | None = None) -> int:
         )
         demo.add_argument("--prices-dir", type=Path, help="retained daily collection directory")
         if study:
+            demo.add_argument(
+                "--news-snapshot",
+                type=Path,
+                help="reuse a retained issuer RSS snapshot without fetching RSS again",
+            )
+            demo.add_argument(
+                "--history-dir", type=Path, help="shared study receipts, outcomes and news archive"
+            )
+            demo.add_argument(
+                "--factor-root",
+                type=Path,
+                default=Path("instruments"),
+                help="root of shared and instrument factor profiles (default: instruments)",
+            )
+            demo.add_argument(
+                "--related-prices",
+                action=argparse.BooleanOptionalAction,
+                default=True,
+                help="collect up to three related symbols and offer aligned price factors",
+            )
+            demo.add_argument(
+                "--related-prices-dir",
+                type=Path,
+                help="root of retained daily peer collections, one subdirectory per symbol",
+            )
+            demo.add_argument(
+                "--financials",
+                action="store_true",
+                help="publication-dated financial features with one optional diagnostic fit",
+            )
+            demo.add_argument(
+                "--financials-dir", type=Path, help="retained financial snapshot directory"
+            )
+            demo.add_argument(
+                "--financials-source",
+                choices=("auto", "sec", "issuer"),
+                default="auto",
+                help="auto tries SEC then the configured official issuer archive",
+            )
+            demo.add_argument(
+                "--check-inputs",
+                action="store_true",
+                help="check target prices, news and financial coverage without LLM calls or fits",
+            )
+            demo.add_argument(
+                "--external-drivers",
+                action="store_true",
+                help="EIA weekly US inventory factors with up to one extra diagnostic fit",
+            )
+            demo.add_argument(
+                "--external-drivers-dir",
+                type=Path,
+                help="retained EIA weekly petroleum snapshot directory",
+            )
+            demo.add_argument(
+                "--external-drivers-cache-dir",
+                type=Path,
+                help="shared EIA resource cache; use a fresh directory for each research cycle",
+            )
+            demo.add_argument("--model", choices=("lightgbm", "ridge"), default="lightgbm")
+            demo.add_argument(
+                "--compare-qlib",
+                action="store_true",
+                help="one additional upstream Qlib LightGBM fit on the selected study inputs",
+            )
+            demo.add_argument(
+                "--ridge-alpha", type=float, help="positive ridge penalty (default: 1; ridge only)"
+            )
             demo.add_argument("--output", type=Path, required=True, help="new report directory")
+            demo.add_argument(
+                "--question",
+                default="",
+                help="optional research focus (up to 1000 characters)",
+            )
+            demo.add_argument(
+                "--news-research",
+                action="store_true",
+                help="search/read current articles and suggest sourced company relationships",
+            )
             demo.add_argument(
                 "--news-archive",
                 type=Path,
                 help="retain/reuse issuer RSS snapshots with original receipt times",
             )
             demo.add_argument("--evaluation-sessions", type=int, default=20, choices=range(2, 21))
+            demo.add_argument(
+                "--historical-sessions",
+                type=int,
+                help="minimum daily-price history (up to 445 sessions); all retained rows are used",
+            )
+            demo.add_argument(
+                "--walk-forward-folds",
+                type=int,
+                default=0,
+                choices=(0, 2, 3),
+                help="post-selection chronological diagnostic (one extra fit per fold)",
+            )
+            demo.add_argument(
+                "--horizon-sessions",
+                type=int,
+                default=5,
+                choices=(5, 20, 60),
+                help="prediction target in trading sessions (default: 5)",
+            )
+            demo.add_argument(
+                "--terminal-sessions",
+                type=int,
+                default=10,
+                choices=range(21),
+                help="reserved final evaluation observations (default: 10; 0: development only)",
+            )
+            demo.add_argument(
+                "--rounds",
+                type=int,
+                default=2,
+                choices=range(2, 11),
+                help="maximum research fits, including the initial fit (default: 2)",
+            )
+            demo.add_argument(
+                "--max-fits",
+                type=int,
+                choices=range(2, 11),
+                help="fit allowance; defaults to --rounds",
+            )
+            demo.add_argument(
+                "--patience",
+                type=int,
+                choices=range(1, 11),
+                help="stop after this many consecutive non-improving trials",
+            )
             demo.add_argument("--initial-cash", default="10000")
             demo.add_argument("--commission-bps", default="5")
             demo.add_argument("--slippage-bps", default="5")
             demo.add_argument("--threshold", type=float, default=0.0)
+            demo.add_argument(
+                "--selection-metric",
+                choices=("mae", "sharpe"),
+                default="mae",
+                help="preselect the development metric for adopting a revision (default: mae)",
+            )
+            demo.add_argument("--quiet", action="store_true", help="hide stderr stage progress")
+            demo.add_argument(
+                "--ui",
+                action=argparse.BooleanOptionalAction,
+                default=None,
+                help="open the live research view (default: interactive terminal, except --json)",
+            )
         else:
             demo.add_argument("--model", choices=("simulated", "lightgbm"), default="simulated")
+    workbench = commands.add_parser("research-ui", help="local research launcher and task history")
+    workbench.add_argument("--workspace", type=Path, required=True)
+    workbench.add_argument("--port", type=int, default=0)
+    workbench.add_argument("--open", action=argparse.BooleanOptionalAction, default=True)
+    retry = commands.add_parser("research-resume", help="continue an interrupted study")
+    retry.add_argument("directory", type=Path)
+    retry.add_argument("--ui", action="store_true")
+    history = commands.add_parser(
+        "research-history", help="inspect or observe saved study forecasts"
+    )
+    history.add_argument("action", choices=("status", "observe"))
+    history.add_argument("symbol")
+    history.add_argument("--history-dir", type=Path, required=True)
+    history.add_argument("--json", action="store_true", help="emit all retained history fields")
+    history.add_argument(
+        "--ui",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="open the latest study view with current history",
+    )
+    history.add_argument(
+        "--prices-dir", type=Path, help="later retained daily collection; required for observe"
+    )
     workflow = commands.add_parser("research-workflow", help="one frozen research/account profile")
     workflow_commands = workflow.add_subparsers(dest="workflow_command", required=True)
     for name in ("prepare", "run"):
@@ -308,10 +472,76 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--steps", type=int, default=1)
     args = parser.parse_args(argv)
     try:
+        if args.command == "research-ui":
+            from quant_rsi.research.study_workbench import serve
+
+            serve(args.workspace, port=args.port, open_browser=args.open)
+            return 0
+        if args.command == "research-resume":
+            from quant_rsi.research.study import run_study
+            from quant_rsi.research.study_resume import resume_arguments
+
+            result = run_study(resume_arguments(args.directory, ui=args.ui), resume=True)
+            if result.get("kind") == "input_check":
+                print(f"Input check completed: {args.directory.resolve() / 'input_report.html'}")
+                return 0
+            print(
+                f"Research completed: {args.directory.resolve() / 'report.html'}\n"
+                + result["study"]["conclusion"]
+            )
+            return 0
+        if args.command == "research-history":
+            from quant_rsi.research.study_history import (
+                collection_snapshot,
+                history_view,
+                observe_prices,
+            )
+
+            symbol = args.symbol.strip().upper()
+            if args.action == "observe":
+                if args.prices_dir is None:
+                    raise ValueError("research-history observe requires --prices-dir")
+                result = observe_prices(
+                    args.history_dir, symbol, collection_snapshot(symbol, args.prices_dir)
+                )
+            else:
+                if args.prices_dir is not None:
+                    raise ValueError("research-history status does not read prices")
+                result = history_view(args.history_dir, symbol)
+            if (args.ui if args.ui is not None else sys.stderr.isatty()) and result["entries"]:
+                from quant_rsi.research.study_ui import start_view
+
+                start_view(Path(result["entries"][-1]["run_directory"]))
+            if args.json:
+                print(json.dumps(result, indent=2, allow_nan=False))
+            else:
+                entries = result["entries"]
+                pending = sum(e["status"] == "pending" for e in entries)
+                settled = sum(e["status"] == "settled" for e in entries)
+                print(
+                    f"{symbol}: {len(entries)} studies shown; "
+                    f"{pending} pending, {settled} settled, "
+                    f"{len(entries) - pending - settled} unavailable/non-prospective. "
+                    "Use --json for full evidence or --ui for the study view."
+                )
+            return 0
         if args.command == "research-study":
             from quant_rsi.research.study import run_study
 
+            if args.ui is None:
+                args.ui = sys.stderr.isatty() and not args.json
             result = run_study(args)
+            if args.check_inputs:
+                print(
+                    json.dumps(result, indent=2, allow_nan=False)
+                    if args.json
+                    else f"Input check completed: {args.output.resolve() / 'input_report.html'}"
+                )
+                if args.ui:
+                    import webbrowser
+
+                    webbrowser.open((args.output.resolve() / "input_report.html").as_uri())
+                return 0
             print(
                 json.dumps(result, indent=2, allow_nan=False)
                 if args.json

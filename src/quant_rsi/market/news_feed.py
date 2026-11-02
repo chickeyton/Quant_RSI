@@ -2,6 +2,7 @@
 
 import re
 import xml.etree.ElementTree as ET
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 from urllib.error import HTTPError
@@ -96,10 +97,12 @@ def parse(body, source, max_items):
     text = body.decode("utf-8-sig")
     if re.search(r"<!DOCTYPE|<!ENTITY", text, re.IGNORECASE):
         raise ValueError("RSS document declarations/entities are unsupported")
-    channel = ET.fromstring(text).find("channel")
-    if channel is None:
-        raise ValueError("expected RSS channel")
-    items = channel.findall("item")
+    root = ET.fromstring(text)
+    atom = root.tag == "{http://www.w3.org/2005/Atom}feed"
+    channel = root.find("channel")
+    if channel is None and not atom:
+        raise ValueError("expected RSS channel or Atom feed")
+    items = root.findall("{http://www.w3.org/2005/Atom}entry") if atom else channel.findall("item")
     if len(items) > max_items:
         raise ValueError("RSS item allowance exceeded")
     records = {}
@@ -108,6 +111,23 @@ def parse(body, source, max_items):
             key: item.findtext(key, "").strip()
             for key in ("guid", "link", "title", "description", "pubDate")
         }
+        if atom:
+            ns = "{http://www.w3.org/2005/Atom}"
+            links = [
+                link.get("href", "")
+                for link in item.findall(ns + "link")
+                if link.get("rel", "alternate") == "alternate"
+            ]
+            if len(links) != 1:
+                raise ValueError("Atom entry requires one unambiguous alternate link")
+            fields = {
+                "guid": item.findtext(ns + "id", "").strip(),
+                "title": item.findtext(ns + "title", "").strip(),
+                "link": links[0],
+                "description": item.findtext(ns + "summary") or item.findtext(ns + "content", ""),
+                "pubDate": item.findtext(ns + "published", "").strip(),
+                "updated": item.findtext(ns + "updated", "").strip(),
+            }
         identity = fields["guid"] or fields["link"]
         if not identity or not fields["title"]:
             raise ValueError("RSS item requires identity and title")
@@ -120,6 +140,13 @@ def parse(body, source, max_items):
         ):
             raise ValueError("RSS item link outside registered issuer hosts")
         published, day, precision = _publication(fields["pubDate"])
+        if atom and fields["pubDate"]:
+            try:
+                value = datetime.fromisoformat(fields["pubDate"])
+                if value.tzinfo is not None:
+                    published, day, precision = value.astimezone(UTC).isoformat(), None, "second"
+            except ValueError:
+                pass  # An unparseable publication stays unknown, as with RSS.
         record = dict(
             event_id="feed-" + digest(canonical([source.provider_id, identity]))[:48],
             payload=dict(title=fields["title"], item=fields, provider_id=source.provider_id),

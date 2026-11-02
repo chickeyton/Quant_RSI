@@ -1,18 +1,31 @@
 {
   "instrument": "KO",
-  "reviewed_on": "2026-10-29",
+  "reviewed_on": "2026-10-30",
   "relationships": [
     {
       "symbol": "CCEP",
       "relationship": "bottling_partner",
       "reason": "Coca-Cola Europacific Partners produces and distributes Coca-Cola branded beverages.",
-      "source_urls": ["https://www.coca-colacompany.com/about-us/coca-cola-system/coca-cola-europacific-partners"]
+      "source_urls": [
+        "https://www.coca-colacompany.com/about-us/coca-cola-system/coca-cola-europacific-partners"
+      ]
     },
     {
       "symbol": "MNST",
       "relationship": "distribution_partner",
       "reason": "Coca-Cola describes ongoing distribution coordination with Monster Beverage in its 2025 annual report.",
-      "source_urls": ["https://investors.coca-colacompany.com/filings-reports/all-sec-filings/content/0001628280-26-010047/ko-20251231.htm"]
+      "source_urls": [
+        "https://investors.coca-colacompany.com/filings-reports/all-sec-filings/content/0001628280-26-010047/ko-20251231.htm"
+      ]
+    },
+    {
+      "symbol": "KOF",
+      "relationship": "bottling_partner",
+      "reason": "Coca-Cola FEMSA produces and distributes Coca-Cola beverages; KOF is its NYSE-listed ADS, not its Mexican-listed KOFUBL units.",
+      "source_urls": [
+        "https://www.coca-colacompany.com/about-us/coca-cola-system/coca-cola-femsa",
+        "https://investors.coca-colafemsa.com/en/ir-tools/investor-faqs.html"
+      ]
     }
   ]
 }

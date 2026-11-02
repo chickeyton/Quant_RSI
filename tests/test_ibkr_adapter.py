@@ -2,7 +2,9 @@
 
 import subprocess
 import sys
+import threading
 from datetime import datetime, timedelta, timezone
+from types import ModuleType, SimpleNamespace
 
 import numpy as np
 import pytest
@@ -444,3 +446,82 @@ def test_backend_translates_cancel_reject_and_foreign_executions():
     assert backend.translate(Message("exec_details", None, foreign)) is None
     rejected = backend.translate(Message("error", event.order_id, {"code": 201, "message": "no"}))
     assert rejected.kind == "rejected" and rejected.intent_id == _intent().intent_id
+
+
+@pytest.fixture
+def offline_ibapi(monkeypatch):
+    """Exercise the actual transport/Bridge with the official disconnect callback semantics."""
+
+    class EClient:
+        def __init__(self, wrapper):
+            self.wrapper = wrapper
+            self.connected = False
+            self.stopped = threading.Event()
+            self.started = threading.Event()
+
+        def connect(self, host, port, client_id):
+            self.connected = True
+            self.wrapper.nextValidId(100)
+            self.wrapper.managedAccounts(ACCOUNT)
+
+        def isConnected(self):
+            return self.connected
+
+        def serverVersion(self):
+            return 226
+
+        def reqCurrentTime(self):
+            self.wrapper.currentTime(1793361600)
+
+        def disconnect(self):
+            if self.connected:
+                self.connected = False
+                # EClient.disconnect in the supported 10.50.02 API calls this wrapper.
+                self.wrapper.connectionClosed()
+                self.stopped.set()
+
+        def run(self):
+            self.started.set()
+            self.stopped.wait(10)
+            # A late reader callback must also stay on the old connection's queue.
+            self.wrapper.connectionClosed()
+
+    package = ModuleType("ibapi")
+    monkeypatch.setitem(sys.modules, "ibapi", package)
+    for name in ("client", "wrapper", "contract", "execution", "order", "order_cancel"):
+        module = ModuleType(f"ibapi.{name}")
+        setattr(package, name, module)
+        monkeypatch.setitem(sys.modules, f"ibapi.{name}", module)
+    package.client.EClient = EClient
+    package.wrapper.EWrapper = type("EWrapper", (), {})
+    return package
+
+
+def test_real_transport_reconnect_isolates_old_close_callbacks(offline_ibapi):
+    from quant_rsi.brokers.ibkr.ibapi_transport import RealIbapiTransport
+
+    transport = RealIbapiTransport()
+    session = IbkrSession(transport, host="localhost", port=7497, client_id=21, timeout=1)
+    try:
+        assert session.connect().accounts == (ACCOUNT,)
+        for _ in range(2):
+            old_bridge, old_reader, old_inbox = transport.bridge, transport.thread, transport.inbox
+            assert old_bridge.started.wait(1)
+            assert session.reconnect().accounts == (ACCOUNT,)
+            assert not old_reader.is_alive()
+            assert transport.bridge is not old_bridge
+            assert transport.inbox is not old_inbox
+            assert transport.receive(0) is None
+    finally:
+        transport.disconnect()
+
+
+def test_real_transport_refuses_reconnect_until_reader_stops(offline_ibapi):
+    from quant_rsi.brokers.ibkr.ibapi_transport import RealIbapiTransport
+
+    transport = RealIbapiTransport()
+    previous = transport.bridge
+    transport.thread = SimpleNamespace(join=lambda timeout: None, is_alive=lambda: True)
+    with pytest.raises(ConnectionError, match="reader did not stop"):
+        transport.connect("localhost", 7497, 21)
+    assert transport.bridge is previous

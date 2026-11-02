@@ -3,6 +3,9 @@
 import json
 from html import escape
 
+from quant_rsi.market.market_contracts import timestamp
+from quant_rsi.research.study_explanation import continuity, evidence_path, question_coverage
+
 
 def _cell(value):
     return str(value).replace("\n", " ").replace("|", "\\|")
@@ -14,9 +17,21 @@ def _number(value, percent=False):
     return f"{float(value) * (100 if percent else 1):.4f}" + ("%" if percent else "")
 
 
+def _reuse_deadline(lifetime):
+    if not lifetime or not lifetime.get("expires_at"):
+        return "No expiry declared"
+    try:
+        return timestamp(lifetime["expires_at"]).strftime("%Y-%m-%d %H:%M UTC")
+    except (TypeError, ValueError):
+        return "Invalid recorded deadline"
+
+
 def render_study(result):
     steps = {event["stage"]: event["output"] for event in result["trace"]}
     first, second = (steps[key] for key in ("first_prediction", "second_prediction"))
+    iterations = result.get("iterations")
+    if iterations:
+        second = iterations["attempts"][-1]["prediction"]
     md, html = [], []
 
     def section(title, text):
@@ -40,18 +55,311 @@ def render_study(result):
             + "</tbody></table></div>"
         )
 
+    def question_cards(rows):
+        for row in rows:
+            fields = [
+                ("Execution", row["status"].replace("_", " ")),
+                ("Bound factors", ", ".join(row["factor_ids"]) or "No measured input"),
+                ("Rationale (LLM)", row["rationale"]),
+            ]
+            md.extend(["### " + row["claim"], ""])
+            md.extend(f"**{name}:** {value}\n" for name, value in fields)
+            md.extend(["**Limitations (LLM):**", ""])
+            md.extend("- " + item for item in row["limitations"])
+            md.append("")
+            html.append(
+                "<section class='question-claim'><h3>"
+                + escape(row["claim"])
+                + "</h3>"
+                + "".join(f"<p><b>{name}:</b> {escape(value)}</p>" for name, value in fields)
+                + "<b>Limitations (LLM):</b><ul>"
+                + "".join("<li>" + escape(item) + "</li>" for item in row["limitations"])
+                + "</ul></section>"
+            )
+
     title = result["target"] + " · Connected research study"
     md.extend([f"# {title}", "", result["notice"], ""])
     html.append(
         f"<header><p class='eyebrow'>QUANT RSI / RESEARCH STUDY</p><h1>{escape(title)}</h1>"
         f"<p>{escape(result['notice'])}</p></header>"
     )
+    question = result["configuration"].get("question", "")
+    if question:
+        section("Research question", question)
+        if iterations:
+            chosen = iterations["attempts"][iterations["selected_round"] - 1]
+            section("Selected research hypothesis", chosen["hypothesis"]["hypothesis"])
+            coverage = question_coverage(chosen["hypothesis"], chosen["prediction"]["factor_ids"])
+            if coverage:
+                section(
+                    "Selected question map",
+                    "Claims, rationale and limitations are the researcher's assessment. "
+                    "Execution is checked against this attempt's recorded model inputs. "
+                    "Inputs fitted does not mean the claim was confirmed or caused returns.",
+                )
+                question_cards(coverage)
+            else:
+                section(
+                    "Selected question map",
+                    "No structured question map was recorded by this researcher. "
+                    "Do not infer question coverage from the presence of a fitted model.",
+                )
+        section(
+            "Scope of the answer",
+            "The question guides evidence discovery and factor hypotheses. The results below "
+            "evaluate the selected factors under the configured forecast objective; they do not "
+            "establish a causal answer or measure business variables absent from the inputs.",
+        )
     section("Conclusion", result["study"]["conclusion"])
+    selection = result["study"]["selection"]
+    section(
+        "Attempt selection",
+        selection["reason"] + " " + selection["forecast_note"] + " "
+        "This is development selection after feedback, not independent validation.",
+    )
+    table(
+        [
+            "Preselected metric",
+            "Initial",
+            "Selected score" if iterations else "Revised",
+            "Selected attempt",
+            "Selected factors",
+        ],
+        [
+            [
+                selection["metric"] + " (" + selection["direction"] + " is better)",
+                _number(selection["initial_score"]),
+                _number(selection["selected_score"] if iterations else selection["revised_score"]),
+                selection["selected_attempt"],
+                ", ".join(selection["selected_factor_ids"]),
+            ]
+        ],
+    )
     section(
         "What ran",
-        "Two model fits, one feedback-driven revision, and a fixed development "
+        f"{iterations['completed_fits'] if iterations else 2} research model fits "
+        "and a fixed development "
         "window. Results include failed or missing source coverage. No orders were sent.",
     )
+    if iterations:
+        section(
+            "Research rounds",
+            f"Stopped: {iterations['stop_reason']}. "
+            f"Fit allowance: {iterations['fit_budget']}; selected round: "
+            f"{iterations['selected_round']}. Every trial uses development data only.",
+        )
+        table(
+            ["Round", "Factors", "Price MAE", "Net return", "Sharpe", "Accepted"],
+            [
+                [
+                    item["round"],
+                    ", ".join(item["factor_ids"]),
+                    _number(item["development_metrics"].get("mae_price")),
+                    _number(
+                        item["prediction"]["strategy"]["strategy"]["metrics"]["net_return"], True
+                    ),
+                    _number(item["prediction"]["strategy"]["strategy"]["metrics"]["sharpe_ratio"]),
+                    item["accepted"],
+                ]
+                for item in iterations["attempts"]
+            ],
+        )
+    profile = result["study"].get("factor_profile", [])
+    previous = continuity(
+        steps.get("target", {}).get("prior_outcomes"), selection["selected_factor_ids"]
+    )
+    if previous:
+        section("Continuing the previous research", previous["notice"])
+        if previous["entries"]:
+            table(
+                ["Target", "Status / reason", "Predicted", "Actual", "Error", "Feedback supplied"],
+                [
+                    [
+                        e["target_session"],
+                        e["status"] + " / " + (e["reason"] or ""),
+                        _number(e["predicted_price"]),
+                        _number(e["actual_price"]),
+                        _number(e["price_error"]),
+                        "Yes" if e["provided_as_feedback"] else "No",
+                    ]
+                    for e in previous["entries"]
+                ],
+            )
+            table(
+                ["Selected model", "Factors"],
+                [
+                    ["Previous run", ", ".join(previous["previous_factor_ids"])],
+                    ["This run", ", ".join(previous["selected_factor_ids"])],
+                    ["Added", ", ".join(previous["added"]) or "None"],
+                    ["Removed", ", ".join(previous["removed"]) or "None"],
+                ],
+            )
+        else:
+            section("First run", "No previous outcome feedback in this history.")
+    history = result["study"].get("history")
+    if history:
+        section("Forecast history and later observations", history["notice"])
+        table(
+            [
+                "Issued",
+                "Target",
+                "Round",
+                "Status",
+                "Predicted",
+                "Actual",
+                "Price error",
+                "Net return",
+                "Sharpe",
+                "Buy-and-hold",
+            ],
+            [
+                [
+                    entry["issued_at"],
+                    (entry.get("forecast") or {}).get("target_session", "N/A"),
+                    entry["selected_round"],
+                    entry["status"],
+                    _number((entry.get("forecast") or {}).get("predicted_price")),
+                    _number((entry.get("metrics") or {}).get("actual_price")),
+                    _number((entry.get("metrics") or {}).get("price_error")),
+                    _number(
+                        (entry.get("strategy") or {}).get("strategy", {}).get("net_return"), True
+                    ),
+                    _number((entry.get("strategy") or {}).get("strategy", {}).get("sharpe_ratio")),
+                    _number(
+                        (entry.get("strategy") or {}).get("buy_and_hold", {}).get("net_return"),
+                        True,
+                    ),
+                ]
+                for entry in history["entries"]
+            ],
+        )
+    if profile:
+        section(
+            "Instrument factor profile",
+            "Ownership and exact source bindings are retained. "
+            "Availability is fixed on training/development rows; inclusion is not selection. "
+            "Unsupported business/text sources remain pending, never target-price substitutes.",
+        )
+        table(
+            ["Factor", "Definition", "Scope / owner", "Source / inputs", "Availability"],
+            [
+                [
+                    item["factor_id"],
+                    item["definition_id"],
+                    f"{item['definition_scope']} / {item['definition_owner']}",
+                    " / ".join(item["source"][key] for key in ("source_id", "entity", "field"))
+                    if item.get("source")
+                    else ", ".join(item["input_factor_ids"]),
+                    item["availability_reason"],
+                ]
+                for item in profile
+            ],
+        )
+        for item in profile:
+            if item.get("recipe", {}).get("op") == "factor_expression":
+                section(item["factor_id"], item["description"])
+                table(
+                    ["Node", "Operation", "Inputs"],
+                    [
+                        [node["name"], node["op"], node.get("leaf") or ", ".join(node["inputs"])]
+                        for node in item["recipe"]["expression"]["nodes"]
+                    ],
+                )
+    business = {}
+    for event in result["trace"]:
+        if event["stage"].endswith("factor_library"):
+            business.update(
+                (item["factor_id"], item)
+                for item in event["output"]["definitions"]
+                if item.get("recipe", {}).get("op")
+                in {"financial_expression", "business_expression"}
+            )
+    if business:
+        section(
+            "Business factor hypotheses",
+            "Run-local arithmetic over retained publication-dated financial and industry factors. "
+            "Original reporting periods and missing inputs are preserved. "
+            "These proposed relationships are not established causal effects. "
+            "Unselected recipes remain in the record; "
+            "the report also shows selection and revision.",
+        )
+        for item in business.values():
+            section(item["factor_id"], item["description"])
+            table(
+                ["Input alias", "Source factor"],
+                [[binding["name"], binding["factor_id"]] for binding in item["recipe"]["inputs"]],
+            )
+            table(
+                ["Node", "Operation", "Inputs"],
+                [
+                    [node["name"], node["op"], node.get("leaf") or ", ".join(node["inputs"])]
+                    for node in item["recipe"]["expression"]["nodes"]
+                ],
+            )
+    terminal = result.get("terminal_evaluation")
+    if terminal:
+        section("Reserved terminal evaluation", terminal["limitation"])
+        section(
+            "Frozen selection",
+            f"Round {terminal['selected_round']}; "
+            f"{terminal['sample_count']} reserved observations; "
+            f"status: {terminal['status']}. The same fitted model is reused without refitting.",
+        )
+        if terminal["status"] == "completed":
+            evaluation = terminal["evaluation"]
+            forecasts = [("Selected model", evaluation["metrics"])] + [
+                (name, value["metrics"]) for name, value in evaluation["baselines"].items()
+            ]
+            table(
+                ["Terminal forecast", "Price MAE", "Price RMSE", "Observations"],
+                [
+                    [name, _number(m["mae_price"]), _number(m["rmse_price"]), m["sample_count"]]
+                    for name, m in forecasts
+                ],
+            )
+            accounts = [(name, terminal["strategy"][name]) for name in ("strategy", "buy_and_hold")]
+            table(
+                ["Terminal account", "Net return", "Sharpe", "Max drawdown", "Daily returns"],
+                [
+                    [
+                        name,
+                        _number(a["metrics"]["net_return"], True),
+                        _number(a["metrics"]["sharpe_ratio"]),
+                        _number(a["metrics"]["max_drawdown"], True),
+                        a["metrics"]["risk_statistics"]["daily_return_count"],
+                    ]
+                    for name, a in accounts
+                ],
+            )
+            section(
+                "Terminal account period",
+                str(terminal["strategy"]["period"]) + ". "
+                "Same account costs and policy as development, independently initialized. "
+                "Sharpe is annualized using 252 sessions/year and zero risk-free rate; "
+                "these short samples are descriptive. Do not join these NAV curves.",
+            )
+            table(
+                ["Terminal origin", "Target", "Observed", "Predicted", "Unchanged price"],
+                [
+                    [
+                        r["origin_session"],
+                        r["target_session"],
+                        _number(r["observed_price"]),
+                        _number(r["predicted_price"]),
+                        _number(r["reference_price"]),
+                    ]
+                    for r in evaluation["rows"]
+                ],
+            )
+        else:
+            section("Terminal inputs unavailable", "No model substitution or row dropping.")
+            table(
+                ["Origin", "Missing factors"],
+                [
+                    [r["origin_session"], ", ".join(r["factor_ids"])]
+                    for r in terminal["missing_inputs"]
+                ],
+            )
     table(
         ["Component", "Provider"],
         [
@@ -63,7 +371,32 @@ def render_study(result):
             ["Execution", first["strategy"]["evidence_mode"]],
         ],
     )
+    model_config = first.get("model_configuration")
+    if model_config is not None:
+        section(
+            "Model configuration",
+            "Chosen before research and shared by both attempts. Preprocessing is fitted only "
+            "on training rows; neither model choice nor hyperparameters are searched in this run.",
+        )
+        table(
+            ["Setting", "Value"], [[key, json.dumps(value)] for key, value in model_config.items()]
+        )
     section("News and relationships", result["study"]["news_use"])
+    for path in evidence_path(steps):
+        section(
+            f"Round {path['round']}: news → hypothesis → fitted inputs",
+            (path["hypothesis"] or "No hypothesis text") + " " + path["notice"],
+        )
+        table(
+            ["Cited source ID", "Title", "Role"],
+            [[c["id"], c["title"], "Hypothesis context"] for c in path["citations"]],
+        )
+        table(
+            ["Factor", "Input", "Execution", "Reason"],
+            [[f["factor_id"], f["input_kind"], f["status"], f["reason"]] for f in path["factors"]],
+        )
+        if path["question_map"]:
+            question_cards(path["question_map"])
     related = steps["related_stocks"]
     if related.get("relationships"):
         table(
@@ -82,10 +415,10 @@ def render_study(result):
             [[item["symbol"], item["status"], item["selected_items"]] for item in news["coverage"]],
         )
     table(
-        ["Issuer", "News", "Published", "Source"],
+        ["Symbol / scope", "News", "Published", "Source"],
         [
             [
-                item["symbol"],
+                item["symbol"] + (" research context" if item.get("scope") else ""),
                 item.get("title", item["text"]),
                 item.get("published_at") or item.get("published_date") or "unknown / simulated",
                 item.get("url", "simulated"),
@@ -93,8 +426,110 @@ def render_study(result):
             for item in news["items"]
         ],
     )
+    research = news.get("research")
+    if research:
+        section("Active news research", research["provider"] + ". " + research["notice"])
+        table(
+            ["Search request", "Proposed query", "Origin", "Reason", "Recorded tool actions"],
+            [
+                [
+                    index,
+                    item["query"],
+                    item.get("query_origin", "not recorded"),
+                    item["rationale"],
+                    json.dumps(item["search_actions"]),
+                ]
+                for index, item in enumerate(research["searches"], 1)
+            ],
+        )
+        table(
+            ["Article ID", "Title", "Read status", "Received at", "Text extent"],
+            [
+                [
+                    item["id"],
+                    item["title"],
+                    item["status"] + (": " + item["reason"] if item.get("reason") else ""),
+                    item["received_at"] or "not fetched",
+                    item["content_extent"] + (" (truncated)" if item["text_truncated"] else ""),
+                ]
+                for item in research["articles"]
+            ],
+        )
+        for article in research["articles"]:
+            if article["status"] == "available":
+                url, identity = article["final_url"], article["id"]
+                md.extend([f"[{identity}](<{url}>)", ""])
+                html.append(
+                    f"<p><a href='{escape(url, quote=True)}' rel='noreferrer'>"
+                    f"{escape(identity)}: {escape(article['title'])}</a></p>"
+                )
+        table(
+            ["Research finding (LLM interpretation)", "Article IDs"],
+            [[item["text"], ", ".join(item["evidence_ids"])] for item in research["findings"]],
+        )
+        section(
+            "Suggested related companies",
+            "Source-cited LLM candidates only. Business claims and ticker mappings are not "
+            "independently verified; they do not replace the profile or add peer price features.",
+        )
+        table(
+            ["Symbol / name", "Suggested relationship", "Article IDs"],
+            [
+                [
+                    item["symbol"] + " / " + item["name"],
+                    item["relationship"],
+                    ", ".join(item["evidence_ids"]),
+                ]
+                for item in research["related_candidates"]
+            ],
+        )
+        table(
+            ["Research round", "Chosen factors", "Cited news / article IDs"],
+            [
+                [
+                    label,
+                    ", ".join(steps[key]["factor_ids"]),
+                    ", ".join(steps[key]["evidence_news_ids"]),
+                ]
+                for label, key in (
+                    ("Initial", "initial_hypothesis"),
+                    ("Revised", "revised_hypothesis"),
+                )
+            ],
+        )
+        section(
+            "Article evidence file",
+            "news_research.json retains bounded extracted page text, hashes, receipt times and "
+            "final findings. trace.jsonl retains every search/read/review stage, including "
+            "the intermediate follow-up decision. Publication time is unknown unless separately "
+            "established; search snippets do not establish that an article was read.",
+        )
     section("Initial hypothesis", steps["initial_hypothesis"]["hypothesis"])
     section("Revision after feedback", steps["revised_hypothesis"]["hypothesis"])
+    memory = result["study"].get("factor_memory", {})
+    if memory.get("entries"):
+        section("Recipes from previous studies", memory["notice"])
+        table(
+            [
+                "Factor",
+                "Current availability",
+                "Reuse until",
+                "Selected again",
+                "Previous inputs",
+                "Source study",
+            ],
+            [
+                [
+                    e["factor_id"],
+                    e["status"].replace("_", " "),
+                    _reuse_deadline(e.get("reuse_lifetime")),
+                    "Yes" if e["selected_in_this_study"] else "No",
+                    e["source_input_mode"],
+                    e["source_study_id"][:12],
+                ]
+                for e in memory["entries"]
+            ],
+        )
     changes = result["study"]["factor_changes"]
     table(
         ["Factor change", "IDs"],
@@ -112,6 +547,56 @@ def render_study(result):
         ],
     )
     dev = second["development"]
+    if first.get("input_usage"):
+        section(
+            "Model input usage",
+            "Used means an input entered this attempt's numerical path. "
+            "Available but unselected peers and context-only news are distinct from executed "
+            "features. Missing peer windows do not drop samples or become zero. Related "
+            "prices retain the source adapter's retrospective availability qualifications; "
+            "current relationship discovery is not historical or causal evidence.",
+        )
+        table(
+            ["Attempt", "Source", "Status", "Executed factors", "Reason"],
+            [
+                [
+                    label,
+                    item["source"],
+                    item["status"],
+                    ", ".join(item["factor_ids"]) or "none",
+                    item["reason"],
+                ]
+                for label, prediction in (("Initial", first), ("Revised", second))
+                for item in prediction["input_usage"]
+            ],
+        )
+    guidance = result["study"].get("guidance")
+    if guidance:
+        section("Issuer guidance business factors", guidance["notice"] + " " + guidance["status"])
+        extraction = guidance["latest_extraction"] or {}
+        table(
+            ["News ID", "Classification", "Source quote", "Extraction completed"],
+            [
+                [f["news_id"], f["status"], f["quote"], extraction.get("extracted_at")]
+                for f in extraction.get("facts", [])
+            ],
+        )
+        table(
+            ["Factor", "Days", "State", "Reason"],
+            [
+                [
+                    d["factor_id"],
+                    d["recipe"]["window_days"],
+                    "eligible" if d["runnable"] else "pending",
+                    ", ".join(d["reasons"]),
+                ]
+                for d in guidance["definitions"]
+            ],
+        )
+        md.extend(["[Guidance source and extraction evidence](guidance_extractions.json)", ""])
+        html.append(
+            "<p><a href='guidance_extractions.json'>Guidance source and extraction evidence</a></p>"
+        )
     news_factors = result["study"].get("news_factors")
     if news_factors:
         support = news_factors["support"]
@@ -134,13 +619,14 @@ def render_study(result):
             [[key, value] for key, value in support.items() if key.endswith("rows")],
         )
         table(
-            ["Proposed factor", "Keywords", "Days", "State"],
+            ["Proposed factor", "Keywords", "Days", "State", "Reuse until"],
             [
                 [
                     item["factor_id"],
                     ", ".join(item["recipe"]["keywords"]),
                     item["recipe"]["window_days"],
                     "eligible" if item["runnable"] else "pending",
+                    _reuse_deadline(item.get("reuse_lifetime")),
                 ]
                 for item in news_factors["definitions"]
             ],
@@ -162,7 +648,7 @@ def render_study(result):
                 [
                     "Round",
                     "Executed factor",
-                    "Count at final origin",
+                    "Feature value at final origin",
                     "Snapshot receipt",
                     "Evidence",
                 ],
@@ -171,7 +657,8 @@ def render_study(result):
     section(
         "Prediction comparison",
         f"{dev['first_evaluation_session']} to "
-        f"{dev['last_evaluation_session']}: overlapping five-session labels, "
+        f"{dev['last_evaluation_session']}: overlapping "
+        f"{first['horizon_sessions']}-session labels, "
         "retrospective development observations. MAPE is price error percent; "
         "direction hit rate is a sample frequency, not confidence or independent accuracy. "
         "Current news and feedback influenced recipe selection. No independent holdout. "
@@ -245,12 +732,21 @@ def render_study(result):
     )
     table(["Account", "Commission", "Slippage", "Turnover", "Risk statistic status"], cost_rows)
     html.append(_equity_chart(accounts))
+    selected = first if selection["selected_attempt"] == "initial" else second
+    if iterations:
+        selected = iterations["attempts"][iterations["selected_round"] - 1]["prediction"]
+    latest = selected.get("latest_forecast")
     section(
         "Latest forecast",
-        "This forecast reuses the revised fitted model with its disclosed "
-        "training cutoff. It is not an observed outcome and has no accuracy score.",
+        (
+            f"This forecast reuses the selected {selection['selected_attempt']} fitted model with "
+            "its disclosed training cutoff. It is not an observed outcome "
+            "and has no accuracy score."
+            if latest
+            else f"No latest forecast was published. The selected {selection['selected_attempt']} "
+            "fitted model and completed development results remain retained."
+        ),
     )
-    latest = second.get("latest_forecast")
     if latest:
         table(
             ["Origin", "Target", "Reference price", "Predicted price", "Training cutoff"],
@@ -264,10 +760,290 @@ def render_study(result):
                 ]
             ],
         )
-    elif second.get("latest_forecast_unavailable"):
-        section("Forecast unavailable", "; ".join(second["latest_forecast_unavailable"]["reasons"]))
+    elif selected.get("latest_forecast_unavailable"):
+        unavailable = selected["latest_forecast_unavailable"]
+        section("Forecast unavailable", "; ".join(unavailable["reasons"]))
+        if unavailable.get("missing_factor_ids"):
+            table(
+                ["Unavailable selected factor"],
+                [[identity] for identity in unavailable["missing_factor_ids"]],
+            )
     else:
         section("Forecast availability", "Synthetic run: no real-market latest forecast.")
+    external = result["study"].get("external_data")
+    if external is not None:
+        bound_source_ids = {
+            source["factor_id"]
+            for item in selected.get("bound_factor_inputs", [])
+            for source in item["inputs"]
+        }
+        section("External business drivers", external["notice"])
+        table(
+            ["Factor", "Use in selected model", "Missing fixed rows", "Definition"],
+            [
+                [
+                    d["factor_id"],
+                    "selected"
+                    if d["factor_id"] in selected["factor_ids"]
+                    else "used by selected expression"
+                    if d["factor_id"] in bound_source_ids
+                    else "available"
+                    if d["runnable"]
+                    else "unavailable",
+                    d["missing_required_rows"],
+                    d["description"],
+                ]
+                for d in external["definitions"]
+            ],
+        )
+        if external.get("failures"):
+            table(
+                ["Source", "Collection problem"],
+                [[f.get("url", external["provider"]), f["reason"]] for f in external["failures"]],
+            )
+        comparison = result["study"].get("external_comparison")
+        if comparison:
+            section("External-driver diagnostic", comparison["notice"])
+            if comparison["status"] == "completed":
+                table(
+                    ["Inputs", "Price MAE", "Net return", "Sharpe", "Max drawdown"],
+                    [
+                        [
+                            label,
+                            value["forecast"]["mae_price"],
+                            value["strategy"]["net_return"],
+                            value["strategy"]["sharpe_ratio"],
+                            value["strategy"]["max_drawdown"],
+                        ]
+                        for label, value in [
+                            ("Selected model", comparison["with_external_drivers"]),
+                            ("External drivers removed", comparison["without_external_drivers"]),
+                        ]
+                    ],
+                )
+            else:
+                section("External-driver comparison availability", comparison["reason"])
+            section(
+                "External-driver diagnostic cost", f"{comparison['extra_fits']} additional fits."
+            )
+    financial = result["study"].get("financial_comparison")
+    if financial:
+        section("Financial business factors", result["study"]["financial_data"]["notice"])
+        table(
+            ["Factor", "Use in selected model", "Missing fixed rows", "Definition"],
+            [
+                [
+                    d["factor_id"],
+                    "Selected"
+                    if d["factor_id"] in selection["selected_factor_ids"]
+                    else "Available, not selected"
+                    if d["runnable"]
+                    else "Unavailable",
+                    d["missing_required_rows"],
+                    d["description"],
+                ]
+                for d in result["study"]["financial_data"]["definitions"]
+            ],
+        )
+        data = result["study"]["financial_data"]
+        if data.get("sample_coverage"):
+            section(
+                "Financial variation on research rows",
+                "Counts use the frozen research rows only. Repeated daily values are not "
+                "independent financial observations; distinct values are not a count of filings. "
+                "A constant training feature cannot explain differences between training rows. "
+                "Coverage does not establish predictive value.",
+            )
+            table(
+                [
+                    "Factor",
+                    "Available training rows",
+                    "Distinct training values",
+                    "Distinct development values",
+                ],
+                [
+                    [
+                        r["factor_id"],
+                        f"{r['training_available_rows']} / {r['training_rows']}",
+                        r["training_distinct_values"],
+                        r["development_distinct_values"],
+                    ]
+                    for r in data["sample_coverage"]
+                ],
+            )
+        if data.get("coverage_gaps"):
+            section(
+                "Why financial factors are unavailable",
+                "One primary reason per missing required row; source failures may coexist. "
+                "Suggestions do not guarantee coverage. Use a new collection and study; "
+                "do not fill missing values or move publication dates.",
+            )
+            html.append("<div class='coverage-gaps'>")
+            table(
+                ["Factor", "Missing required rows", "Reason", "Example cutoff", "Next step"],
+                [
+                    [
+                        g[k]
+                        for k in (
+                            "factor_id",
+                            "missing_required_rows",
+                            "description",
+                            "example_cutoff",
+                            "next_step",
+                        )
+                    ]
+                    for g in data["coverage_gaps"]
+                ],
+            )
+            html.append("</div>")
+        section("Financial source", data.get("provider", "unknown"))
+        table(
+            ["Source", "Status", "Reason"],
+            [
+                [a["provider"], a["status"], a.get("reason", "")]
+                for a in data.get("source_attempts", [])
+            ],
+        )
+        table(
+            ["Unavailable statement", "Reason"],
+            [[f["release_url"], f["error"]] for f in data.get("source_failures", [])],
+        )
+        section("With / without financial factors", financial["notice"])
+        section("Financial diagnostic cost", f"{financial['extra_fits']} additional fits.")
+        if financial["status"] == "completed":
+            table(
+                ["Model inputs", "Price MAE", "Net return", "Sharpe"],
+                [
+                    [
+                        label,
+                        financial[key]["forecast"]["mae_price"],
+                        financial[key]["strategy"]["net_return"],
+                        financial[key]["strategy"]["sharpe_ratio"],
+                    ]
+                    for key, label in (
+                        ("with_financials", "Selected + financials"),
+                        ("without_financials", "Same model settings, financials removed"),
+                    )
+                ],
+            )
+        else:
+            section("Financial comparison availability", financial["reason"])
+    walk_forward = result["study"].get("walk_forward")
+    if walk_forward:
+        section("Frozen-recipe time-window diagnostic", walk_forward["notice"])
+        section(
+            "Diagnostic coverage and cost",
+            f"{walk_forward['status']}; {walk_forward['extra_fits']} additional fits "
+            f"of {walk_forward['fit_budget']} allowed. Factor recipe from selected "
+            f"round {walk_forward['selected_round']}; no further LLM calls.",
+        )
+        rows, accounts = [], []
+        for fold in walk_forward["folds"]:
+            if fold["status"] != "completed":
+                rows.append(
+                    [fold["fold"], fold["first_origin"], fold["last_target"], "unavailable"]
+                    + ["—"] * 3
+                )
+                continue
+            evaluation = fold["evaluation"]
+            rows.append(
+                [
+                    fold["fold"],
+                    fold["first_origin"],
+                    fold["last_target"],
+                    len(fold["training_sessions"]),
+                    f"{evaluation['metrics']['mae_price']:.4f}",
+                    f"{evaluation['baselines']['unchanged_price']['metrics']['mae_price']:.4f}",
+                    f"{evaluation['baselines']['training_label_mean']['metrics']['mae_price']:.4f}",
+                ]
+            )
+            for key, label in (("strategy", "Selected recipe"), ("buy_and_hold", "Buy & hold")):
+                metrics = fold["strategy"][key]["metrics"]
+                sharpe = metrics["sharpe_ratio"]
+                accounts.append(
+                    [
+                        fold["fold"],
+                        label,
+                        f"{float(metrics['net_return']):.2%}",
+                        "N/A" if sharpe is None else f"{sharpe:.4f}",
+                        metrics["risk_statistics"]["daily_return_count"],
+                        f"{float(metrics['max_drawdown']):.2%}",
+                        f"{sum(float(v) for v in metrics['fees'].values()):.2f}",
+                    ]
+                )
+        table(
+            [
+                "Window",
+                "First origin",
+                "Last target",
+                "Training N / state",
+                "Price MAE",
+                "Flat-price MAE",
+                "Training-mean MAE",
+            ],
+            rows,
+        )
+        section(
+            "Per-window costed accounts",
+            "Independent initial cash per account; fees include commission, tax and slippage "
+            "in account currency. Sharpe uses daily net returns, 252 sessions/year and a 0% "
+            "risk-free rate. N/A means insufficient variation or observations, not zero risk.",
+        )
+        table(
+            ["Window", "Account", "Net return", "Sharpe", "Daily N", "Max drawdown", "Fees"],
+            accounts,
+        )
+        for fold in walk_forward["folds"]:
+            if fold["status"] == "unavailable":
+                section(f"Window {fold['fold']} unavailable", fold["reason"].replace("_", " "))
+            if fold["excluded_training_sessions"] or fold["missing_evaluation_sessions"]:
+                section(
+                    f"Window {fold['fold']} missing inputs",
+                    f"Excluded training rows: {len(fold['excluded_training_sessions'])}; "
+                    f"missing evaluation sessions: {fold['missing_evaluation_sessions']}. "
+                    "Missing evaluation inputs make the whole window unavailable.",
+                )
+        pooled = walk_forward["pooled_forecast_metrics"]
+        if pooled:
+            table(
+                ["All complete windows · forecast only", "Observations", "Price MAE", "MAPE %"],
+                [
+                    [name, m["sample_count"], f"{m['mae_price']:.4f}", f"{m['mape_percent']:.2f}"]
+                    for name, m in pooled.items()
+                ],
+            )
+    comparison = result["study"].get("qlib_comparison")
+    if comparison:
+        section("Actual Qlib workflow comparison", comparison["notice"])
+        for segment, values in comparison["segments"].items():
+            if values["status"] != "completed":
+                section(f"Qlib {segment}", values["reason"])
+                continue
+            rows = []
+            for engine in ("native", "qlib"):
+                value = values[engine]
+                metrics = value["strategy"]["strategy"]["metrics"]
+                rows.append(
+                    [
+                        segment,
+                        engine,
+                        _number(value["metrics"]["mae_price"]),
+                        _number(metrics["net_return"], percent=True),
+                        _number(metrics["sharpe_ratio"]),
+                        _number(metrics["max_drawdown"], percent=True),
+                    ]
+                )
+            table(["Window", "Engine", "Price MAE", "Net return", "Sharpe", "Max drawdown"], rows)
+            section(
+                f"{segment.capitalize()} prediction agreement",
+                f"Within declared tolerance: {values['prediction_parity']}. "
+                f"Maximum absolute price difference: "
+                f"{values['max_absolute_difference']['predicted_price']:.12g}. "
+                "Matching the same fitted algorithm is not evidence of superiority.",
+            )
+        section(
+            "Qlib runtime", json.dumps(comparison["versions"]) + "; " + comparison["inputs_sha256"]
+        )
     section(
         "Engine and limits",
         result["study"]["external_engine"] + " "
@@ -276,6 +1052,64 @@ def render_study(result):
         "Definitions, full quotes, predictions, orders and valuations are retained locally.",
     )
     table(["Setting", "Value"], [[key, value] for key, value in result["configuration"].items()])
+    runtime = result["runtime"]
+    section(
+        "Run time and usage",
+        f"Measured wall time: {runtime['total_elapsed_seconds']:.2f} seconds. "
+        "Counts describe the current execution attempt, excluding reused operations. "
+        "Earlier attempts are listed separately. Token counts are only what "
+        "the provider reported; missing usage is unknown, not zero. Cached input tokens are "
+        "included in input totals. No monetary cost is estimated.",
+    )
+    table(["Operation count", "Value"], [[key, value] for key, value in runtime["counts"].items()])
+    if runtime.get("previous_attempts"):
+        table(
+            [
+                "Earlier attempt",
+                "Status",
+                "Seconds",
+                "Model stages started",
+                "LLM requests",
+                "Input tokens",
+                "Output tokens",
+            ],
+            [
+                [
+                    index,
+                    previous["status"],
+                    _number(previous["total_elapsed_seconds"]),
+                    previous["counts"].get("model_stages_started", 0),
+                    previous["counts"].get("llm_requests_started", 0),
+                    *[
+                        previous["token_usage"].get(key)
+                        if previous["token_usage"].get(key) is not None
+                        else "not reported"
+                        for key in ("input_tokens", "output_tokens")
+                    ],
+                ]
+                for index, previous in enumerate(runtime["previous_attempts"], 1)
+            ],
+        )
+    usage = runtime["token_usage"]
+    table(
+        ["Usage coverage", "Input tokens", "Cached input tokens", "Output tokens"],
+        [
+            [
+                usage["status"],
+                *[
+                    usage[key] if usage[key] is not None else "not reported"
+                    for key in ("input_tokens", "cached_input_tokens", "output_tokens")
+                ],
+            ]
+        ],
+    )
+    table(
+        ["Stage", "Status", "Seconds"],
+        [
+            [row["stage"], row["status"], _number(row["duration_seconds"])]
+            for row in runtime["stages"]
+        ],
+    )
     md.extend(
         [
             "## Full evidence",
@@ -291,6 +1125,11 @@ def render_study(result):
         "<a href='inputs.json'>Retained inputs</a> · <a href='config.json'>Configuration</a> · "
         "<a href='report.md'>Markdown report</a></p>"
     )
+    if research:
+        md.extend(["[Active news evidence](news_research.json)", ""])
+        html.append("<p><a href='news_research.json'>Active news evidence</a></p>")
+    md.extend(["[Run time and usage](runtime.json)", ""])
+    html.append("<p><a href='runtime.json'>Run time and usage</a></p>")
     return "\n".join(md), (
         "<!doctype html><html lang='en'><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -301,9 +1140,13 @@ def render_study(result):
         ".eyebrow{color:#147d79;letter-spacing:.1em;font-size:12px;font-weight:bold}"
         ".table{overflow:auto;margin:18px 0}"
         "table{width:100%;border-collapse:collapse;background:white}"
+        ".coverage-gaps table{min-width:760px}"
         "td,th{text-align:left;vertical-align:top;padding:10px;border-bottom:1px solid #d8e1e7;"
         "overflow-wrap:anywhere;min-width:80px}th{background:#e4eeed}a{color:#086b79}"
-        "svg{width:100%;height:auto;background:white}section p{max-width:100ch}"
+        "svg{width:100%;height:auto;background:white}"
+        "section p{max-width:100ch;overflow-wrap:anywhere}"
+        ".question-claim{padding:18px;margin:16px 0;border:1px solid #d8e1e7;"
+        "border-radius:10px;background:white;overflow-wrap:anywhere}"
         "</style><main>" + "".join(html) + "</main></html>"
     )
 

@@ -9,6 +9,7 @@ import pytest
 from quant_rsi.cli import main
 from quant_rsi.market import news_feed
 from quant_rsi.research import demo, demo_news, llm
+from quant_rsi.research.demo_related import profile_related
 
 CATALOG = Path(__file__).resolve().parents[1] / "instruments/shared/equities.json"
 RECEIVED = "2026-10-29T12:00:00+00:00"
@@ -60,6 +61,32 @@ def test_registered_feed_selection_preserves_origin_and_timestamp_precision(tran
     all_news = demo_news.issuer_news({"symbol": "KO"}, limit=20)
     assert all_news["items"][-1]["publication_precision"] == "unknown"
     assert all_news["items"][-1]["published_at"] is None
+
+
+def test_xom_registered_context_retains_issuer_and_missing_partner_coverage(monkeypatch):
+    def fetch(source, limit):
+        assert source.instrument == "XOM"
+        assert source.url == (
+            "https://investor.exxonmobil.com/company-information/press-releases/rss"
+        )
+        body = feed(item("earnings", "Wed, 28 Oct 2026 12:00:00 GMT"))
+        return body.replace(b"investors.coca-colacompany.com", b"investor.exxonmobil.com"), {
+            "received_at": RECEIVED,
+            "http_status": 200,
+        }
+
+    monkeypatch.setattr(news_feed, "fetch", fetch)
+    related = profile_related("XOM")
+    assert related["stocks"] == ["CVX"]
+    assert related["selection"] == "configured_not_discovered"
+    news = demo_news.issuer_news({"symbol": "XOM", "related": related})
+    assert news["coverage_status"] == "partial"
+    assert [(item["symbol"], item["status"]) for item in news["coverage"]] == [
+        ("XOM", "available"),
+        ("CVX", "not_configured"),
+    ]
+    assert news["items"][0]["published_at"] == "2026-10-28T12:00:00+00:00"
+    assert news["items"][0]["url"] == "https://investor.exxonmobil.com/earnings"
 
 
 def test_cli_passes_actual_news_and_feedback_into_both_llm_calls(transport, monkeypatch, capsys):
@@ -126,7 +153,7 @@ def test_profile_peer_news_reaches_both_llm_calls_with_coverage(transport, monke
     target = news_feed.source_for("KO")
 
     def source_for(symbol):
-        if symbol == "MNST":
+        if symbol in {"MNST", "KOF"}:
             raise FileNotFoundError(symbol)
         return target.model_copy(update={"instrument": symbol, "provider_id": symbol.lower()})
 
@@ -137,13 +164,14 @@ def test_profile_peer_news_reaches_both_llm_calls_with_coverage(transport, monke
         data = json.loads(prompt.split("\nINPUT_JSON:\n")[1])
         calls.append(data)
         related = data["context"]["related"]
-        assert related["stocks"] == ["CCEP", "MNST"]
+        assert related["stocks"] == ["CCEP", "MNST", "KOF"]
         assert all(item["source_urls"] for item in related["relationships"])
         news = data["context"]["news"]
         assert [item["symbol"] for item in news["items"]] == ["KO", "CCEP"]
         assert [item["status"] for item in news["coverage"]] == [
             "available",
             "available",
+            "not_configured",
             "not_configured",
         ]
         return json.dumps(
@@ -227,6 +255,7 @@ def test_unregistered_peer_feeds_are_explicit_without_network_attempts(transport
         "available",
         "not_configured",
         "not_configured",
+        "not_configured",
     ]
 
 
@@ -269,3 +298,27 @@ def test_unknown_stock_and_invalid_limit_fail_before_network(transport):
     with pytest.raises(ValueError, match="between 1 and 20"):
         demo_news.issuer_news({"symbol": "KO"}, limit=21)
     assert not transport
+
+
+def test_apple_atom_uses_alternate_article_and_does_not_invent_publication(monkeypatch):
+    body = b"""<feed xmlns="http://www.w3.org/2005/Atom"><entry>
+    <id>apple-release</id><title>Apple update</title><updated>2026-10-30T12:00:00Z</updated>
+    <link href="https://www.apple.com/newsroom/release/"/>
+    <link rel="enclosure" href="https://www.apple.com/image.jpg"/>
+    <content>Operating developments</content></entry></feed>"""
+    source = news_feed.source_for("AAPL")
+    records = news_feed.parse(body, source, 20)
+    assert records[0]["published_at"] is None
+    assert records[0]["publication_precision"] == "unknown"
+    monkeypatch.setattr(
+        news_feed, "fetch", lambda *a: (body, {"received_at": RECEIVED, "http_status": 200})
+    )
+    news = demo_news.issuer_news({"symbol": "AAPL", "related": profile_related("AAPL")})
+    assert news["items"][0]["url"].endswith("/release/")
+    assert news["coverage_status"] == "partial"  # QCOM has no configured feed.
+    published = body.replace(b"<updated>", b"<published>").replace(b"</updated>", b"</published>")
+    assert news_feed.parse(published, source, 20)[0]["published_at"] == "2026-10-30T12:00:00+00:00"
+    with pytest.raises(ValueError, match="outside registered"):
+        news_feed.parse(
+            body.replace(b"www.apple.com/newsroom", b"example.org/newsroom"), source, 20
+        )

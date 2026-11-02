@@ -9,6 +9,13 @@ from pydantic import TypeAdapter
 from quant_rsi.factors.contracts import FactorCatalog, InstrumentId
 
 
+def research_question(value):
+    """One optional user focus, shared by CLI, queued tasks and research context."""
+    if not isinstance(value, str) or len(value.strip()) > 1000:
+        raise ValueError("Research question must be text of at most 1000 characters")
+    return value.strip()
+
+
 def load_catalog(path=Path("instruments/shared/equities.json")):
     """Reuse existing definitions as metadata, without making them executable."""
     catalog = FactorCatalog.model_validate_json(Path(path).read_bytes())
@@ -47,6 +54,9 @@ def simulated_news(context):
 def simulated_hypothesis(context, library, *, previous=None, feedback=None):
     """A stand-in for an LLM reading news, the catalog and the previous error."""
     item = context["news"]["items"][0]
+    research_ids = context["news"].get("research_evidence_ids", [])
+    if research_ids:
+        item = next(item for item in context["news"]["items"] if item["id"] == research_ids[0])
     event_signal = -1.0 if "weaker" in item["text"].lower() else 1.0
     if feedback is None:
         factors = ["equity.price_momentum_5"]
@@ -57,15 +67,22 @@ def simulated_hypothesis(context, library, *, previous=None, feedback=None):
     else:
         factors = ["equity.price_momentum_5", "equity.price_mean_return_5"]
         reason = "The first prediction was not too high; add a second price factor."
-    if context.get("model_mode") == "lightgbm":
+    if context.get("model_mode") in {"lightgbm", "ridge"}:
         available = [item["factor_id"] for item in library["definitions"]]
         factors = available[:1] if previous is None else available[1:]
         reason = "Try a numeric recipe, then change the numeric selection after model feedback."
     proposal = {}
     if context.get("allow_factor_proposals"):
         op = "qlib_ma_v1" if previous else "momentum"
+        if previous and research_ids:
+            op = "log_return_volatility"
         factors = [f"research.{op}_10"]
         reason = "Simulated researcher proposes a bounded recipe, then revises after feedback."
+        if research_ids:
+            reason = (
+                "SIMULATED article demand uncertainty motivates a momentum hypothesis, "
+                "then a volatility recipe after feedback; not real market evidence."
+            )
         proposal = {"proposed_factors": [{"op": op, "window": 10, "description": reason}]}
         if "news_feature_support" in context:
             name, window = ("demand", 3) if previous else ("earnings", 7)
@@ -79,6 +96,48 @@ def simulated_hypothesis(context, library, *, previous=None, feedback=None):
             ]
             if context["news_feature_support"]["runnable"]:
                 factors.append(f"news.{name}_{window}")
+        guidance = [
+            item
+            for item in library["definitions"]
+            if item.get("recipe", {}).get("op") == "guidance_direction" and item.get("runnable")
+        ]
+        if guidance and previous is None:
+            factors.append(guidance[0]["factor_id"])
+        business = [
+            d
+            for d in library["definitions"]
+            if d.get("runnable") and d.get("recipe", {}).get("op") == "financial"
+        ]
+        if business:
+            chosen = business[-1] if previous else business[0]
+            factors.append(chosen["factor_id"])
+            reason += (
+                " SIMULATED business hypothesis tests reported growth, then revises the "
+                "financial ratio after feedback."
+            )
+        external = [
+            d
+            for d in library["definitions"]
+            if d.get("runnable") and d.get("recipe", {}).get("op") == "external"
+        ]
+        if external:
+            factors.append(external[-1 if previous else 0]["factor_id"])
+            reason += (
+                " SIMULATED hypothesis revises the selected industry inventory after feedback."
+            )
+        peers = [
+            item
+            for item in library["definitions"]
+            if item.get("runnable")
+            and item.get("recipe", {}).get("op")
+            == ("relative_return" if previous else "peer_return")
+            and item["recipe"]["window"] == (10 if previous else 5)
+        ]
+        if peers:
+            factors.append(peers[0]["factor_id"])
+            reason += (
+                " The simulated researcher includes a peer return, then tests a relative return."
+            )
     return {
         **proposal,
         "provider": "simulated_llm",
@@ -101,10 +160,12 @@ def select_factors(library, hypothesis):
     unknown = set(ids) - definitions.keys()
     if unknown:
         raise ValueError(f"hypothesis selected unknown factors: {sorted(unknown)}")
-    if any(definitions[key].get("runnable") is False for key in ids):
+    if any(definitions[key].get("availability_reason") == "event_recipe_expired" for key in ids):
         raise ValueError(
-            "Selected news factor is pending: insufficient usable historical snapshots"
+            "Selected event recipe has expired; its original deadline cannot be renewed"
         )
+    if any(definitions[key].get("runnable") is False for key in ids):
+        raise ValueError("Selected factor is pending: insufficient usable historical inputs")
     return [deepcopy(definitions[key]) for key in ids]
 
 
@@ -161,12 +222,22 @@ def run_demo(
     summarize=simulated_summary,
     price_context=None,
     on_stage=None,
+    on_start=None,
+    rounds=2,
+    fit_budget=None,
+    patience=None,
+    select=None,
+    evaluate_selected=None,
 ):
     """One factor revision, no network, fits, workspace or persistence by default.
 
     Inputs/outputs are plain dictionaries. Inject a callable to replace one stage;
     keep the rest simulated. Providers identify themselves in their output.
     """
+    from quant_rsi.research.study_iterations import iterate, validate_limits
+
+    fit_budget = rounds if fit_budget is None else fit_budget
+    validate_limits(rounds, fit_budget, patience)
     symbol = TypeAdapter(InstrumentId).validate_python(symbol.strip().upper())
     context = {"symbol": symbol, "reference_price": 100.0}
     if price_context is not None:
@@ -179,43 +250,45 @@ def run_demo(
             on_stage(deepcopy(trace[-1]))
         return value
 
-    record("target", {"provider": "simulated_price_context", **context})
-    context["related"] = record("related_stocks", related(symbol))
-    context["news"] = record("news", news(deepcopy(context)))
-    library = record("factor_library", catalog())
-    initial = record("initial_hypothesis", hypothesize(deepcopy(context), deepcopy(library)))
-    if context.get("allow_factor_proposals"):
-        from quant_rsi.research.demo_proposals import extend_library
+    def call(stage, function, *args, **kwargs):
+        if on_start is not None:
+            on_start(stage)
+        return record(stage, function(*args, **kwargs))
 
-        library = record("initial_factor_library", extend_library(library, initial))
-    factors = record("initial_factors", select_factors(library, initial))
-    first = record("first_prediction", predict(deepcopy(context), factors, deepcopy(initial)))
-    observed = observe(deepcopy(context), deepcopy(first))
-    feedback = record(
-        "feedback",
-        {
-            **observed,
-            "predicted_price": first["predicted_price"],
-            "error": round(first["predicted_price"] - observed["observed_price"], 4),
-            "error_definition": "predicted_price_minus_observed_price",
-        },
+    call("target", lambda: {"provider": "simulated_price_context", **context})
+    context["related"] = call("related_stocks", related, symbol)
+    context["news"] = call("news", news, deepcopy(context))
+    library = call("factor_library", catalog)
+    iterations = iterate(
+        context,
+        library,
+        hypothesize=hypothesize,
+        predict=predict,
+        observe=observe,
+        resolve_factors=select_factors,
+        call=call,
+        rounds=rounds,
+        fit_budget=fit_budget,
+        patience=patience,
+        select=select,
     )
-    revised = record(
-        "revised_hypothesis",
-        hypothesize(
-            deepcopy(context),
-            deepcopy(library),
-            previous=deepcopy(initial),
-            feedback=deepcopy(feedback),
-        ),
+    attempts = iterations["attempts"]
+    initial, revised = attempts[0]["hypothesis"], attempts[-1]["hypothesis"]
+    first, second = attempts[0]["prediction"], attempts[-1]["prediction"]
+    terminal = (
+        call("terminal_evaluation", evaluate_selected, deepcopy(iterations))
+        if evaluate_selected is not None
+        else None
     )
-    if context.get("allow_factor_proposals"):
-        library = record("revised_factor_library", extend_library(library, revised))
-    factors = record("revised_factors", select_factors(library, revised))
-    second = record("second_prediction", predict(deepcopy(context), factors, deepcopy(revised)))
-    summary = record(
+    summary = call(
         "summary",
-        summarize(deepcopy(context), deepcopy(first), deepcopy(second), deepcopy(feedback)),
+        summarize,
+        deepcopy(context),
+        deepcopy(first),
+        deepcopy(second),
+        deepcopy(iterations["feedback"]),
+        **({"iterations": deepcopy(iterations)} if select is not None else {}),
+        **({"terminal_evaluation": deepcopy(terminal)} if terminal is not None else {}),
     )
     live_llm = any(
         hypothesis.get("provider") in {"codex_cli", "openai_api"}
@@ -223,7 +296,8 @@ def run_demo(
     )
     live_news = context["news"].get("provider") == "issuer_rss"
     configured_related = context["related"].get("provider") == "instrument_relationship_profile"
-    trained_model = first.get("provider") == "lightgbm"
+    trained_model = first.get("provider") in {"lightgbm", "ridge"}
+    model_label = "Ridge" if first.get("provider") == "ridge" else "LightGBM"
     notice = "Product wiring demo. News, LLM, prices and predictions are simulated by default."
     if live_llm or live_news:
         notice = (
@@ -234,14 +308,15 @@ def run_demo(
         )
     if trained_model:
         notice = (
-            f"Real LightGBM training with {'real' if live_llm else 'simulated'} LLM hypotheses "
+            f"Real {model_label} training with "
+            f"{'real' if live_llm else 'simulated'} LLM hypotheses "
             f"and {'real issuer RSS' if live_news else 'simulated'} news. Prices "
             "and observed outcomes are synthetic. Both estimates use the same development origin; "
             "the revision reuses disclosed feedback. No independent improvement or market forecast."
         )
         if first.get("price_provider") == "public_daily_prices":
             notice = (
-                "Real daily prices and LightGBM training with "
+                f"Real daily prices and {model_label} training with "
                 f"{'real' if live_llm else 'simulated'} LLM hypotheses "
                 f"and {'real issuer RSS' if live_news else 'simulated'} news. "
                 "Historical estimates reuse development feedback; "
@@ -262,9 +337,11 @@ def run_demo(
         else "simulation",
         "notice": notice,
         "target": symbol,
-        "factor_revisions": 1,
+        "factor_revisions": len(attempts) - 1,
+        "iterations": iterations,
         "trace": trace,
         "summary": summary,
+        **({"terminal_evaluation": terminal} if terminal is not None else {}),
     }
 
 

@@ -229,6 +229,11 @@ class SnapshotStore:
         manifest = decode(self.get(snapshot_ref))
         if manifest.get("kind") != "IntradaySnapshot":
             raise ValueError("not an intraday snapshot")
+        raw_refs = set(manifest["raw_refs"])
+        raw_refs.update(r["raw_ref"] for r in manifest["receipts"] if "raw_ref" in r)
+        for raw_ref in sorted(raw_refs):
+            envelope = decode(self.get(raw_ref))
+            self.get(envelope["body_ref"])
         contract = IntradayDataContract.model_validate_json(canonical(manifest["contract"]))
         blocks = {}
         for entry in manifest["blocks"]:

@@ -58,6 +58,18 @@ def resolve_instrument_factors(root: Path, market: str, instrument: str) -> dict
                 source=binding.source.model_dump(mode="json"),
             )
         )
+    composition_ids = set()
+    binding_ids = {binding.binding_id for binding in config.bindings}
+    for composition in config.compositions:
+        if composition.factor_id in definitions or composition.factor_id in composition_ids:
+            raise ValueError("duplicate or shadowed composition definition")
+        composition_ids.add(composition.factor_id)
+        if any(
+            node.leaf not in binding_ids
+            for node in composition.expression.nodes
+            if node.op == "leaf"
+        ):
+            raise ValueError("composition refers to an unknown source binding")
     return dict(
         schema_version=1,
         kind="resolved_instrument_factor_config",
@@ -66,4 +78,5 @@ def resolve_instrument_factors(root: Path, market: str, instrument: str) -> dict
         market=market,
         instrument=instrument,
         factors=factors,
+        compositions=[item.model_dump(mode="json") for item in config.compositions],
     )

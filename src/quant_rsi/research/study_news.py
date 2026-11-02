@@ -9,7 +9,8 @@ from urllib.parse import urlsplit
 from quant_rsi.core.artifacts import canonical, decode, digest
 from quant_rsi.market.market_contracts import timestamp, utc_text
 
-MAX_FILES, MAX_BYTES, MAX_FILE_BYTES = 256, 8 * 1024 * 1024, 512 * 1024
+# Longer-horizon studies need more than one trading year of daily snapshots.
+MAX_FILES, MAX_BYTES, MAX_FILE_BYTES = 512, 8 * 1024 * 1024, 512 * 1024
 
 
 def _time(value):
@@ -105,6 +106,32 @@ def _validate(snapshot):
     if any(sum(item["symbol"] == symbol for item in items) > 20 for symbol in sources):
         raise ValueError("News snapshot exceeds 20 selected items per issuer")
     return sources, max(receipts)
+
+
+def load_snapshot(path, symbol, *, limit=5):
+    """Read one retained RSS context with its original source receipts and selection."""
+    if type(limit) is not int or not 1 <= limit <= 20:
+        raise ValueError("--news-limit must be an integer between 1 and 20")
+    path = Path(path)
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_FILE_BYTES:
+        raise ValueError("Retained news snapshot file or byte bound exceeded")
+    with path.open("rb") as stream:
+        raw = stream.read(MAX_FILE_BYTES + 1)
+    if len(raw) > MAX_FILE_BYTES:
+        raise ValueError("Retained news snapshot exceeds byte limit")
+    snapshot = decode(raw)
+    sources, _ = _validate(snapshot)
+    if snapshot["provider"] != "issuer_rss":
+        raise ValueError("--news-snapshot requires retained issuer RSS data")
+    if next(iter(sources)) != symbol or sources[symbol]["status"] != "available":
+        raise ValueError("Retained news snapshot target differs from the study target")
+    if not any(item["symbol"] == symbol for item in snapshot["items"]):
+        raise ValueError("Retained news context requires at least one target headline")
+    for item in snapshot["items"]:
+        _text(item.get("text"), 2301)
+    if any(sum(item["symbol"] == key for item in snapshot["items"]) > limit for key in sources):
+        raise ValueError("Retained news selection exceeds --news-limit; it cannot be truncated")
+    return snapshot
 
 
 def load_archive(path):
@@ -228,7 +255,7 @@ class NewsHistory:
         return result
 
 
-def simulated_history(data, symbol):
+def simulated_history(data, symbol, *, guidance=False):
     """Invented daily snapshots for synthetic-price demos only; no market-news claim."""
     snapshots = []
     for index, session in enumerate(data.dates):
@@ -245,7 +272,14 @@ def simulated_history(data, symbol):
                         id=f"simulated.{symbol}.{session}.v1",
                         symbol=symbol,
                         title="SIMULATED "
-                        + ("earnings growth" if index % 2 else "demand weakness"),
+                        + ("earnings growth" if index % 2 else "demand weakness")
+                        + (
+                            "; company "
+                            + ("raises", "lowers", "reaffirms")[index % 3]
+                            + " earnings guidance"
+                            if guidance
+                            else ""
+                        ),
                         summary="Invented fixture, not real issuer news.",
                         url=f"https://simulated.invalid/{symbol}/{session}",
                         published_at=utc_text(timestamp(received) - timedelta(hours=1)),

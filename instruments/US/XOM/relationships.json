@@ -1,0 +1,14 @@
+{
+  "instrument": "XOM",
+  "reviewed_on": "2026-10-31",
+  "relationships": [
+    {
+      "symbol": "CVX",
+      "relationship": "reported_joint_venture_partner",
+      "reason": "Tengizchevroil's year-end 2025 fact sheet lists Chevron and ExxonMobil as partners. This dated business link motivates a research comparison; it is not evidence of return correlation or causal price effects.",
+      "source_urls": [
+        "https://tengizchevroil.com/docs/default-source/factsheets/eng/2025/tco---factsheet---eng-q4.pdf?sfvrsn=4a4fcd5c_1"
+      ]
+    }
+  ]
+}

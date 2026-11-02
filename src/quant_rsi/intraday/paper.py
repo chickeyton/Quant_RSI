@@ -443,7 +443,6 @@ class PaperRunner:
         self.flattened = False
         self.session_closed = False
         self.consecutive_rejects = 0
-        self.stale = False
         self.session_start_equity = Decimal(plan.capital)
         self.now = datetime.now(timezone.utc)
         self.recovery_cutoff: datetime | None = None
@@ -482,7 +481,7 @@ class PaperRunner:
         """Durable stop: cancel entries, exit positions at the next fill bar, then end flat."""
         if not self.journal.claim_request(self.episode, request_id, "stop"):
             return
-        if self.journal.status(self.episode) in {"active", "registered"}:
+        if self.journal.status(self.episode) in {"active", "registered", "suspended"}:
             self.journal.set_status(self.episode, "stopping", now, f"stop:{request_id}")
         for record in self._active_intents("entry"):
             self._cancel_or_abandon(record, now, "stopped")
@@ -657,10 +656,6 @@ class PaperRunner:
         return decisions
 
     def _feed_event(self, event: FeedEvent) -> None:
-        if event.kind == "stale_feed":
-            self.stale = True
-        elif event.kind == "feed_resumed":
-            self.stale = False
         self.journal.append(
             self.episode,
             f"feed_{event.kind}",
@@ -878,7 +873,7 @@ class PaperRunner:
                 self._cancel_or_abandon(record, now, "deadline")
             elif status == "pending" and now >= intent.submit_at:
                 if intent.purpose == "entry":
-                    blocked = self._entry_block_reasons(now)
+                    blocked = self._entry_block_reasons(now, intent)
                     if blocked:
                         self._cancel_or_abandon(record, now, "blocked:" + ",".join(blocked))
                         continue
@@ -902,9 +897,9 @@ class PaperRunner:
                         },
                     )
 
-    def _entry_block_reasons(self, now: datetime) -> list[str]:
+    def _entry_block_reasons(self, now: datetime, entry: OrderIntent) -> list[str]:
         """Entries are re-checked at submission: a stop or risk block since the decision wins."""
-        reasons = list(self.risk_reasons(now))
+        reasons = list(self.risk_reasons(now, entry=entry))
         status = self.journal.status(self.episode)
         if status != "active":
             reasons.append(f"episode_{status}")
@@ -1078,14 +1073,28 @@ class PaperRunner:
         return any(r["intent"].instrument == target for r in self._active_intents(purpose))
 
     # Risk and session end ------------------------------------------------------------------------
-    def risk_reasons(self, now: datetime) -> list[str]:
+    def risk_reasons(self, now: datetime, *, entry: OrderIntent | None = None) -> list[str]:
         positions = self.positions()
-        values = []
+        values = {}
         for target, position in positions.items():
             try:
-                values.append(self._last_close(target) * position.quantity)
+                values[target] = self._last_close(target) * position.quantity
             except ValueError:
-                values.append(position.cost)
+                values[target] = position.cost
+        position_value = sum(values.values(), Decimal(0))
+        if entry is not None:
+            # Reserve every buy that can still fill, including unknown submissions and
+            # unconfirmed cancels. Pending alternatives reserve only when submitted.
+            for record in self.journal.intents(self.episode, ACTIVE_INTENT):
+                intent = record["intent"]
+                if intent.side != "buy" or (
+                    record["status"] == "pending" and intent.intent_id != entry.intent_id
+                ):
+                    continue
+                remaining = max(0, intent.quantity - record["filled"])
+                values[intent.instrument] = values.get(intent.instrument, Decimal(0)) + (
+                    Decimal(intent.limit_price) * remaining
+                )
         recent = [
             r
             for r in self.journal.intents(self.episode)
@@ -1093,14 +1102,14 @@ class PaperRunner:
             and timedelta(0) <= now - r["intent"].submit_at <= timedelta(minutes=1)
         ]
         state = RiskState(
-            gross_notional=sum(values, Decimal(0)),
-            largest_position_notional=max(values, default=Decimal(0)),
+            gross_notional=sum(values.values(), Decimal(0)),
+            largest_position_notional=max(values.values(), default=Decimal(0)),
             orders_last_minute=len(recent),
-            session_pnl=self.cash() + sum(values, Decimal(0)) - self.session_start_equity,
+            session_pnl=self.cash() + position_value - self.session_start_equity,
             capital=Decimal(self.plan.capital),
             consecutive_rejects=self.consecutive_rejects,
             clock_skew_seconds=self.clock_skew(),
-            stale_feed=self.stale,
+            stale_feed=any(finaliser.stale for finaliser in self.finalisers.values()),
             model_expired=now >= self.plan.expires_at,
             in_restart_window=self.restart_window(now),
             extra_reasons=["broker_connectivity_lost"] if self.connectivity_lost() else [],
@@ -1140,6 +1149,8 @@ class PaperRunner:
             )
         if positions:
             self._suspend(now, "overnight_breach")
+        elif self.journal.intents(self.episode, ACTIVE_INTENT):
+            self._suspend(now, "unresolved_orders_at_close")
         elif self.journal.status(self.episode) == "stopping":
             self.journal.set_status(self.episode, "terminated", now, "stopped_flat")
 

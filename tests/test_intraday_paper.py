@@ -156,6 +156,95 @@ def _register(runner, now=None):
     runner.activate(now)
 
 
+@pytest.mark.parametrize("limit", ["max_gross_notional", "max_position_notional"])
+def test_submission_blocks_prospective_notional(tmp_path, world, limit):
+    risk = _plan(world[0], world[1]).risk.model_dump()
+    risk[limit] = "100"
+    runner, broker, journal = _runner(tmp_path, world, risk=risk)
+    _register(runner)
+    _run_day(
+        runner,
+        world[2],
+        stop_when=lambda now: any(
+            r["status"] != "pending" for r in journal.intents(runner.episode)
+        ),
+    )
+    assert journal.intents(runner.episode)
+    assert not broker.orders
+    assert not runner.positions()
+    assert limit in str(journal.events(runner.episode))
+
+
+@pytest.mark.parametrize("status", ["submitting", "submitted", "cancelling"])
+def test_submission_reserves_unfilled_buys(tmp_path, world, status):
+    risk = _plan(world[0], world[1]).risk.model_dump()
+    risk.update(max_gross_notional="30000", max_position_notional="60000")
+    runner, broker, journal = _runner(tmp_path, world, broker=FakeBroker(fill_sides=()), risk=risk)
+    _register(runner)
+    _run_day(runner, world[2], stop_when=lambda now: bool(broker.orders))
+    first = journal.intents(runner.episode)[0]["intent"]
+    journal.update_intent(first.intent_id, status=status)
+    runner._new_intent("SPY", "buy", "entry", 40, Decimal("500"), 0, int(runner.now.timestamp()))
+    second = next(r["intent"] for r in journal.intents(runner.episode) if r["intent"] != first)
+    assert "max_gross_notional" in runner._entry_block_reasons(runner.now, second)
+    journal.update_intent(first.intent_id, status="cancelled")
+    assert "max_gross_notional" not in runner._entry_block_reasons(runner.now, second)
+
+
+def test_close_keeps_account_until_cancel_is_confirmed(tmp_path, world):
+    class DelayedCancelBroker(FakeBroker):
+        def respond(self, request):
+            if request.kind == "cancel_order":
+                return []
+            return super().respond(request)
+
+    runner, broker, journal = _runner(tmp_path, world, broker=DelayedCancelBroker(fill_sides=()))
+    _register(runner)
+    _run_day(runner, world[2], stop_when=lambda now: bool(broker.orders))
+    runner.stop("stop", runner.now)
+    _run_day(runner, world[2], start_session=False, start=runner.now + timedelta(seconds=30))
+    assert not runner.positions()
+    assert journal.status(runner.episode) == "suspended"
+    assert journal.intents(runner.episode)[0]["status"] == "cancelling"
+    successor = _plan(world[0], world[1], episode_id="ko-p2")
+    with pytest.raises(ValueError, match="already has active episode"):
+        journal.register(successor, broker.accounts[0], runner.now)
+    broker.transport.push(*broker.fill(next(iter(broker.orders))))
+    runner.reconcile(runner.now)
+    assert runner.positions()["KO"].quantity > 0
+    assert journal.status(runner.episode) == "suspended"
+    with pytest.raises(ValueError, match="already has active episode"):
+        journal.register(successor, broker.accounts[0], runner.now)
+
+
+def test_one_resumed_stream_does_not_clear_other_stale_streams(tmp_path, world):
+    runner, _, _ = _runner(tmp_path, world)
+    _register(runner)
+    runner.start_session(_today())
+    now = _today().open_at + timedelta(seconds=runner.plan.max_lag_seconds + 1)
+    runner._finalise(now)
+    assert "stale_feed" in runner.risk_reasons(now)
+    runner.on_update("KO", "decision", _payload(world[2]["KO"]["decision"], 0), now)
+    assert not runner.finalisers[("KO", "decision")].stale
+    assert "stale_feed" in runner.risk_reasons(now)
+    for instrument, grid in runner.finalisers:
+        runner.on_update(instrument, grid, _payload(world[2][instrument][grid], 0), now)
+    assert "stale_feed" not in runner.risk_reasons(now)
+
+
+def test_suspended_episode_can_be_stopped_without_reenabling_entries(tmp_path, world):
+    runner, broker, journal = _runner(tmp_path, world)
+    _register(runner)
+    runner.start_session(_today())
+    journal.set_status(runner.episode, "suspended", runner.now, "unresolved_orders_at_close")
+    runner.stop("stop-after-reconciliation", runner.now)
+    assert journal.status(runner.episode) == "stopping"
+    runner.reconcile(runner.now)
+    runner.step(_today().close_at + timedelta(seconds=60))
+    assert journal.status(runner.episode) == "terminated"
+    assert not broker.orders
+
+
 def test_full_day_trades_inside_windows_and_ends_flat(tmp_path, world):
     runner, broker, journal = _runner(tmp_path, world)
     _register(runner)
