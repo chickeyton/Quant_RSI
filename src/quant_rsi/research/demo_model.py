@@ -16,7 +16,11 @@ from quant_rsi.research.demo_features import (
     price_metrics,
 )
 from quant_rsi.research.study_business import business_column
-from quant_rsi.research.study_estimators import StandardizedRidge, model_configuration
+from quant_rsi.research.study_estimators import (
+    StandardizedRidge,
+    column_share,
+    model_configuration,
+)
 from quant_rsi.research.study_factor_profiles import prepare_bound_features
 
 
@@ -562,8 +566,11 @@ class LightGBMDemo:
         }
         if self.estimator == "ridge":
             result["fitted_model"] = model.state()
+            weights = np.abs(model.coefficients)
         else:
             result["boost_rounds"] = BOOST_ROUNDS
+            weights = model.feature_importance(importance_type="gain")
+        result["column_share"] = column_share(weights, result["factor_ids"])
         if self.evaluation_sessions > 1:
             result["development"] = self._development(predicted_returns, float(y.mean()))
         self._fits.append((predict, matrix, y.copy(), deepcopy(result["factor_ids"])))

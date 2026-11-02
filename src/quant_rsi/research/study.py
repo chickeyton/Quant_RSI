@@ -171,6 +171,7 @@ def _configuration(args):
         research_rounds=args.rounds,
         fit_budget=fit_budget,
         comparison_fit_budget=int(compare_external)
+        + int(getattr(args, "compare_models", False))
         + int(getattr(args, "financials", False))
         + int(getattr(args, "external_drivers", False)),
         walk_forward_fit_budget=folds,
@@ -236,7 +237,13 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         if getattr(args, "check_inputs", False)
         else simulated_hypothesis
         if args.llm == "simulated"
-        else LLMHypothesizer(args.llm, args.llm_model, args.llm_timeout, on_usage=progress.usage)
+        else LLMHypothesizer(
+            args.llm,
+            args.llm_model,
+            args.llm_timeout,
+            on_usage=progress.usage,
+            handoff_dir=getattr(args, "cursor_dir", None) or root / "cursor-llm",
+        )
     )
     SideCosts(commission_bps=args.commission_bps, slippage_bps=args.slippage_bps, tax_bps="0")
     decimal_text(args.initial_cash, positive=True)
@@ -682,10 +689,15 @@ def _run(args, symbol, root, configuration, record, progress, cache):
     def context(target):
         return model.context(target) | {
             "research_question": configuration["question"],
-            "prior_outcomes": {k: v for k, v in prior_outcomes.items() if k != "factor_memory"}
+            "prior_outcomes": {
+                k: v
+                for k, v in prior_outcomes.items()
+                if k not in {"factor_memory", "factor_ledger"}
+            }
             if prior_outcomes
             else None,
             "factor_memory": factor_memory,
+            "factor_ledger": (prior_outcomes or {}).get("factor_ledger"),
             "guidance": guidance_summary,
             "allow_factor_proposals": True,
             "selection_policy": {
@@ -1035,6 +1047,40 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         )
         _write(root / "external_comparison.json", comparison)
         event = {"stage": "external_comparison", "output": comparison}
+        record(event)
+        result["trace"].append(event)
+
+    if getattr(args, "compare_models", False):
+        from quant_rsi.research.study_model_comparison import compare_models
+
+        progress.start("model_comparison")
+        chosen = selection["selected_round"]
+        inputs = model.comparison_inputs(chosen)
+        _write(root / "model_comparison_inputs.json", inputs)
+        comparison = cache.call(
+            "model_comparison",
+            inputs,
+            lambda: compare_models(
+                inputs,
+                model.data,
+                attempts[chosen - 1]["prediction"],
+                result.get("terminal_evaluation"),
+                policy={
+                    "commission_bps": args.commission_bps,
+                    "slippage_bps": args.slippage_bps,
+                    "initial_cash": args.initial_cash,
+                    "threshold": args.threshold,
+                    "horizon_sessions": model.horizon,
+                },
+            ),
+        )
+        result["study"]["model_comparison"] = comparison
+        result["study"]["conclusion"] += (
+            " Same-input LightGBM/Ridge comparison completed with one additional fit; "
+            "the selected model and latest forecast are unchanged."
+        )
+        _write(root / "model_comparison.json", comparison)
+        event = {"stage": "model_comparison", "output": comparison}
         record(event)
         result["trace"].append(event)
 

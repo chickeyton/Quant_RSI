@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -32,6 +33,21 @@ from quant_rsi.research.trajectory import init_trajectory, inspect_trajectory, r
 from quant_rsi.research.trajectory_state import TrajectoryPlan
 
 
+def default_history_dir(prices):
+    """Same per-source layout as the workbench; real and synthetic outcomes never mix."""
+    root = os.environ.get("QUANT_RSI_HISTORY_DIR")
+    return (Path(root) if root else Path.home() / ".quant_rsi" / "history") / prices
+
+
+def _check_llm_choice(args):
+    if args.cursor_dir is not None and args.llm != "cursor":
+        raise ValueError("--cursor-dir is only used with --llm cursor")
+    if args.command == "research-demo" and args.llm == "cursor" and args.cursor_dir is None:
+        raise ValueError("research-demo --llm cursor requires --cursor-dir")
+    if getattr(args, "news_research", False) and args.llm in {"deepseek", "cursor"}:
+        raise ValueError("News research web search requires --llm codex or --llm api")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Bounded quant research and development observations"
@@ -55,11 +71,21 @@ def main(argv: list[str] | None = None) -> int:
         demo.add_argument("--json", action="store_true", help="emit the complete trace as JSON")
         demo.add_argument(
             "--llm",
-            choices=("simulated", "codex", "api"),
+            choices=("simulated", "codex", "api", "deepseek", "cursor"),
             default="codex" if study else "simulated",
         )
-        demo.add_argument("--llm-model", help="model ID; required for API, optional for Codex")
+        demo.add_argument(
+            "--llm-model",
+            help="model ID; required for API, optional for Codex and DeepSeek "
+            "(DeepSeek default: deepseek-chat)",
+        )
         demo.add_argument("--llm-timeout", type=float, default=180, help="seconds per LLM call")
+        demo.add_argument(
+            "--cursor-dir",
+            type=Path,
+            help="directory where --llm cursor reads hypothesis JSON "
+            "(research-study default: OUTPUT/cursor-llm)",
+        )
         demo.add_argument(
             "--related",
             choices=("simulated", "profile"),
@@ -84,7 +110,13 @@ def main(argv: list[str] | None = None) -> int:
             demo.add_argument(
                 "--history-dir",
                 type=Path,
-                help="shared study receipts, outcomes, news and industry publications",
+                help="shared receipts, outcomes, factor ledger, news and industry publications "
+                "(default: $QUANT_RSI_HISTORY_DIR or ~/.quant_rsi/history, per price source)",
+            )
+            demo.add_argument(
+                "--no-history",
+                action="store_true",
+                help="do not read or record shared study history for this run",
             )
             demo.add_argument(
                 "--factor-root",
@@ -148,6 +180,11 @@ def main(argv: list[str] | None = None) -> int:
                 "--compare-qlib",
                 action="store_true",
                 help="one additional upstream Qlib LightGBM fit on the selected study inputs",
+            )
+            demo.add_argument(
+                "--compare-models",
+                action="store_true",
+                help="one alternate LightGBM/Ridge fit on the same selected factors and rows",
             )
             demo.add_argument(
                 "--ridge-alpha", type=float, help="positive ridge penalty (default: 1; ridge only)"
@@ -243,9 +280,14 @@ def main(argv: list[str] | None = None) -> int:
     history = commands.add_parser(
         "research-history", help="inspect or observe saved study forecasts"
     )
-    history.add_argument("action", choices=("status", "observe"))
+    history.add_argument("action", choices=("status", "observe", "factors", "constellation"))
     history.add_argument("symbol")
-    history.add_argument("--history-dir", type=Path, required=True)
+    history.add_argument(
+        "--history-dir",
+        type=Path,
+        help="default: the daily-price directory under $QUANT_RSI_HISTORY_DIR "
+        "or ~/.quant_rsi/history",
+    )
     history.add_argument("--json", action="store_true", help="emit all retained history fields")
     history.add_argument(
         "--ui",
@@ -255,6 +297,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     history.add_argument(
         "--prices-dir", type=Path, help="later retained daily collection; required for observe"
+    )
+    history.add_argument(
+        "--output",
+        type=Path,
+        help="constellation HTML file (default: <history-dir>/constellation/<SYMBOL>.html)",
     )
     workflow = commands.add_parser("research-workflow", help="one frozen research/account profile")
     workflow_commands = workflow.add_subparsers(dest="workflow_command", required=True)
@@ -506,6 +553,58 @@ def main(argv: list[str] | None = None) -> int:
             )
 
             symbol = args.symbol.strip().upper()
+            if args.history_dir is None:
+                args.history_dir = default_history_dir("daily")
+            if args.output is not None and args.action != "constellation":
+                raise ValueError("--output is only used by research-history constellation")
+            if args.action == "constellation":
+                from quant_rsi.core.artifacts import atomic_write
+                from quant_rsi.research.study_constellation import constellation, render
+
+                if args.prices_dir is not None:
+                    raise ValueError("research-history constellation does not read prices")
+                from quant_rsi.research.study_queue import stock_symbol
+
+                symbol = stock_symbol(symbol)
+                data = constellation(args.history_dir, symbol)
+                output = (
+                    args.output or args.history_dir / "constellation" / f"{symbol}.html"
+                ).resolve()
+                atomic_write(output, render(data).encode())
+                print(
+                    f"{symbol}: {len(data['stars'])} factor stars and "
+                    f"{len(data['relations'])} relations from {len(data['studies'])} studies: "
+                    f"{output}"
+                )
+                if args.ui if args.ui is not None else sys.stderr.isatty():
+                    import webbrowser
+
+                    webbrowser.open(output.as_uri())
+                return 0
+            if args.action == "factors":
+                from quant_rsi.research.study_history import factor_ledger
+
+                if args.prices_dir is not None:
+                    raise ValueError("research-history factors does not read prices")
+                ledger = factor_ledger(args.history_dir, symbol)
+                if args.json:
+                    print(json.dumps(ledger, indent=2, allow_nan=False))
+                else:
+                    print(
+                        f"{symbol}: {len(ledger['factors'])} remembered factor versions from "
+                        f"{ledger['study_count']} studies in {args.history_dir}"
+                    )
+                    for item in ledger["factors"]:
+                        mae = item["best_mae_price"]
+                        print(
+                            f"  {item['factor_id']} [{item['horizon_sessions']} sessions, "
+                            f"definition {item['definition_sha256'][:12]}]: "
+                            f"tried {item['rounds_tried']} rounds, "
+                            f"selected {item['rounds_selected']}, best development MAE "
+                            + ("n/a" if mae is None else f"{mae:.4f}")
+                            + f", last seen {item['last_seen']}"
+                        )
+                return 0
             if args.action == "observe":
                 if args.prices_dir is None:
                     raise ValueError("research-history observe requires --prices-dir")
@@ -536,8 +635,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "research-study":
             from quant_rsi.research.study import run_study
 
+            _check_llm_choice(args)
             if args.ui is None:
                 args.ui = sys.stderr.isatty() and not args.json
+            if args.no_history:
+                if args.history_dir is not None:
+                    raise ValueError("--no-history cannot be combined with --history-dir")
+            elif args.history_dir is None:
+                args.history_dir = default_history_dir(args.prices)
             result = run_study(args)
             if args.check_inputs:
                 print(
@@ -558,6 +663,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if args.command == "research-demo":
+            _check_llm_choice(args)
             from quant_rsi.research.demo import (
                 load_catalog,
                 render_demo,
@@ -598,7 +704,9 @@ def main(argv: list[str] | None = None) -> int:
             if args.llm != "simulated":
                 from quant_rsi.research.llm import LLMHypothesizer
 
-                hypothesize = LLMHypothesizer(args.llm, args.llm_model, args.llm_timeout)
+                hypothesize = LLMHypothesizer(
+                    args.llm, args.llm_model, args.llm_timeout, handoff_dir=args.cursor_dir
+                )
             if args.related == "profile":
                 from quant_rsi.research.demo_related import profile_related
 

@@ -1265,7 +1265,11 @@ quant-rsi research-study KO --output /tmp/ko-study-offline \
 
 ### Continue research across market days
 
-Opt into one shared history directory while keeping each study output directory fresh:
+Studies share one history directory while each study output directory stays fresh.
+Without `--history-dir`, the CLI uses `~/.quant_rsi/history/<daily|synthetic>`
+(or the same layout under `$QUANT_RSI_HISTORY_DIR`), matching the workbench's
+per-price-source layout. Pass `--no-history` for a self-contained run, or name a
+directory explicitly:
 
 ```bash
 quant-rsi research-study KO --news-research \
@@ -1314,7 +1318,7 @@ The existing UI adds a forecast-history table. Opening it again reads current hi
 `research-history ... --ui` opens the latest study view after observing. Saved HTML
 and each study report remain snapshots. The table shows the latest 50 entries for the
 symbol; at most 20 mature outcomes from that view enter the LLM context. All receipts
-and corrections remain in the journal. Without `--history-dir`, studies stay isolated.
+and corrections remain in the journal. Only `--no-history` studies stay isolated.
 
 The **Continuing the previous research** view uses the history snapshot retained in
 `prior_outcomes.json` and the target trace at this run's start. It shows which settled
@@ -1326,7 +1330,7 @@ live history table, which may receive new observations after the run completes.
 
 ### Reusing selected factor recipes
 
-With `--history-dir` (already provided by the workbench), a new study reads selected
+With shared history (the CLI default, also provided by the workbench), a new study reads selected
 recipes from the latest five studies of the same stock. It reads immutable history
 artifacts, not the prior run's mutable filesystem path. Older entries can recover the
 selected definitions from their frozen catalogs without rewriting those entries.
@@ -1347,6 +1351,76 @@ outcome path supplies observed errors. Unselected candidates remain in retained 
 This is not global factor deletion, automatic promotion, or an independent assessment
 of factor effectiveness. Studies without shared history remain isolated.
 New memory alone does not count as new external evidence for scheduled research.
+
+### Factor ledger
+
+Each registered study also records every attempted round, not only the selected one:
+its factor IDs, the frozen definitions of every attempted factor, development price
+MAE beside the unchanged-price baseline, direction hit rate, costed strategy Sharpe and
+net return, and whether the round was selected. Entries registered before the ledger
+recover the same records from their retained results; nothing is rewritten.
+
+Ledger rows distinguish the executable definition, transitive input recipes/source
+bindings, and prediction horizon. Reusing a display ID with different news keywords,
+a changed business formula or a different source creates a separate `ledger_id` and
+`definition_sha256`; old scores are never attributed to the latest recipe. Descriptions
+and current availability do not create new versions. Input definitions are retained for
+this identification even when they were not fitted directly. Legacy missing input
+definitions are recovered from the frozen result. Metrics are those of the whole model
+containing a factor, not its isolated contribution.
+
+The next study supplies a per-factor summary as `context.factor_ledger` for the same
+symbol and horizon across research questions (the 40 most recently tried factor versions):
+rounds tried and selected, rounds beating the unchanged-price baseline, best development
+MAE and Sharpe, and settled selected forecasts. It helps the researcher avoid repeating
+rejected sets. Rejected recipes are not restored as catalog candidates; the researcher
+must propose them again. These are adaptive development measurements on each study's
+own window, not a cross-period ranking or evidence that a factor works. Inspect the
+ledger without another fit:
+
+```bash
+quant-rsi research-history factors KO          # default daily history
+quant-rsi research-history factors KO --history-dir /tmp/ko-research-history --json
+```
+
+### Factor constellation
+
+The same ledger can be browsed as a star map, one star per remembered factor, grouped by
+class (price recipes, news, financial statements, business expressions, industry drivers,
+related companies and instrument-profile bindings) around the stock:
+
+```bash
+quant-rsi research-history constellation KO    # writes and opens <history>/constellation/KO.html
+quant-rsi research-history constellation KO --history-dir /tmp/ko-research-history \
+  --output /tmp/ko-constellation.html --no-ui
+```
+
+The workbench lists a **Factor constellations** link for each stock in its shared history;
+that page is rendered from the current history on every request. The file is a single
+offline HTML page with no external scripts.
+
+- **Size** counts selections, development rounds beating the unchanged-price baseline and
+  twice the settled selected forecasts.
+- **Brightness** fades with the days since the factor was last tried; more important stars
+  fade more slowly. Faded stars remain as a small coordinate mark.
+- **Lines** are recorded relationships only: a derived factor's declared inputs (inputs
+  that were never tried directly appear as ringed stars), factors selected together in a
+  study's adopted round, and a revision replacing one factor set with another. Faint
+  straight lines only connect nearby stars of the same class.
+- The **day slider** reveals first appearances; **Reveal history** animates that sequence.
+  Sizes, relationship counts and detail metrics summarize all retained history, not what
+  was known on the selected day. Clicking a star shows its metrics, questions and recipe.
+  Each execution version (including source bindings and horizon) has its own star;
+  links and round shares reference that exact version.
+- **Round stack** switches to one study. The slider steps through that study's rounds, and
+  its last stop stacks every round: a line to the symbol is that factor's share of the fit.
+  LightGBM records gain share; ridge records the share of absolute standardized coefficients.
+  The stack adds those shares and divides by the rounds that recorded one. A factor left
+  out of a recorded round counts as zero. Older studies still show which factors were tried,
+  without a share. Neither view is evidence that a factor predicts returns.
+
+The map visualizes adaptive development history. A bright star or a dense relationship
+does not establish that a factor or link predicts returns.
 
 A real-service check on 2026-11-01 registered the retained KO study from the financial
 source acceptance into a separate history at the current receipt time, then ran a new
@@ -1452,9 +1526,11 @@ company suggestions. RSS news limits apply per issuer; see
 
 | Option | Default and meaning |
 | --- | --- |
-| `--llm` | `codex`; also `api` or `simulated` |
-| `--llm-model`, `--llm-timeout` | Optional Codex model; API model required; timeout 180 seconds per call |
+| `--llm` | `codex`; also `api`, `deepseek`, `cursor` or `simulated` |
+| `--llm-model`, `--llm-timeout` | Optional Codex or DeepSeek model (DeepSeek default `deepseek-chat`); API model required; timeout 180 seconds per call |
+| `--cursor-dir` | Directory for `--llm cursor` request and response files; default `OUTPUT/cursor-llm` |
 | `--model` | `lightgbm` by default; `ridge` uses a reviewed regularized linear model on the same rows and features |
+| `--compare-models` | Off; one alternate LightGBM/Ridge fit on the selected research inputs, without changing selection or publication |
 | `--ridge-alpha` | Positive finite penalty for Ridge, default 1.0; rejected when supplied with LightGBM |
 | `--related`, `--news`, `--prices` | `profile`, `issuer-rss`, `daily`; each also accepts `simulated`, except prices use `synthetic` |
 | `--related-prices` / `--no-related-prices` | Enabled by default; collect at most three distinct related symbols once, with no silent replacement of unavailable data |
@@ -1469,7 +1545,12 @@ company suggestions. RSS news limits apply per issuer; see
 | `--selection-metric` | `mae` by default (lower is better); optionally `sharpe` (higher is better) for development-only adoption |
 | `--quiet` | Hide stderr progress; timing and usage artifacts are still saved |
 
-API mode requires `OPENAI_API_KEY` and `--llm-model MODEL_ID`; see
+API mode requires `OPENAI_API_KEY` and `--llm-model MODEL_ID`. DeepSeek mode requires
+`DEEPSEEK_API_KEY` and calls `https://api.deepseek.com/chat/completions` with JSON
+mode; omit `--llm-model` to use `deepseek-chat`. Cursor mode does not call a model
+service: each hypothesis writes `round-N.request.json` under `--cursor-dir` and waits
+until `round-N.response.json` is replaced into that directory. News-research web
+search stays on Codex or the OpenAI API. See
 [LLM prerequisites](simulated_research_loop.md#use-a-real-llm-for-hypotheses).
 Service errors stop the study without silent fallback. Explicit `research-resume` or
 **Continue study** retries the failed work using retained checkpoints.
@@ -1552,9 +1633,43 @@ LightGBM retains its existing deterministic parameters and 24 boosting rounds,
 without scaling. Both model choices retain the same maturity rules, common news
 mask and unchanged-price/training-mean controls. Separate CLI runs can receive
 different LLM factors: merely running each model once is not a controlled model
-comparison. Freeze data, factor columns, origins and information budgets before
-making that claim. This completes the alternative-model interface in #39 B; it
+comparison. Use `--compare-models` below to reuse one selected research fit's inputs.
+This completes the alternative-model interface in #39 B; it
 does not complete multi-profile, external-engine or independent validation work.
+
+### Same-input model comparison
+
+```bash
+quant-rsi research-study KO --news-research --compare-models --output /tmp/ko-models
+```
+
+The workbench's **Compare LightGBM and Ridge** checkbox enables the same option and
+is retained in saved templates and queued tasks. It is off by default. After research
+selection is frozen, one alternate estimator is fitted on the identical factor columns,
+training sessions and mature labels. A LightGBM study adds Ridge with alpha 1 and
+training-only standardization; a Ridge study adds the existing fixed LightGBM model.
+There is no additional LLM call or parameter search.
+
+The report and live task card show both models, unchanged-price and training-mean
+forecast baselines, and buy-and-hold. Forecast MAE and direction hit rate use common
+origins; account returns, Sharpe and drawdown use the same costs and execution rules.
+Forecast counts and the daily-return counts used by Sharpe are shown separately.
+Development and reserved-terminal windows remain separate. A missing terminal window
+is explicitly unavailable; the comparison does not remove difficult rows to improve
+coverage. Buy-and-hold is an account benchmark and has no model forecast MAE.
+
+`model_comparison_inputs.json` retains the selected research fit's inputs (evaluation
+labels are absent), and `model_comparison.json` records results and a canonical input
+fingerprint. The configuration declares one additional comparison fit, separate from
+the research, publication and walk-forward budgets. Resume reuses a completed comparison
+receipt. The selected round, published prediction and subsequent hypothesis feedback
+remain unchanged. This compares models **conditional on already selected factors**;
+it does not establish independent model superiority or research-policy improvement.
+
+With the optional Qlib runtime, a LightGBM study can combine `--compare-models` and
+`--compare-qlib`: one Ridge fit compares estimators, and one upstream Qlib LightGBM fit
+compares workflow semantics on the same retained inputs. Qlib is an execution/research
+framework, not a third prediction model. These options together add two comparison fits.
 
 ## Active news research
 

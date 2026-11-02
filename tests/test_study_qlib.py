@@ -125,7 +125,14 @@ def test_qlib_and_walk_forward_keep_separate_budgets_and_selected_model(tmp_path
     pytest.importorskip("qlib", reason="optional upstream Qlib environment is absent")
     pytest.importorskip("mlflow", reason="optional upstream recorder is absent")
     root = tmp_path / "combined"
-    assert main(command(root, "--horizon-sessions", "60", "--walk-forward-folds", "2")) == 0
+    assert (
+        main(
+            command(
+                root, "--horizon-sessions", "60", "--walk-forward-folds", "2", "--compare-models"
+            )
+        )
+        == 0
+    )
     assert_upstream_comparison(root, 10)
     result = json.loads((root / "result.json").read_bytes())
     chosen = result["iterations"]["selected_round"]
@@ -136,6 +143,14 @@ def test_qlib_and_walk_forward_keep_separate_budgets_and_selected_model(tmp_path
     assert diagnostic["extra_fits"] == result["configuration"]["walk_forward_fit_budget"] == 2
     assert len(diagnostic["folds"][-1]["training_sessions"]) > selected["training_rows"]
     assert result["study"]["qlib_comparison"]["selected_round"] == chosen
+    paired = result["study"]["model_comparison"]
+    assert paired["selected_round"] == chosen
+    assert set(paired["models"]) == {"lightgbm", "ridge"}
+    for name in ("development", "terminal"):
+        assert (
+            paired["segments"][name]["models"]["lightgbm"]["metrics"]
+            == result["study"]["qlib_comparison"]["segments"][name]["native"]["metrics"]
+        )
 
 
 def assert_upstream_comparison(root, terminal_sessions):
@@ -149,10 +164,10 @@ def assert_upstream_comparison(root, terminal_sessions):
     assert (root / "qlib-comparison/mlflow.db").stat().st_size > 0
     assert result["configuration"]["comparison_fit_budget"] == 1 + int(
         result["configuration"]["financials"]
-    )
+    ) + int(result["configuration"].get("compare_models", False))
     assert result["runtime"]["counts"]["comparison_model_stages_completed"] == 1 + int(
         result["configuration"]["financials"]
-    )
+    ) + int(result["configuration"].get("compare_models", False))
     assert result["runtime"]["counts"]["model_stages_completed"] == 2
     selected = result["iterations"]["attempts"][result["iterations"]["selected_round"] - 1]
     assert comparison["factor_ids"] == selected["factor_ids"]

@@ -329,6 +329,9 @@ const StudyCards = (() => {
     else if(view.kind==='summary')content=summary(view);
     else if(view.kind==='continuity')content=continuity(view);
     else if(view.kind==='terminal')content=terminal(view);
+    else if(view.kind==='model_comparison'){
+      content.append(note(view.note),table(['Window','Model / baseline','Forecast N','Price MAE','Direction hit rate','Net return','Sharpe / daily N','Max drawdown'],view.rows.map(row=>[row.window,row.model,row.sample_count,fmt(row.mae),pct(row.direction_hit_rate),pct(row.net_return),fmt(row.sharpe_ratio)+" / "+(row.daily_return_count??"N/A"),pct(row.max_drawdown)])));
+    }
     else if(view.kind==='engine_comparison'){
       content.append(note(view.note),table(['Window','Engine','Price MAE','Net return','Sharpe','Max drawdown'],view.rows.map(row=>[row.window,row.engine,fmt(row.mae),pct(row.net_return),fmt(row.sharpe_ratio),pct(row.max_drawdown)])));
     }

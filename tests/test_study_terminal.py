@@ -120,7 +120,8 @@ def test_terminal_changes_do_not_change_research_prompts_selection_or_accounts(
     monkeypatch.setattr(study, "simulated_hypothesis", hypothesis)
     for changed in (False, True):
         root = tmp_path / str(changed)
-        assert main(command(root, "--model", estimator, "--rounds", "3")) == 0
+        # Shared history would intentionally feed the first run into the second.
+        assert main(command(root, "--model", estimator, "--rounds", "3", "--no-history")) == 0
         runs.append(json.loads((root / "result.json").read_text()))
     assert prompts[:3] == prompts[3:]
     assert runs[0]["iterations"] == runs[1]["iterations"]
