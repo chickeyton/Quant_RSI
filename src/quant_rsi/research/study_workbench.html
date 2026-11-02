@@ -10,7 +10,7 @@ textarea{width:100%;box-sizing:border-box;font:inherit;color:inherit;background:
 <section class="panel"><h2>Start a study</h2><form id="start-form">
 <label>Stocks · comma separated<input name="symbols" value="KO" maxlength="320" required autocomplete="off" placeholder="KO, XOM, AAPL"></label>
 <label class="wide">Research question · optional<textarea name="question" maxlength="1000" rows="3" placeholder="Could inventory growth indicate weaker demand? Which available factors can test this?"></textarea></label>
-<label>Researcher<select name="llm"><option value="codex">Codex session</option><option value="api">OpenAI API</option><option value="simulated">Simulated researcher</option></select></label>
+<label>Researcher<select name="llm"><option value="codex">Codex session</option><option value="api">OpenAI API</option><option value="deepseek">DeepSeek API</option><option value="cursor">Cursor handoff</option><option value="simulated">Simulated researcher</option></select></label>
 <label>Market inputs<select name="data"><option value="daily">Public daily prices + issuer news</option><option value="synthetic">Synthetic prices + simulated news</option></select></label>
 <label>Prediction model<select name="model"><option value="lightgbm">LightGBM</option><option value="ridge">Ridge</option></select></label>
 <label>Latest forecast<select name="latest_fit"><option value="refit">Refit selected factors · up to 1 extra fit</option><option value="selected">Reuse research model</option></select></label>

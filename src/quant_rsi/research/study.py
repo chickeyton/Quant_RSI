@@ -236,7 +236,13 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         if getattr(args, "check_inputs", False)
         else simulated_hypothesis
         if args.llm == "simulated"
-        else LLMHypothesizer(args.llm, args.llm_model, args.llm_timeout, on_usage=progress.usage)
+        else LLMHypothesizer(
+            args.llm,
+            args.llm_model,
+            args.llm_timeout,
+            on_usage=progress.usage,
+            handoff_dir=getattr(args, "cursor_dir", None) or root / "cursor-llm",
+        )
     )
     SideCosts(commission_bps=args.commission_bps, slippage_bps=args.slippage_bps, tax_bps="0")
     decimal_text(args.initial_cash, positive=True)

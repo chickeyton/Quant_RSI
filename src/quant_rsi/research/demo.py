@@ -298,7 +298,7 @@ def run_demo(
         **({"latest_fit": deepcopy(publication)} if publication is not None else {}),
     )
     live_llm = any(
-        hypothesis.get("provider") in {"codex_cli", "openai_api"}
+        hypothesis.get("provider") in {"codex_cli", "openai_api", "deepseek_api", "cursor_handoff"}
         for hypothesis in (initial, revised)
     )
     live_news = context["news"].get("provider") == "issuer_rss"
