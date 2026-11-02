@@ -910,7 +910,8 @@ published inventory or price change is usable for at most 14 days; subsequent mi
 remain unavailable. Required training/development rows determine factor admission,
 without dropping rows or consulting terminal outcomes. A selected factor that
 expires before the latest forecast prevents that forecast while preserving
-completed development fits. Reports disclose missing inputs and selected factors.
+completed development fits. Reports state that no forecast was published and list
+the unavailable selected factors, alongside the original reason codes.
 
 The source is a retrospective reconstruction from official archived documents,
 not proof that this exact file version was observed historically. Current news
@@ -923,7 +924,35 @@ Workbench preparation fingerprints the retained external records and failures,
 then passes that same snapshot to the study. A changed receipt time alone does
 not trigger new research. A first collection can require up to three requests per weekly
 release, plus the archive index; it is bounded to 104 releases. Existing retained
-inputs are reused within the task. There is no new cross-task shared source cache.
+inputs are reused within the task, with the batch-scoped resource sharing described above.
+
+### Oil-price integration observation (2026-11-02 UTC)
+
+The annual retained-input check on `5b2664a` preserved all 159 existing inventory
+records and added 96 oil-price records from 160 retained resources. It rejected a
+December price table with repeated/conflicting daily dates and the two already
+identified release-page date conflicts. January CSV layout differences were
+checked against the dated PDF before supporting them. The original input snapshot
+was preserved; reparsing its raw resources into a new directory required no new
+downloads. WTI covered every required training/development row; Brent lacked four
+rows and was therefore unavailable to the researcher.
+
+A real XOM study asked about oil prices, petroleum inventories and company
+fundamentals without prescribing factor IDs or a revision. It used retained target
+prices/RSS/financials/EIA and collected related-stock prices. Two Codex calls, two
+LightGBM research fits and two source-removal diagnostic fits completed in 113.59
+seconds. Both hypotheses selected WTI returns, all three inventory changes and
+company factors; the revision changed the price controls. MAE worsened from
+3.7698 to 4.0003, versus 3.6075 for unchanged price and 3.3455 for the training-label
+mean. The preselected MAE rule retained the first attempt despite strategy Sharpe
+rising from 0.1305 to 1.6919. Each Sharpe estimate used only 24 daily account returns.
+
+The report correctly withheld the October 30 latest forecast because the selected
+WTI input had expired; terminal evaluation was also unavailable because of missing
+selected features. No rows were dropped or alternative model silently substituted.
+All 184 recorded source/configuration hashes matched the original commit. This
+demonstrates an executable business hypothesis and honest missing-data handling,
+not independent predictive gain or a completed continuous oil-price feed.
 
 ### External-driver integration observation (2026-11-01)
 

@@ -735,13 +735,18 @@ def render_study(result):
     selected = first if selection["selected_attempt"] == "initial" else second
     if iterations:
         selected = iterations["attempts"][iterations["selected_round"] - 1]["prediction"]
+    latest = selected.get("latest_forecast")
     section(
         "Latest forecast",
-        f"This forecast reuses the selected {selection['selected_attempt']} fitted model with its "
-        "disclosed "
-        "training cutoff. It is not an observed outcome and has no accuracy score.",
+        (
+            f"This forecast reuses the selected {selection['selected_attempt']} fitted model with "
+            "its disclosed training cutoff. It is not an observed outcome "
+            "and has no accuracy score."
+            if latest
+            else f"No latest forecast was published. The selected {selection['selected_attempt']} "
+            "fitted model and completed development results remain retained."
+        ),
     )
-    latest = selected.get("latest_forecast")
     if latest:
         table(
             ["Origin", "Target", "Reference price", "Predicted price", "Training cutoff"],
@@ -756,9 +761,13 @@ def render_study(result):
             ],
         )
     elif selected.get("latest_forecast_unavailable"):
-        section(
-            "Forecast unavailable", "; ".join(selected["latest_forecast_unavailable"]["reasons"])
-        )
+        unavailable = selected["latest_forecast_unavailable"]
+        section("Forecast unavailable", "; ".join(unavailable["reasons"]))
+        if unavailable.get("missing_factor_ids"):
+            table(
+                ["Unavailable selected factor"],
+                [[identity] for identity in unavailable["missing_factor_ids"]],
+            )
     else:
         section("Forecast availability", "Synthetic run: no real-market latest forecast.")
     external = result["study"].get("external_data")

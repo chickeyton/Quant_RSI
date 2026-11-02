@@ -85,8 +85,9 @@ def test_daily_dates_can_cross_the_new_year():
 
 
 @pytest.mark.parametrize("prices", [TABLE, b"invalid price table", None])
-def test_collection_retains_prices_and_keeps_inventory_on_price_failure(
-    tmp_path, monkeypatch, prices
+@pytest.mark.parametrize("inventory_valid", [True, False])
+def test_collection_retains_independent_price_and_inventory_tables(
+    tmp_path, monkeypatch, prices, inventory_valid
 ):
     from quant_rsi.research import eia_petroleum as eia
 
@@ -103,7 +104,9 @@ def test_collection_retains_prices_and_keeps_inventory_on_price_failure(
     urls = {
         eia.ARCHIVE_URL: f'<a href="{page_url}">28</a>'.encode(),
         page_url: page.encode(),
-        page_url.rsplit("/", 1)[0] + "/csv/table4.csv": inventory.encode(),
+        page_url.rsplit("/", 1)[0] + "/csv/table4.csv": (
+            inventory.encode() if inventory_valid else b"invalid inventory table"
+        ),
         page_url.rsplit("/", 1)[0] + "/csv/table11.csv": prices,
     }
     calls = []
@@ -122,8 +125,8 @@ def test_collection_retains_prices_and_keeps_inventory_on_price_failure(
     )
     assert first == second
     assert len(calls) == (3 if prices is None else 4)
-    assert len(first["records"]) == (5 if prices == TABLE else 3)
-    assert len(first["failures"]) == int(prices not in (None, TABLE))
+    assert len(first["records"]) == 3 * inventory_valid + 2 * (prices == TABLE)
+    assert len(first["failures"]) == int(prices not in (None, TABLE)) + int(not inventory_valid)
     cutoffs = ["2026-10-28T20:00:00+00:00", "2026-10-29T20:00:00+00:00"]
     bundle = eia.prepare_petroleum(first, cutoffs, [1])
     values = bundle["columns"]["external.eia_wti_5obs_return"]
@@ -136,6 +139,6 @@ def test_collection_retains_prices_and_keeps_inventory_on_price_failure(
     else:
         assert values[1] is None
         assert not bundle["definitions"][-1]["runnable"]
-    assert all(d["runnable"] for d in bundle["definitions"][:3])
+    assert all(d["runnable"] == inventory_valid for d in bundle["definitions"][:3])
     expired = eia.prepare_petroleum(first, ["2026-11-12T05:00:01+00:00"], [0])
     assert expired["columns"]["external.eia_wti_5obs_return"] == [None]

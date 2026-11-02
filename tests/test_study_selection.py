@@ -79,7 +79,10 @@ def test_latest_forecast_and_report_follow_selected_attempt_without_refit(
             (2, 1)[index] if winner == "revised" else (1, 2)[index]
         )
         if winner == "initial_unavailable" and index == 0:
-            result["latest_forecast_unavailable"] = {"reasons": ["controlled_missing_news"]}
+            result["latest_forecast_unavailable"] = {
+                "reasons": ["controlled_missing_news"],
+                "missing_factor_ids": ["external.eia_wti_5obs_return"],
+            }
         else:
             result["latest_forecast"] = {
                 "origin_session": "2026-10-28",
@@ -109,6 +112,10 @@ def test_latest_forecast_and_report_follow_selected_attempt_without_refit(
     if winner == "initial_unavailable":
         assert "latest_forecast" not in result["summary"]
         assert "controlled_missing_news" in html
+        assert "No latest forecast was published" in html
+        assert "This forecast reuses" not in html
+        assert "Unavailable selected factor" in html
+        assert "external.eia_wti_5obs_return" in html
         assert "222.5678" not in html
     else:
         forecast = calls[1 if winner == "revised" else 0]["latest_forecast"]
