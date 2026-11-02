@@ -11,6 +11,8 @@ PRICE_FIELDS = {"wti": "WTI - Cushing", "brent": "Brent"}
 
 def parse_prices(raw, released, week_ending):
     """Compare the last daily quote with its fifth preceding available observation."""
+    if not 0 < (released - week_ending).days <= 14:
+        raise ValueError("EIA price archive week does not precede its release")
     rows = list(csv.reader(io.StringIO(raw.decode("cp1252"))))
     if len(rows) > 100:
         raise ValueError("Unsupported EIA Table 11 layout")

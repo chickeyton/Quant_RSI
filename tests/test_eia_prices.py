@@ -56,6 +56,8 @@ def test_invalid_price_layout_or_values_are_rejected(raw):
 def test_price_week_must_match_validated_archive_page():
     with pytest.raises(ValueError, match="archive week"):
         parse_prices(TABLE, RELEASE, date(2026, 10, 16))
+    with pytest.raises(ValueError, match="precede"):
+        parse_prices(TABLE, date(2026, 10, 22), WEEK)
 
 
 def test_daily_dates_can_cross_the_new_year():
