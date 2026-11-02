@@ -214,7 +214,10 @@ Separate study runs are connected through shared history: by default
 run observes prior forecasts using newly received prices and passes mature outcomes
 to the LLM, while sharing the retained news archive. A factor ledger also keeps every
 attempted round, including rejected revisions, with development metrics; inspect it with
-`quant-rsi research-history factors KO`. See the [factor ledger](docs/connected_research_study.md#factor-ledger). The UI shows pending and observed
+`quant-rsi research-history factors KO`, or browse it as an offline star map of factors
+and their recorded relationships with `quant-rsi research-history constellation KO`
+(also linked from the workbench). See the [factor ledger](docs/connected_research_study.md#factor-ledger)
+and [factor constellation](docs/connected_research_study.md#factor-constellation). The UI shows pending and observed
 forecasts with price error, costed return and Sharpe. Use `research-history observe`
 to update outcomes without another fit; see [continuous research](docs/connected_research_study.md#continue-research-across-market-days).
 Late forecasts remain non-prospective, and account results are hypothetical.
