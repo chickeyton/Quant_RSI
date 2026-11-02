@@ -143,11 +143,14 @@ quant-rsi research-study XOM --news-research --external-drivers \
   --historical-sessions 252 --output /tmp/xom-industry-study
 ```
 
-This offers three executable EIA weekly US petroleum inventory changes to the
-researcher. They are industry variables, not XOM inventory or oil prices. The
-researcher can select a different inventory factor after feedback; the report
-shows which columns were used. Archived release dates constrain availability,
-and source failures remain visible. See [external business drivers](docs/connected_research_study.md#external-business-drivers).
+This offers EIA US petroleum inventory changes and, where archived price tables
+cover the required rows, WTI/Brent five-observation price returns. The researcher
+can select, combine and revise these industry variables alongside company factors;
+the report shows which columns were used. Archived release dates constrain availability.
+Missing price tables are not backfilled from today's prices; expired selected inputs
+can prevent the latest forecast while preserving completed historical fits. Retained
+older inventory-only snapshots remain unchanged. See
+[external business drivers](docs/connected_research_study.md#external-business-drivers).
 
 Check target prices, current news and financial-factor coverage before any LLM calls or fits:
 
