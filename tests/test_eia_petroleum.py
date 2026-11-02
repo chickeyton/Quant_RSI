@@ -196,7 +196,8 @@ def test_shared_cache_retries_failed_requests_without_rewriting_old_task(tmp_pat
     )
 
 
-def test_external_columns_participate_in_two_real_fits_and_revision():
+@pytest.mark.parametrize("oil_prices", [False, True])
+def test_external_columns_participate_in_two_real_fits_and_revision(oil_prices):
     from quant_rsi.research.demo import load_catalog
     from quant_rsi.research.demo_model import LightGBMDemo
 
@@ -210,7 +211,7 @@ def test_external_columns_participate_in_two_real_fits_and_revision():
     release = start
     week = 0
     while release < end:
-        for index, field in enumerate(eia.FIELDS):
+        for index, field in enumerate(eia.PRICE_FIELDS if oil_prices else eia.FIELDS):
             records.append(
                 {
                     "field": field,
@@ -228,6 +229,7 @@ def test_external_columns_participate_in_two_real_fits_and_revision():
             "sha256": "fixture",
             "failures": [],
             "notice": "SIMULATED industry data; engineering verification only.",
+            "price_tables": "simulated_daily_prices" if oil_prices else None,
         },
         cutoffs,
         [*model.train, *model.origins],
@@ -239,12 +241,12 @@ def test_external_columns_participate_in_two_real_fits_and_revision():
     model.configure_external(bundle)
     assert model.context("XOM")["external_features"]["definitions"] == bundle["definitions"]
     model.price_info = {"latest_target_session": "2030-01-01"}
-    initial = bundle["definitions"][0]
-    revised = bundle["definitions"][1]
+    runnable = [d for d in bundle["definitions"] if d["runnable"]]
+    initial, revised = runnable[:2]
     price = model.library["definitions"][0]
-    first = model.predict({"symbol": "XOM"}, [price, initial], "Crude inventory hypothesis")
+    first = model.predict({"symbol": "XOM"}, [price, initial], "First industry hypothesis")
     feedback = model.observe({"symbol": "XOM"}, first)
-    second = model.predict({"symbol": "XOM"}, [price, revised], "Revise to gasoline inventory")
+    second = model.predict({"symbol": "XOM"}, [price, revised], "Revise industry input")
     assert first["factor_ids"] != second["factor_ids"]
     assert first["training_feature_columns"] == second["training_feature_columns"] == 2
     assert first["development"]["metrics"]["sample_count"] == 20
@@ -324,7 +326,11 @@ def test_cli_runs_external_revision_and_exposes_input_check(tmp_path):
     assert "SIMULATED" in result["study"]["external_data"]["notice"]
     assert "External business drivers" in (root / "report.html").read_text()
     check = json.loads((root / "input_report.json").read_bytes())
-    assert len(check["external_drivers"]["definitions"]) == 3
+    assert len(check["external_drivers"]["definitions"]) == 5
+    assert {d["factor_id"] for d in check["external_drivers"]["definitions"]} >= {
+        "external.eia_wti_5obs_return",
+        "external.eia_brent_5obs_return",
+    }
     assert read_state(root)
 
     preflight = tmp_path / "check"

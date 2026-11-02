@@ -14,6 +14,7 @@ from urllib.request import Request, build_opener
 
 from quant_rsi.core.artifacts import atomic_write, canonical, digest
 from quant_rsi.market.news_feed import NoRedirect
+from quant_rsi.research.eia_prices import PRICE_FIELDS, parse_prices
 
 ARCHIVE_URL = "https://www.eia.gov/petroleum/supply/weekly/archive/"
 MAX_BYTES = 2 * 1024 * 1024
@@ -25,7 +26,9 @@ FIELDS = {
 }
 NOTICE = (
     "EIA archived weekly petroleum inventories, reconstructed from documents retrieved now. "
-    "These are US industry stocks, not the target company's inventory or oil prices. "
+    "Inventory changes describe US industry stocks, not the target company's inventory. "
+    "When linked by a dated archive, Table 11 adds WTI/Brent five-observation daily-price "
+    "returns; weekly-average columns are excluded. Price-table gaps remain missing. "
     "Date-only releases become usable at 05:00 UTC the following day; the observation week "
     "is not the publication date. Retained documents do not prove their exact historical "
     "version. Values expire 14 days after availability; missing data are not filled with zero."
@@ -87,8 +90,7 @@ def parse_table(raw, released):
     return records
 
 
-def parse_release_page(raw, page_url, released):
-    """Follow the archived page's actual CSV link; older archives use a different path."""
+def _page_dates(raw, released):
     page = raw.decode("utf-8")
     text = " ".join(html.unescape(re.sub(r"<[^>]+>", " ", page)).split())
     dates = []
@@ -99,14 +101,25 @@ def parse_release_page(raw, page_url, released):
         dates.append(datetime.strptime(match[1], "%B %d, %Y").date())
     if dates[0] != released:
         raise ValueError("EIA release date differs from the archive link")
-    allowed = {urljoin(page_url, path) for path in ("download/table4.csv", "csv/table4.csv")}
+    return dates
+
+
+def parse_release_page(raw, page_url, released, table=4):
+    """Follow the archived page's actual CSV link; older archives use a different path."""
+    dates = _page_dates(raw, released)
+    page = raw.decode("utf-8")
+    allowed = {
+        urljoin(page_url, path) for path in (f"download/table{table}.csv", f"csv/table{table}.csv")
+    }
     links = {
         urljoin(page_url, href)
         for href in re.findall(r'href=["\']([^"\']+)', page)
         if urljoin(page_url, href) in allowed
     }
+    if not links and table == 11:
+        return None, dates[1]
     if len(links) != 1:
-        raise ValueError("EIA archive page lacks one unambiguous Table 4 CSV link")
+        raise ValueError(f"EIA archive page lacks one unambiguous Table {table} CSV link")
     return links.pop(), dates[1]
 
 
@@ -188,17 +201,32 @@ def collect_petroleum(directory, since, through, *, cache_directory=None):
         url = page_url
         try:
             page, _ = fetch(page_url)
-            url, observation = parse_release_page(page, page_url, released)
-            raw, resource = fetch(url)
-            parsed = parse_table(raw, released)
-            if any(record["observation_date"] != observation.isoformat() for record in parsed):
-                raise ValueError("EIA table observation differs from its archive page")
-            records.extend(
-                record | {"source_url": url, "resource_sha256": resource["sha256"]}
-                for record in parsed
-            )
+            _page_dates(page, released)
         except (ValueError, OSError) as exc:
             failures.append({"url": url, "error_type": type(exc).__name__, "reason": str(exc)})
+            continue
+        for table in (4, 11):
+            url = page_url
+            try:
+                url, observation = parse_release_page(page, page_url, released, table)
+                if url is None:
+                    continue
+                raw, resource = fetch(url)
+                parsed = (
+                    parse_table(raw, released)
+                    if table == 4
+                    else parse_prices(raw, released, observation)
+                )
+                if table == 4 and any(
+                    record["observation_date"] != observation.isoformat() for record in parsed
+                ):
+                    raise ValueError("EIA table observation differs from its archive page")
+                records.extend(
+                    record | {"source_url": url, "resource_sha256": resource["sha256"]}
+                    for record in parsed
+                )
+            except (ValueError, OSError) as exc:
+                failures.append({"url": url, "error_type": type(exc).__name__, "reason": str(exc)})
     snapshot = {
         "provider": "eia_weekly_petroleum",
         "bounds": bounds,
@@ -207,6 +235,7 @@ def collect_petroleum(directory, since, through, *, cache_directory=None):
         "resources": resources,
         "failures": failures,
         "notice": NOTICE,
+        "price_tables": "archived_daily_prices",
     }
     atomic_write(retained, canonical(snapshot))
     return snapshot
@@ -231,8 +260,13 @@ def prepare_petroleum(snapshot, cutoffs, required):
                 ):
                     selected[field] = record
         evidence.append(selected)
-    for field, label in FIELDS.items():
-        identity = f"external.eia_{field}_wow"
+    fields = dict(FIELDS)
+    if snapshot.get("price_tables"):
+        fields.update(PRICE_FIELDS)
+    for field, label in fields.items():
+        price = field in PRICE_FIELDS
+        metric = f"eia_{field}_5obs_return" if price else f"eia_{field}_wow"
+        identity = f"external.{metric}"
         values = [
             row[field]["value"] / row[field]["prior_value"] - 1 if field in row else None
             for row in evidence
@@ -243,9 +277,16 @@ def prepare_petroleum(snapshot, cutoffs, required):
             {
                 "factor_id": identity,
                 "kind": "numeric",
-                "input_kind": "publication_dated_industry_stocks",
-                "description": f"EIA US {label}: current / prior week inventory - 1.",
-                "recipe": {"op": "external", "metric": f"eia_{field}_wow"},
+                "input_kind": (
+                    "publication_dated_oil_prices" if price else "publication_dated_industry_stocks"
+                ),
+                "description": (
+                    f"EIA {label}: latest daily quote / fifth preceding daily observation - 1; "
+                    "available after archive publication, not on the quoted date."
+                    if price
+                    else f"EIA US {label}: current / prior week inventory - 1."
+                ),
+                "recipe": {"op": "external", "metric": metric},
                 "runnable": missing == 0,
                 "missing_required_rows": missing,
                 "source": {"provider": snapshot["provider"], "snapshot_sha256": snapshot["sha256"]},
@@ -269,7 +310,7 @@ def simulated_petroleum(cutoffs, required):
     end = datetime.fromisoformat(cutoffs[-1])
     records, week = [], 0
     while release < end:
-        for index, field in enumerate(FIELDS):
+        for index, field in enumerate(FIELDS | PRICE_FIELDS):
             records.append(
                 {
                     "field": field,
@@ -286,7 +327,10 @@ def simulated_petroleum(cutoffs, required):
             "provider": "simulated_petroleum",
             "sha256": digest(canonical(records)),
             "failures": [],
-            "notice": "SIMULATED industry inventories; engineering fixture, not market evidence.",
+            "notice": (
+                "SIMULATED industry inventories/prices; engineering fixture, not market evidence."
+            ),
+            "price_tables": "simulated_daily_prices",
         },
         cutoffs,
         required,

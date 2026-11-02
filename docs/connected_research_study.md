@@ -826,7 +826,7 @@ regressions use small original offline fixtures rather than downloading issuer d
 ## External business drivers
 
 `--external-drivers` connects the same research workflow to archived EIA weekly
-US petroleum inventory releases. The workbench exposes the same optional setting;
+US petroleum inventory and oil-price releases. The workbench exposes the same optional setting;
 saved templates and queued tasks preserve it. The normal researcher chooses whether
 to use it. After selection, a diagnostic removes the selected external columns and
 refits on the same rows and model settings (up to one additional fit, outside the
@@ -871,13 +871,30 @@ quant-rsi research-study XOM --external-drivers --historical-sessions 252 \
   --check-inputs --output /tmp/xom-industry-input-check
 ```
 
-The three available recipes calculate current / prior-week stocks minus one for
+The three inventory recipes calculate current / prior-week stocks minus one for
 commercial crude oil excluding the Strategic Petroleum Reserve, total motor
 gasoline, and distillate fuel oil. Both values come from the same release's
 [Table 4](https://www.eia.gov/petroleum/supply/weekly/archive/2026/2026_10_28/download/table4.pdf).
 These are US industry inventories in million barrels, not company financial
 inventory and not oil prices. They express candidate explanatory variables, not
 an established causal relationship or evidence of predictive improvement.
+
+Fresh collections also follow the archive's actual Table 11 CSV link when present.
+`external.eia_wti_5obs_return` and `external.eia_brent_5obs_return` calculate the last
+daily quote divided by its fifth preceding available daily observation, minus one.
+The recent-price section begins with two **weekly averages**; these are excluded.
+At least six valid daily quotes and the latest dated daily quote are required. The
+original daily dates, USD/barrel quotes, source URL and hash are retained. These
+five oil-price observations need not coincide with five equity trading sessions.
+Like inventories, the factor becomes visible after release, not on the quote date.
+
+The inspected 2026 archive contains Table 11 links through October 15; October 21
+and 28 pages have no such link. A missing link leaves the price factors unavailable
+once the last release expires. The collector neither guesses retired table URLs nor
+backfills this gap with a current spot-price snapshot. Price-table failures do not
+discard successfully collected inventory records, and inventory-table failures do
+not discard valid prices from the same dated page. Older retained inventory-only
+snapshots are not upgraded or rewritten; collect into a new directory to include prices.
 
 The collector follows dated [EIA archive links](https://www.eia.gov/petroleum/supply/weekly/archive/)
 and verifies the page's publication date and the CSV's observation week. It
@@ -887,7 +904,7 @@ and receipt time is retained; `--external-drivers-dir` reuses the original snaps
 for the same requested date interval without refreshing it.
 
 Date-only releases become available at 05:00 UTC the following day. The latest
-published weekly change is usable for at most 14 days; subsequent missing data
+published inventory or price change is usable for at most 14 days; subsequent missing data
 remain unavailable. Required training/development rows determine factor admission,
 without dropping rows or consulting terminal outcomes. A selected factor that
 expires before the latest forecast prevents that forecast while preserving
@@ -896,13 +913,13 @@ completed development fits. Reports disclose missing inputs and selected factors
 The source is a retrospective reconstruction from official archived documents,
 not proof that this exact file version was observed historically. Current news
 and LLM knowledge still influence hypothesis selection. Synthetic-price mode
-uses explicitly marked simulated inventory data. Financial and external-driver
+uses explicitly marked simulated inventory and oil-price data. Financial and external-driver
 diagnostics remove their respective input families separately; requesting both
 can consume two additional diagnostic fits.
 
 Workbench preparation fingerprints the retained external records and failures,
 then passes that same snapshot to the study. A changed receipt time alone does
-not trigger new research. A first collection can require two requests per weekly
+not trigger new research. A first collection can require up to three requests per weekly
 release, plus the archive index; it is bounded to 104 releases. Existing retained
 inputs are reused within the task. There is no new cross-task shared source cache.
 
