@@ -68,7 +68,12 @@ class StudyProgress:
                 or (name.startswith("round_") and name.endswith("_prediction"))
             ),
         }
-        comparisons = {"qlib_comparison", "financial_comparison", "external_comparison"}
+        comparisons = {
+            "qlib_comparison",
+            "model_comparison",
+            "financial_comparison",
+            "external_comparison",
+        }
         if any(item["stage"] == "latest_fit" for item in stages):
             groups["publication_model_stages"] = lambda name: name == "latest_fit"
         if any(item["stage"] in comparisons for item in stages):

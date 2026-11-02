@@ -75,7 +75,7 @@ def test_missing_rows_are_disclosed_without_stale_forecast_fallback(gap):
 def test_cli_report_history_and_ui_publish_the_same_forecast(tmp_path, monkeypatch, mode):
     root, history = tmp_path / "study", tmp_path / "history"
     collection, _ = prices(tmp_path, monkeypatch, "2026-10-23")
-    args = command(root, history, collection)
+    args = command(root, history, collection) + ["--compare-models"]
     if mode == "selected":
         args += ["--latest-fit", mode]
     assert main(args) == 0
@@ -89,6 +89,7 @@ def test_cli_report_history_and_ui_publish_the_same_forecast(tmp_path, monkeypat
     assert study_report._number(published["predicted_price"]) in (root / "report.html").read_text()
     assert result["configuration"]["publication_fit_budget"] == int(mode == "refit")
     assert result["iterations"]["completed_fits"] == 2
+    assert result["study"]["model_comparison"]["comparison_fits"] == 1
     if mode == "refit":
         state = read_state(root)
         event = next(e for e in state["events"] if e["stage"] == "latest_fit")

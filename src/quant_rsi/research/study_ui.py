@@ -78,6 +78,7 @@ def read_state(root):
             for key in (
                 "llm",
                 "model",
+                "compare_models",
                 "prices",
                 "news",
                 "news_research",

@@ -24,6 +24,7 @@ def study_options(options):
     defaults = {
         "llm": "codex",
         "model": "lightgbm",
+        "compare_models": False,
         "latest_fit": "refit",
         "data": "daily",
         "llm_model": "",
@@ -79,7 +80,13 @@ def study_options(options):
         raise ValueError("API mode requires a model name; credentials come from the environment")
     if result["news_research"] and result["llm"] in {"deepseek", "cursor"}:
         raise ValueError("News research web search requires Codex or the OpenAI API")
-    for key in ("news_research", "financials", "external_drivers", "only_new_evidence"):
+    for key in (
+        "news_research",
+        "financials",
+        "external_drivers",
+        "only_new_evidence",
+        "compare_models",
+    ):
         if type(result[key]) is not bool:
             raise ValueError(key + " must be boolean")
     if result["max_fits"] is None:
@@ -137,6 +144,8 @@ def study_arguments(task, workspace, symbol, options, *, batch_id=None):
         arguments += ["--question=" + options["question"]]
     if options["news_research"]:
         arguments += ["--news-research"]
+    if options.get("compare_models"):
+        arguments += ["--compare-models"]
     if options["financials"]:
         arguments += ["--financials", "--financials-source", options["financials_source"]]
     if options.get("external_drivers"):
