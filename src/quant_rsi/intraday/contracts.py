@@ -171,6 +171,13 @@ class FoldSpec(StrictModel):
     embargo_sessions: int = Field(ge=0, le=20)
 
 
+class FundamentalInput(StrictModel):
+    """A retained financial snapshot (`collect-financials`) bound to one target instrument."""
+
+    instrument: Identifier
+    snapshot_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class IntradayDevelopmentPlan(StrictModel):
     schema_version: Literal[1]
     plan_type: Literal["intraday_development"]
@@ -191,6 +198,8 @@ class IntradayDevelopmentPlan(StrictModel):
     # None keeps `signal` fixed; otherwise `signal` is the fallback when no candidate is
     # eligible on the calibration sessions.
     policy_search: PolicySearch | None = None
+    # Required exactly when an `f_` leaf is used; one snapshot per target instrument.
+    fundamentals: tuple[FundamentalInput, ...] = ()
 
     @field_validator("initial_capital")
     @classmethod
@@ -201,6 +210,11 @@ class IntradayDevelopmentPlan(StrictModel):
     def unique_leaves(self) -> Self:
         if len(set(self.leaves)) != len(self.leaves):
             raise ValueError("duplicate feature leaf")
+        if any(leaf.startswith("f_") for leaf in self.leaves) != bool(self.fundamentals):
+            raise ValueError("fundamentals must be given exactly when an f_ leaf is used")
+        names = [item.instrument for item in self.fundamentals]
+        if len(set(names)) != len(names):
+            raise ValueError("one fundamentals snapshot per instrument")
         search = self.policy_search
         if search is None:
             return self

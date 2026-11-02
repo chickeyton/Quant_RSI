@@ -395,6 +395,20 @@ def test_model_digest_and_snapshot_are_bound(tmp_path, world):
         PaperRunner(journal, _plan(snapshot, model), model.model_text + " ", snapshot, backend)
 
 
+def test_fundamental_leaves_are_refused_on_paper(tmp_path, world):
+    snapshot, model, _ = world
+    broker = FakeBroker()
+    backend = IbkrPaperBackend(
+        broker.session(), config(), {b.instrument: b for b in snapshot.contract.instruments}
+    )
+    journal = EpisodeJournal(tmp_path / "paper.sqlite")
+    leaves = _plan(snapshot, model).leaves + ("f_revenue_yoy",)
+    with pytest.raises(ValueError, match="offline-evaluation only"):
+        PaperRunner(
+            journal, _plan(snapshot, model, leaves=leaves), model.model_text, snapshot, backend
+        )
+
+
 def test_risk_block_stops_entries_but_records_reason(tmp_path, world):
     runner, broker, journal = _runner(tmp_path, world)
     _register(runner)

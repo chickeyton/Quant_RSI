@@ -117,12 +117,35 @@ def _plan(path):
     return IntradayDevelopmentPlan.model_validate_json(Path(path).read_bytes())
 
 
-def cmd_evaluate(args) -> int:
-    from quant_rsi.intraday.evaluation import evaluate_development
+def _source(args, plan):
+    """The snapshot, with the plan's financial snapshots bound when it uses `f_` leaves."""
+    from quant_rsi.intraday.fundamentals import load_financial_snapshot, with_fundamentals
     from quant_rsi.intraday.storage import SnapshotStore
 
     snapshot = SnapshotStore(Path(args.store)).load(args.snapshot)
-    _print(evaluate_development(snapshot, _plan(args.plan)))
+    financials = [load_financial_snapshot(Path(path)) for path in args.financials or ()]
+    return with_fundamentals(snapshot, plan, financials)
+
+
+def cmd_collect_financials(args) -> int:
+    from quant_rsi.research.study_financials import collect_financials
+
+    snapshot = collect_financials(args.symbol, Path(args.output), Path(args.factor_root))
+    _print(
+        {
+            "snapshot": str(Path(args.output) / "snapshot.json"),
+            "snapshot_sha256": snapshot["sha256"],
+            "provider": snapshot["provider"],
+        }
+    )
+    return 0
+
+
+def cmd_evaluate(args) -> int:
+    from quant_rsi.intraday.evaluation import evaluate_development
+
+    plan = _plan(args.plan)
+    _print(evaluate_development(_source(args, plan), plan))
     return 0
 
 
@@ -131,10 +154,9 @@ def cmd_fit(args) -> int:
     from quant_rsi.intraday.features import build_features
     from quant_rsi.intraday.model import fit, label_vector
     from quant_rsi.intraday.policy import signal_digest
-    from quant_rsi.intraday.storage import SnapshotStore
 
-    snapshot = SnapshotStore(Path(args.store)).load(args.snapshot)
     plan = _plan(args.plan)
+    snapshot = _source(args, plan)
     table = build_features(snapshot, plan.leaves, context_tolerance=plan.context_missing_tolerance)
     targets = label_vector(snapshot, table, plan)
     # The policy is learned on the snapshot's last sessions before the final model sees them.
@@ -262,8 +284,16 @@ def parser() -> argparse.ArgumentParser:
     add("ibkr-check", cmd_ibkr_check, "config")
     add("resolve", cmd_resolve, "config", "profile", "output")
     add("collect", cmd_collect, "config", "profile", "bindings", "calendar", "store", "delayed")
+    add("collect-financials", cmd_collect_financials, "symbol", "output")
+    sub.choices["collect-financials"].add_argument("--factor-root", default="instruments")
     add("evaluate", cmd_evaluate, "store", "snapshot", "plan")
     add("fit", cmd_fit, "store", "snapshot", "plan", "output", "policy-output")
+    for name in ("evaluate", "fit"):
+        sub.choices[name].add_argument(
+            "--financials",
+            action="append",
+            help="retained financial snapshot.json named by the plan's fundamentals (repeatable)",
+        )
     add("paper-register", cmd_paper_register, "config", "store", "paper-plan", "model", "journal")
     add(
         "paper-run",

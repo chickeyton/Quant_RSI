@@ -20,6 +20,7 @@ quality, and paper fills are simulated by IBKR.
 | IBKR session, paper-only guard, pacing, contract qualification | Implemented; tested offline with a scripted fake transport |
 | Intraday snapshots (decision, 1-minute execution and bid/ask grids) | Implemented; deterministic content-addressed column blocks |
 | Timing, labels, intraday and daily-history features, fixed LightGBM, session folds | Implemented |
+| Fundamental (`f_`) features from retained financial snapshots | Implemented for offline evaluation; refused on paper |
 | Learnable trading policy: cost-aware entry, edge-scaled sizing, nested calibration | Implemented |
 | Replay simulator and development evaluation | Implemented; `development_only` evidence |
 | Paper episodes: journal, scheduled submission, deadlines, flatten, stop and handover, reconciliation, risk stops, shadow report | Implemented |
@@ -120,6 +121,34 @@ daily volatility and ATR, moving-average distance and the previous session's ran
 are built from the snapshot's earlier sessions, so no separate daily collection is needed,
 but `d_ma_50_dist` needs 50 complete earlier sessions before it has a value. Collect the
 profile's full `history_sessions`; a short snapshot leaves most rows without a prediction.
+
+### Fundamental leaves
+
+A plan can also use `f_` leaves (design section 5.4): the target's latest quarterly revenue
+growth, operating margin and its change, inventory and cash-flow growth, and days since the
+latest report, all as of each session's open. They need a retained financial snapshot,
+named in the plan by digest and passed to `evaluate` and `fit`:
+
+```bash
+# Needs an instruments/US/<symbol>/financials.json profile (KO has one; SPY, an ETF, does not).
+# SEC requires SEC_USER_AGENT with your application and contact address; without it SEC
+# refuses the request and the issuer's results archive is used instead.
+python -m quant_rsi.intraday collect-financials --symbol KO --output runs/ko/financials
+python -m quant_rsi.intraday evaluate --store runs/ko/store --snapshot SNAPSHOT_SHA256 \
+  --plan runs/ko/plan_fundamentals.json --financials runs/ko/financials/snapshot.json
+```
+
+In the plan, add the leaves and bind the printed `snapshot_sha256`:
+
+```json
+"leaves": ["ret_1", "...", "f_revenue_yoy", "f_operating_margin", "f_days_since_report"],
+"fundamentals": [{"instrument": "KO", "snapshot_sha256": "FINANCIAL_SNAPSHOT_SHA256"}]
+```
+
+`collect-financials` writes with POSIX file operations, so run it on Linux (for example on the
+test server); `evaluate` and `fit` read the snapshot on any platform. Fundamental leaves are
+for offline evaluation only: paper episodes refuse them, because they do not refresh the
+financial snapshot when new reports arrive.
 
 `calendar.json` is an explicit `CalendarSpec`: calendar ID, IANA time zone and every
 session's open and close. The collector never infers sessions, and it refuses sessions that
@@ -303,7 +332,8 @@ python -m quant_rsi.intraday paper-stop --journal runs/ko/paper.sqlite \
 pytest -q tests/test_intraday_core.py tests/test_ibkr_adapter.py \
   tests/test_intraday_paper.py tests/test_intraday_schedule.py tests/test_intraday_cli.py \
   tests/test_intraday_review_regressions.py tests/test_intraday_second_review.py \
-  tests/test_intraday_policy.py tests/test_intraday_sync.py tests/test_intraday_daily_features.py
+  tests/test_intraday_policy.py tests/test_intraday_sync.py tests/test_intraday_daily_features.py \
+  tests/test_intraday_fundamentals.py
 ```
 
 These tests use synthetic bars and a scripted fake TWS. They need neither `ibapi` nor a

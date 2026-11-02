@@ -33,7 +33,7 @@ from quant_rsi.intraday.contracts import (
     SignalPolicy,
     validate_timing,
 )
-from quant_rsi.intraday.features import session_features, validate_leaves
+from quant_rsi.intraday.features import FUNDAMENTAL_LEAVES, session_features, validate_leaves
 from quant_rsi.intraday.model import predict
 from quant_rsi.intraday.policy import entry_quantity, signal_digest
 from quant_rsi.intraday.risk import RiskLimits, RiskState, evaluate
@@ -429,6 +429,11 @@ class PaperRunner:
             raise ValueError("a delayed-data snapshot cannot feed a released paper episode")
         validate_timing(history.contract, plan.timing)
         validate_leaves(history.contract, plan.leaves)
+        if any(leaf in FUNDAMENTAL_LEAVES for leaf in plan.leaves):
+            raise ValueError(
+                "f_ fundamental leaves are offline-evaluation only; paper episodes do not "
+                "refresh financial snapshots"
+            )
         self.journal, self.plan, self.model_text = journal, plan, model_text
         self.history, self.backend = history, backend
         self.restart_window, self.clock_skew = restart_window, clock_skew

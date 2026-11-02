@@ -9,6 +9,10 @@ is never computed over a shortened window.
 Daily leaves (design 5.4) summarise each earlier regular session as one daily bar built from
 its decision bars. That bar exists only when every decision bar of the session is valid, so
 its close is the last regular-hours bar's close, not the official closing auction.
+
+Fundamental leaves (`f_`) are constant within a session: publication-dated financial facts
+that were usable before the session opened (see `quant_rsi.intraday.fundamentals`). A source
+without fundamentals leaves them missing.
 """
 
 import math
@@ -54,6 +58,15 @@ DAILY_LEAVES = (
     "d_prev_high_dist",
     "d_prev_low_dist",
 )
+FUNDAMENTAL_LEAVES = (
+    "f_revenue_yoy",
+    "f_operating_margin",
+    "f_operating_margin_yoy",
+    "f_inventory_yoy",
+    "f_operating_cashflow_yoy",
+    "f_free_cashflow_yoy",
+    "f_days_since_report",
+)
 ATR_PERIOD = 14
 # Longer than any market-holiday weekend: a wider gap means the calendar is missing sessions,
 # so a daily window across it would silently span the wrong number of sessions.
@@ -76,7 +89,7 @@ def default_leaves(contract: IntradayDataContract) -> tuple[str, ...]:
 
 def validate_leaves(contract: IntradayDataContract, leaves: Sequence[str]) -> None:
     for leaf in leaves:
-        if leaf in TARGET_LEAVES or leaf in DAILY_LEAVES:
+        if leaf in TARGET_LEAVES or leaf in DAILY_LEAVES or leaf in FUNDAMENTAL_LEAVES:
             continue
         parts = leaf.split(":")
         if (
@@ -246,6 +259,10 @@ def _target_leaf(name: str, ctx: _Session, target: Block, t: int) -> float:
     status, cols = target.columns["status"], target.columns
     if name in DAILY_LEAVES:
         return _daily_leaf(name, ctx, target, t)
+    if name in FUNDAMENTAL_LEAVES:
+        table = getattr(ctx.source, "fundamentals", None) or {}
+        value = table.get(target.instrument, {}).get(ctx.session.session_id, {}).get(name)
+        return math.nan if value is None else value
     if name.startswith("ret_"):
         return _ret(target, t, int(name[4:]))
     if name.startswith("rv_"):

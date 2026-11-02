@@ -368,7 +368,7 @@ at a time.
 | News and financial evidence | Retained title/guidance features and opt-in publication-dated KO/AAPL/XOM business factors can enter connected-study training; available fields, missing inputs and current-context-only evidence are disclosed |
 | News collection and extraction | [Bounded KO official RSS observations](docs/news_collection.md), retained-title extraction and revision tracking; the study adds current search/page text for hypotheses. The [first news-factor slice](docs/news_factor_slice.md) is implemented; general historical text-feature extraction remains under #8/#39 B |
 | Statistical confirmation and promotion | Incomplete; protected evaluation is engineering-only and retains the incumbent |
-| Intraday bars, model and IBKR paper trading | Standalone, offline-tested: IBKR adapter with a paper-only guard, intraday snapshots, intraday and daily-history features, fixed LightGBM development evaluation, replay simulator and paper-account episodes. Not yet wired into the C2/C4/C5 controller or `quant-rsi`; see the [intraday guide](docs/intraday_ibkr.md) |
+| Intraday bars, model and IBKR paper trading | Standalone, offline-tested: IBKR adapter with a paper-only guard, intraday snapshots, intraday, daily-history and offline fundamental features, fixed LightGBM development evaluation, replay simulator and paper-account episodes. Not yet wired into the C2/C4/C5 controller or `quant-rsi`; see the [intraday guide](docs/intraday_ibkr.md) |
 | Live trading and general self-modification | Not implemented |
 
 Older guides use project-local labels: **M0** is fixed-model execution, **C2** is

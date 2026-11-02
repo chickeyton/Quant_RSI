@@ -406,6 +406,7 @@ All features are trailing and computed per instrument from final bars only:
 | Oscillator | relative strength index (Wilder, 14 bars), scaled to [-1, 1] |
 | Cross-asset | SPY and industry-ETF k-bar returns on the same grid (same conId binding rules) |
 | Daily history (`d_` leaves) | log return over 1, 5 and 20 sessions; 20-session close-to-close volatility; 14-session ATR / close; today's move from the previous close in ATRs; distance of the current close from the 20- and 50-session mean close; previous session's range, close position and distance of the current close from its high and low |
+| Fundamentals (`f_` leaves) | latest quarterly revenue growth, operating margin and its year-over-year change, inventory, operating and free cash-flow growth; days since the latest quarterly report |
 | Daily context (optional) | last sealed daily forecast, as of the previous close only |
 
 Same-time-of-day statistics use only earlier sessions. Any leaf whose lookback goes past
@@ -430,6 +431,24 @@ do not need `allow_cross_session_lookback`. Their rules:
   paper sessions must therefore be contiguous.
 - **Same in replay and paper.** The live panel supplies earlier sessions through the same
   interface, so a paper episode computes the same values as the replay.
+
+**Fundamental leaves** reuse the research study's quarterly business metrics
+([connected_research_study.md](connected_research_study.md#financial-business-factors)).
+Their rules:
+- **Source.** A retained financial snapshot from `collect-financials` (SEC company facts,
+  or the issuer's results archive when SEC is unavailable). The plan's `fundamentals` names
+  one snapshot digest per target instrument; evaluation refuses a missing, altered or
+  substituted snapshot, and a plan may declare `fundamentals` only when it uses an `f_` leaf.
+- **Availability.** Values are computed as of the session's open, so only facts usable before
+  trading began are read. They are constant across the session's decision bars. SEC facts
+  become usable at 05:00 UTC on the day after filing; issuer releases at their recorded
+  publication time. `f_days_since_report` is the time from the latest revenue report's
+  availability to the open, in days.
+- **Missing data.** A metric is missing when the snapshot has no comparable reported period
+  as of that open (for example no prior-year quarter, or a latest quarter older than 270
+  days). Nothing is filled.
+- **Offline only.** Paper episodes refuse `f_` leaves, because they do not refresh the
+  financial snapshot as new reports arrive.
 
 ### 5.5 Model, folds and evaluation
 
