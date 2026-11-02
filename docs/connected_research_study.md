@@ -1326,6 +1326,43 @@ quant-rsi research-history factors KO          # default daily history
 quant-rsi research-history factors KO --history-dir /tmp/ko-research-history --json
 ```
 
+### Factor constellation
+
+The same ledger can be browsed as a star map, one star per remembered factor, grouped by
+class (price recipes, news, financial statements, business expressions, industry drivers,
+related companies and instrument-profile bindings) around the stock:
+
+```bash
+quant-rsi research-history constellation KO    # writes and opens <history>/constellation/KO.html
+quant-rsi research-history constellation KO --history-dir /tmp/ko-research-history \
+  --output /tmp/ko-constellation.html --no-ui
+```
+
+The workbench lists a **Factor constellations** link for each stock in its shared history;
+that page is rendered from the current history on every request. The file is a single
+offline HTML page with no external scripts.
+
+- **Size** counts selections, development rounds beating the unchanged-price baseline and
+  twice the settled selected forecasts.
+- **Brightness** fades with the days since the factor was last tried; more important stars
+  fade more slowly. Faded stars remain as a small coordinate mark.
+- **Lines** are recorded relationships only: a derived factor's declared inputs (inputs
+  that were never tried directly appear as ringed stars), factors selected together in a
+  study's adopted round, and a revision replacing one factor set with another. Faint
+  straight lines only connect nearby stars of the same class.
+- The **day slider** shows the map as of an earlier day, **Replay memory stream** animates
+  the stars appearing, and clicking a star shows its counts, metrics, research questions,
+  relations and recipe.
+- **Round stack** switches to one study. The slider steps through that study's rounds, and
+  its last stop stacks every round: a line to the symbol is that factor's share of the fit.
+  LightGBM records gain share; ridge records the share of absolute standardized coefficients.
+  The stack adds those shares and divides by the rounds that recorded one. A factor left
+  out of a recorded round counts as zero. Older studies still show which factors were tried,
+  without a share. Neither view is evidence that a factor predicts returns.
+
+The map visualizes adaptive development history. A bright star or a dense relationship
+does not establish that a factor or link predicts returns.
+
 A real-service check on 2026-11-01 registered the retained KO study from the financial
 source acceptance into a separate history at the current receipt time, then ran a new
 Codex study with public prices/current RSS and retained issuer financials. The first

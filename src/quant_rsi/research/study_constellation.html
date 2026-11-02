@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factor constellation</title>
+<style>
+:root{color-scheme:dark;--ink:#e9e3d2;--muted:#8d8a80;--line:#2a2a33;--gold:#f1c76b}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#05060b;color:var(--ink);font:14px/1.45 "Iowan Old Style","Songti SC",Georgia,serif;overflow:hidden}
+canvas{display:block;position:fixed;inset:0;width:100%;height:100%;cursor:grab}
+canvas.dragging{cursor:grabbing}
+.overlay{position:fixed;pointer-events:none}
+.overlay>*{pointer-events:auto}
+#title{top:24px;left:32px;max-width:380px}
+#title small{letter-spacing:.25em;font:11px/1 system-ui,sans-serif;color:var(--muted);text-transform:uppercase}
+#title h1{font-weight:400;font-size:44px;margin:.25em 0 .2em;letter-spacing:.06em}
+#title p{margin:0;color:#b9b4a6;font-size:13px}
+#counts{top:26px;right:32px;text-align:right;font:12px system-ui,sans-serif;color:var(--muted);letter-spacing:.12em}
+#counts b{color:var(--ink);font-weight:600}
+#counts .buttons{margin-top:14px;display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+button{font:12px system-ui,sans-serif;letter-spacing:.08em;color:var(--ink);background:rgba(20,20,28,.7);border:1px solid #3b3a35;border-radius:999px;padding:7px 16px;cursor:pointer}
+button:hover,button.active{border-color:var(--gold);color:var(--gold)}
+#filters{left:32px;bottom:22px;display:flex;flex-wrap:wrap;gap:6px;max-width:30vw}
+#filters button{padding:4px 11px;border-radius:4px;font-size:11px}
+#legend{right:32px;bottom:64px;font:11px system-ui,sans-serif;color:var(--muted);display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+#legend i{display:inline-block;width:18px;height:2px;vertical-align:middle;margin-right:6px}
+#timeline{left:50%;bottom:20px;transform:translateX(-50%);text-align:center;width:min(440px,34vw)}
+#day{font:12px system-ui,sans-serif;color:var(--muted);letter-spacing:.2em}
+#day b{font:300 30px Georgia,serif;color:var(--ink);letter-spacing:.05em;margin:0 6px}
+#timeline input{width:100%;accent-color:var(--gold)}
+#timeline .ends{display:flex;justify-content:space-between;font:10px system-ui,sans-serif;color:var(--muted)}
+#hint{right:32px;bottom:22px;font:11px system-ui,sans-serif;color:var(--muted);text-align:right}
+#panel{top:140px;right:32px;width:min(380px,34vw);max-height:calc(100vh - 260px);overflow:auto;background:rgba(10,10,16,.88);border:1px solid #34332e;border-radius:10px;padding:16px 18px;display:none;font:13px/1.5 system-ui,sans-serif}
+#panel h2{font:400 18px Georgia,serif;margin:0 0 2px;word-break:break-all}
+#panel .tag{font-size:11px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+#panel table{width:100%;border-collapse:collapse;margin:10px 0}
+#panel td{padding:3px 0;border-bottom:1px solid var(--line);vertical-align:top}
+#panel td:last-child{text-align:right;color:#fff}
+#panel pre{white-space:pre-wrap;word-break:break-all;background:#0c0c13;border:1px solid var(--line);padding:8px;border-radius:6px;font-size:11px;max-height:180px;overflow:auto}
+#panel ul{padding-left:16px;margin:6px 0}
+#panel li a{color:#9fd0ff;cursor:pointer}
+#panel .close{float:right;padding:2px 9px}
+#notice{color:var(--muted);font-size:11px;margin-top:10px}
+#empty{top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:var(--muted);display:none}
+#roundcard{left:28px;bottom:78px;width:min(460px,38vw);max-height:42vh;overflow:auto;background:rgba(10,10,16,.88);border:1px solid #34332e;border-radius:10px;padding:14px 16px;font:12.5px/1.5 system-ui,sans-serif;display:none}
+#roundcard h2{font:400 18px Georgia,serif;margin:4px 0 6px}
+#roundcard .metric.worse{color:#ff8fb8}
+#roundcard .metric.better{color:#7fe0b5}
+#round-legend{right:32px;bottom:64px;max-width:280px;text-align:right;font:11px system-ui,sans-serif;color:var(--muted);display:none;flex-direction:column;gap:4px;align-items:flex-end}
+#tooltip{position:fixed;pointer-events:none;font:12px system-ui,sans-serif;background:rgba(10,10,16,.9);border:1px solid #3b3a35;padding:4px 8px;border-radius:4px;display:none;white-space:nowrap}
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<div class="overlay" id="title"><small>Factor constellation / 3D</small><h1 id="symbol">—</h1><p>Every factor the research loop has tried stays as a star. Repeatedly useful stars keep glowing; neglected ones dim until only their coordinate remains. Round stack steps through one study, then stacks every round onto the symbol.</p></div>
+<div class="overlay" id="counts"><div><b id="star-count">0</b> STARS · <b id="category-count">0</b> CLASSES · <b id="study-count">0</b> STUDIES · <b id="relation-count">0</b> LINKS</div><div class="buttons"><button id="rounds" type="button">Round stack</button><button id="replay" type="button">＋ Replay memory stream</button><button id="recall" type="button">Random recall ↗</button></div></div>
+<div class="overlay" id="filters"></div>
+<div class="overlay" id="legend"><span>● size = importance</span><span>✦ light = recency</span><span><i style="background:#f1c76b"></i>derived input</span><span><i style="background:#7fd6ff"></i>selected together</span><span><i style="background:#ff8fb8"></i>revision replaced</span><span><i style="background:#3a3a44"></i>same class</span></div>
+<div class="overlay" id="round-legend"><span><i style="background:#f1c76b"></i>→ symbol: width = this round's column share, or the stack of every round</span><span>Last slider stop stacks all rounds. Each round weighs the same; an unused factor counts as zero.</span></div>
+<div class="overlay" id="timeline"><div id="day">DAY<b id="day-number">000</b>/ <span id="day-total">0</span></div><input id="slider" type="range" min="0" max="0" value="0" aria-label="Memory day"><div class="ends"><span id="first-date"></span><span id="last-date"></span></div></div>
+<div class="overlay" id="roundcard"></div>
+<div class="overlay" id="hint">Drag to rotate · scroll to zoom<br>Click a star to see what it remembers</div>
+<div class="overlay" id="panel" role="dialog" aria-live="polite"></div>
+<div class="overlay" id="empty"><h2>No remembered factors yet</h2><p>Run a study with shared history, then reopen this map.</p></div>
+<div id="tooltip"></div>
+<script>
+"use strict";
+const DATA = /*CONSTELLATION_DATA*/null;
+const PALETTE = {research:"#f1c76b",news:"#ff9fbf",financial:"#8fd0ff",business:"#c5a3ff",external:"#ffb36b",peer:"#7fe0b5",bound:"#e8e0c4",other:"#a7a7b5"};
+const RELATION = {derived:"241,199,107",co_selected:"127,214,255",replaced:"255,143,184"};
+const DAY = 86400000;
+const $ = id => document.getElementById(id);
+const canvas = $("sky"), ctx = canvas.getContext("2d");
+const view = {yaw:0.6, pitch:0.42, zoom:1, auto:true, filter:null, selected:null, hover:null, day:0, playing:false, mode:"memory", study:Math.max(0,(DATA&&DATA.studies?DATA.studies.length:1)-1), round:1};
+const particles = [];
+
+function hash(text){let h=2166136261;for(const c of text){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;}
+function rand(seed){return()=>{seed=(seed+0x6D2B79F5)>>>0;let t=seed;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};}
+function el(tag,text,cls){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node;}
+function when(text){return text?String(text).slice(0,16).replace("T"," "):"—";}
+function fmt(value,digits=4){return value===null||value===undefined?"—":typeof value==="number"?value.toFixed(digits):String(value);}
+
+const data = DATA || {symbol:"—",stars:[],relations:[],studies:[],categories:{},notice:""};
+const parse = text => Date.parse(String(text).replace(/(\.\d{3})\d+/,"$1"));
+const end = data.generated_at ? parse(data.generated_at) : Date.now();
+const start = Math.min(end, ...data.studies.map(s=>parse(s.issued_at)));
+const totalDays = Math.max(1, Math.ceil((end-start)/DAY));
+const dayOf = text => Math.max(0, Math.floor((parse(text)-start)/DAY));
+const present = Object.keys(data.categories).filter(key=>data.stars.some(s=>s.category===key));
+const anchors = {};
+present.forEach((key,index)=>{const angle=index/present.length*Math.PI*2-Math.PI/2;anchors[key]={x:Math.cos(angle)*300,y:(index%2?70:-70),z:Math.sin(angle)*300};});
+const stars = data.stars.map(star=>{
+  const r=rand(hash(star.factor_id)), anchor=anchors[star.category], members=data.stars.filter(s=>s.category===star.category).length;
+  const spread=40+Math.sqrt(members)*18, theta=r()*Math.PI*2, phi=Math.acos(2*r()-1), radius=spread*(0.35+0.65*r());
+  return Object.assign({}, star, {x:anchor.x+radius*Math.sin(phi)*Math.cos(theta), y:anchor.y+radius*Math.cos(phi)*0.7, z:anchor.z+radius*Math.sin(phi)*Math.sin(theta), born:dayOf(star.first_seen), last:dayOf(star.last_seen), twinkle:r()*Math.PI*2});
+});
+const byId = Object.fromEntries(stars.map(s=>[s.factor_id,s]));
+const relations = data.relations.filter(r=>byId[r.source]&&byId[r.target]).map(r=>Object.assign({},r,{born:dayOf(r.last_seen)}));
+const maxImportance = Math.max(1,...stars.map(s=>s.importance));
+const neighbours = [], paired = new Set();
+for(const key of present){const group=stars.filter(s=>s.category===key);for(const star of group){const near=group.filter(o=>o!==star).sort((a,b)=>dist(star,a)-dist(star,b)).slice(0,2);for(const other of near){const pair=[star.factor_id,other.factor_id].sort().join("\n");if(!paired.has(pair)){paired.add(pair);neighbours.push([star,other]);}}}}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);}
+const dust = Array.from({length:420},(_,i)=>{const r=rand(i+7);return{x:r(),y:r(),a:r()*0.5+0.1,s:r()*1.2+0.2};});
+
+let width=0,height=0,ratio=1;
+function resize(){ratio=window.devicePixelRatio||1;width=innerWidth;height=innerHeight;canvas.width=width*ratio;canvas.height=height*ratio;ctx.setTransform(ratio,0,0,ratio,0,0);}
+addEventListener("resize",resize);resize();
+
+function project(p){
+  const cy=Math.cos(view.yaw), sy=Math.sin(view.yaw), cp=Math.cos(view.pitch), sp=Math.sin(view.pitch);
+  const x=p.x*cy-p.z*sy, z1=p.x*sy+p.z*cy, y=p.y*cp-z1*sp, z=p.y*sp+z1*cp;
+  const scale=Math.min(width,height)/640*view.zoom*900/(900+z);
+  return {x:width/2+x*scale, y:height/2+12+y*scale, scale, z};
+}
+function light(star){
+  if(star.born>view.day)return 0;
+  const age=Math.max(0,view.day-star.last);
+  return Math.max(0.06, Math.exp(-age/(30*(1+star.importance))));
+}
+function visible(star){return star.born<=view.day&&(!view.filter||star.category===view.filter);}
+function radius(star,p){return (1.6+3.4*Math.sqrt((star.importance+0.5)/maxImportance))*p.scale*1.6;}
+function rgba(hex,alpha){const n=parseInt(hex.slice(1),16);return `rgba(${n>>16},${(n>>8)&255},${n&255},${alpha})`;}
+function related(star){return relations.filter(r=>r.source===star.factor_id||r.target===star.factor_id);}
+
+function studyNow(){return data.studies[view.study]||{round_stack:[]};}
+function roundStack(){return studyNow().round_stack||[];}
+function summaryStop(){return Math.max(1, roundStack().length+1);}
+function stacking(){return view.mode==="rounds"&&view.round===summaryStop();}
+function shareOf(fid){
+  const rounds=roundStack();
+  if(stacking()){
+    const recorded=rounds.filter(r=>r.column_share&&Object.keys(r.column_share).length).length||rounds.length||1;
+    return rounds.reduce((sum,r)=>sum+((r.column_share&&r.column_share[fid])||0),0)/recorded;
+  }
+  const round=rounds.find(r=>r.round===view.round);
+  return (round&&round.column_share&&round.column_share[fid])||0;
+}
+function sharesRecorded(round){return !!(round&&round.column_share&&Object.keys(round.column_share).length);}
+function drawRounds(){
+  ctx.clearRect(0,0,width,height);
+  const sky=ctx.createRadialGradient(width/2,height/2,0,width/2,height/2,Math.max(width,height)*0.7);
+  sky.addColorStop(0,"#12121f");sky.addColorStop(1,"#04050a");ctx.fillStyle=sky;ctx.fillRect(0,0,width,height);
+  const core={x:width/2,y:height/2};
+  ctx.fillStyle="#fff7e0";ctx.beginPath();ctx.arc(core.x,core.y,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#d8d0b8";ctx.font="12px system-ui";ctx.textAlign="center";ctx.fillText(data.symbol,core.x,core.y-18);
+  const rounds=roundStack(), current=stacking()?null:rounds.find(r=>r.round===view.round);
+  const ids=stacking()?[...new Set(rounds.flatMap(r=>r.factor_ids))]:(current?current.factor_ids:[]);
+  const scale=Math.min(width,height)/900;
+  const measured=stacking()?rounds.some(sharesRecorded):sharesRecorded(current);
+  for(const fid of ids){
+    const star=byId[fid];if(!star)continue;
+    const p={x:core.x+star.x*scale,y:core.y+star.z*scale}, share=shareOf(fid);
+    ctx.strokeStyle=`rgba(241,199,107,${measured?0.25+0.7*Math.min(1,share*(stacking()?4:1)):0.45})`;
+    ctx.lineWidth=measured?0.6+9*(stacking()?Math.min(1,share*4):share):1.4;
+    ctx.beginPath();ctx.moveTo(core.x,core.y);ctx.lineTo(p.x,p.y);ctx.stroke();
+    const color=PALETTE[star.category]||PALETTE.other, radius=7;
+    ctx.fillStyle=color;ctx.beginPath();ctx.arc(p.x,p.y,radius,0,Math.PI*2);ctx.fill();
+    if(measured){ctx.fillStyle="#fff";ctx.font="11px system-ui";ctx.textAlign="left";ctx.fillText(`${(share*100).toFixed(0)}%`,p.x+radius+6,p.y+4);}
+    star.screen={x:p.x,y:p.y,r:radius+8};
+  }
+  for(const star of stars)if(!ids.includes(star.factor_id))star.screen=null;
+}
+function updateRoundCard(){
+  if(view.mode!=="rounds")return;
+  const rounds=roundStack(), card=$("roundcard");
+  card.replaceChildren();
+  if(data.studies.length>1){
+    const select=document.createElement("select");
+    data.studies.forEach((study,index)=>{const option=document.createElement("option");option.value=index;option.textContent=`${String(study.issued_at).slice(0,10)} · ${study.rounds} rounds`;option.selected=index===view.study;select.append(option);});
+    select.onchange=()=>{view.study=Number(select.value);view.round=summaryStop();$("slider").max=summaryStop();$("slider").value=view.round;updateRoundCard();};
+    card.append(select);
+  }
+  if(!rounds.length){card.append(el("p","This study has no recorded rounds."));return;}
+  if(stacking()){
+    const measured=rounds.some(sharesRecorded);
+    const ids=[...new Set(rounds.flatMap(r=>r.factor_ids))].sort((a,b)=>shareOf(b)-shareOf(a));
+    card.append(el("div","ALL ROUNDS STACKED","tag"),el("h2",`${data.symbol} and every factor`));
+    card.append(el("p","Each round's column share is added, then divided by the rounds that recorded a share. A factor left out of a round counts as zero. This is how the fit used each column, not proof that it predicts returns."));
+    for(const fid of ids){
+      const used=rounds.filter(r=>r.factor_ids.includes(fid));
+      const adopted=used.filter(r=>r.accepted).map(r=>r.round);
+      card.append(el("p",`${measured?(shareOf(fid)*100).toFixed(1)+"%  ":""}${fid}  · ${used.length}/${rounds.length}${adopted.length?" · adopted "+adopted.join(","):""}`));
+    }
+    if(!measured)card.append(el("p","Column share was not recorded for this study. Lines show which factors were tried."));
+    $("day-number").textContent="ALL";$("day-total").textContent=rounds.length;
+    return;
+  }
+  const round=rounds.find(r=>r.round===view.round);
+  $("day-number").textContent=view.round;$("day-total").textContent=rounds.length;
+  if(!round)return;
+  card.append(el("div",`ROUND ${round.round}${round.selected?" · SELECTED":""}`,"tag"));
+  card.append(el("h2",round.accepted?"Adopted as the new incumbent":"Rejected: incumbent kept"));
+  if(round.mae_price!=null){
+    const better=round.baseline_mae_price!=null&&round.mae_price<round.baseline_mae_price;
+    const line=el("p");
+    line.innerHTML=`Dev MAE <span class="metric ${better?"better":"worse"}">${Number(round.mae_price).toFixed(4)}</span>${round.baseline_mae_price!=null?` vs unchanged-price ${Number(round.baseline_mae_price).toFixed(4)}`:""}`;
+    card.append(line);
+  }
+  if(round.hypothesis)card.append(el("p",round.hypothesis));
+  const ranked=[...round.factor_ids].sort((a,b)=>((round.column_share[b]||0)-(round.column_share[a]||0)));
+  card.append(el("p",ranked.map(fid=>fid+(round.column_share[fid]!=null?` ${(round.column_share[fid]*100).toFixed(0)}%`:"")).join(" · ")));
+}
+function setMode(mode){
+  view.mode=mode;view.selected=null;show(null);
+  const rounds=mode==="rounds";
+  $("rounds").classList.toggle("active",rounds);
+  $("legend").style.display=rounds?"none":"";
+  $("round-legend").style.display=rounds?"flex":"none";
+  $("filters").style.display=rounds?"none":"";
+  $("roundcard").style.display=rounds?"block":"none";
+  $("replay").style.display=rounds?"none":"";
+  $("hint").innerHTML=rounds?"← → to step rounds · click a star<br>The last stop stacks every round":"Drag to rotate · scroll to zoom<br>Click a star to see what it remembers";
+  canvas.style.cursor=rounds?"default":"grab";
+  $("day").childNodes[0].textContent=rounds?"ROUND ":"DAY";
+  if(rounds){view.round=summaryStop();$("slider").min=1;$("slider").max=summaryStop();$("slider").value=view.round;updateRoundCard();}
+  else{$("slider").min=0;$("slider").max=totalDays;$("slider").value=Math.floor(view.day);updateDay();}
+}
+
+let previousTime=0;
+function draw(time){
+  if(view.mode==="rounds"){drawRounds();requestAnimationFrame(draw);return;}
+  const elapsed=Math.min(100,time-(previousTime||time));previousTime=time;
+  if(view.auto&&!view.dragging)view.yaw+=0.00006*elapsed;
+  if(view.playing){view.day=Math.min(totalDays,view.day+totalDays*elapsed/12000);$("slider").value=Math.floor(view.day);updateDay();if(view.day>=totalDays)view.playing=false;}
+  ctx.clearRect(0,0,width,height);
+  const sky=ctx.createRadialGradient(width/2,height/2,0,width/2,height/2,Math.max(width,height)*0.7);
+  sky.addColorStop(0,"#121220");sky.addColorStop(1,"#04050a");ctx.fillStyle=sky;ctx.fillRect(0,0,width,height);
+  for(const d of dust){ctx.fillStyle=`rgba(255,255,255,${d.a*(0.6+0.4*Math.sin(time/1500+d.x*40))})`;ctx.fillRect(d.x*width,d.y*height,d.s,d.s);}
+  const core=project({x:0,y:0,z:0});
+  const glow=ctx.createRadialGradient(core.x,core.y,0,core.x,core.y,90*core.scale);
+  glow.addColorStop(0,"rgba(255,240,200,.95)");glow.addColorStop(0.12,"rgba(255,225,160,.55)");glow.addColorStop(1,"rgba(255,220,150,0)");
+  ctx.fillStyle=glow;ctx.beginPath();ctx.arc(core.x,core.y,90*core.scale,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#fff7e0";ctx.beginPath();ctx.arc(core.x,core.y,6*core.scale,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#d8d0b8";ctx.font="12px system-ui";ctx.textAlign="center";ctx.fillText(data.symbol,core.x,core.y-14*core.scale);
+  const focus=view.selected||view.hover, focusSet=new Set(focus?[focus.factor_id,...related(focus).flatMap(r=>[r.source,r.target])]:[]);
+  ctx.lineWidth=0.6;
+  for(const [a,b] of neighbours){if(!visible(a)||!visible(b))continue;const pa=project(a),pb=project(b);ctx.strokeStyle=`rgba(150,150,170,${0.16*Math.min(light(a),light(b))})`;ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.stroke();}
+  for(const relation of relations){
+    const a=byId[relation.source],b=byId[relation.target];
+    if(!visible(a)||!visible(b)||relation.born>view.day)continue;
+    const pa=project(a),pb=project(b),mx=(pa.x+pb.x)/2,my=(pa.y+pb.y)/2;
+    const cx=mx+(core.x-mx)*0.35,cy=my+(core.y-my)*0.35;
+    const on=focus&&(relation.source===focus.factor_id||relation.target===focus.factor_id);
+    const alpha=focus?(on?0.9:0.05):0.12+0.1*Math.min(3,relation.weight);
+    ctx.strokeStyle=`rgba(${RELATION[relation.kind]},${alpha*Math.min(light(a),light(b))**0.5})`;
+    ctx.lineWidth=(on?1.6:0.8)+0.25*Math.min(4,relation.weight);
+    ctx.setLineDash(relation.kind==="replaced"?[5,5]:[]);
+    ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.quadraticCurveTo(cx,cy,pb.x,pb.y);ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  for(const key of present){if(view.filter&&view.filter!==key)continue;const p=project({x:anchors[key].x,y:anchors[key].y-110,z:anchors[key].z});ctx.fillStyle="#cfc6ad";ctx.font="14px Georgia";ctx.textAlign="center";ctx.fillText(data.categories[key],p.x,p.y);ctx.fillStyle="#7c786d";ctx.font="9px system-ui";ctx.fillText(key.toUpperCase(),p.x,p.y+13);}
+  const order=stars.filter(visible).map(s=>({s,p:project(s)})).sort((a,b)=>b.p.z-a.p.z);
+  for(const {s,p} of order){
+    const l=light(s), r=radius(s,p), color=PALETTE[s.category]||PALETTE.other, dim=focus&&!focusSet.has(s.factor_id);
+    s.screen={x:p.x,y:p.y,r:Math.max(r,5)};
+    if(l<0.15&&!dim){ctx.strokeStyle=rgba(color,0.35);ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(p.x-3,p.y);ctx.lineTo(p.x+3,p.y);ctx.moveTo(p.x,p.y-3);ctx.lineTo(p.x,p.y+3);ctx.stroke();continue;}
+    const twinkle=0.85+0.15*Math.sin(time/700+s.twinkle), alpha=(dim?0.12:1)*l*twinkle;
+    const halo=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,r*4);halo.addColorStop(0,rgba(color,0.55*alpha));halo.addColorStop(1,rgba(color,0));
+    ctx.fillStyle=halo;ctx.beginPath();ctx.arc(p.x,p.y,r*4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=rgba(color,Math.min(1,alpha+0.15));ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();
+    if(s.input_only){ctx.strokeStyle=rgba(color,alpha);ctx.lineWidth=1;ctx.beginPath();ctx.arc(p.x,p.y,r+3,0,Math.PI*2);ctx.stroke();}
+    if(s===view.selected){ctx.strokeStyle="#fff";ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(p.x,p.y,r+7,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#fff";ctx.font="12px system-ui";ctx.textAlign="left";ctx.fillText(s.factor_id,p.x+r+10,p.y+4);}
+  }
+  for(let i=particles.length-1;i>=0;i--){
+    const q=particles[i];q.t+=0.018;if(q.t>=1){particles.splice(i,1);continue;}
+    const target=project(q.star),x=core.x+(target.x-core.x)*q.t,y=core.y+(target.y-core.y)*q.t;
+    ctx.fillStyle=rgba(PALETTE[q.star.category]||PALETTE.other,1-q.t*0.6);ctx.beginPath();ctx.arc(x,y,2.2,0,Math.PI*2);ctx.fill();
+  }
+  requestAnimationFrame(draw);
+}
+
+function updateDay(){
+  const previous=view.shown||0, day=Math.floor(view.day);
+  $("day-number").textContent=String(day).padStart(3,"0");
+  if(view.playing)for(const s of stars)if(s.born>previous&&s.born<=day&&visible(s))particles.push({star:s,t:0});
+  view.shown=day;
+}
+function pick(x,y){let best=null,distance=Infinity;for(const s of stars){if(!visible(s)||!s.screen)continue;const d=Math.hypot(s.screen.x-x,s.screen.y-y);if(d<s.screen.r+8&&d<distance){best=s;distance=d;}}return best;}
+function row(table,label,value){const tr=el("tr");tr.append(el("td",label),el("td",value));table.append(tr);}
+function show(star){
+  view.selected=star;view.auto=!star;const panel=$("panel");panel.replaceChildren();
+  if(!star){panel.style.display="none";return;}
+  const close=el("button","×","close");close.type="button";close.onclick=()=>show(null);
+  panel.append(close,el("div",data.categories[star.category]||star.category,"tag"),el("h2",star.factor_id));
+  if(star.description)panel.append(el("p",star.description));
+  const table=el("table");
+  row(table,"Rounds tried",star.rounds_tried);row(table,"Rounds selected",star.rounds_selected);
+  row(table,"Rounds beating unchanged price",star.rounds_beating_unchanged_price);
+  row(table,"Settled selected forecasts",star.settled_selected_forecasts);row(table,"Studies",star.study_count);
+  row(table,"Best development MAE",fmt(star.best_mae_price));row(table,"Last development MAE",fmt(star.last_mae_price));
+  row(table,"Best strategy Sharpe",fmt(star.best_sharpe_ratio));row(table,"Importance",star.importance);
+  row(table,"First seen",when(star.first_seen));row(table,"Last seen",when(star.last_seen));
+  panel.append(table);
+  if(star.questions&&star.questions.some(Boolean)){panel.append(el("div","Research questions","tag"));const list=el("ul");for(const q of star.questions)list.append(el("li",q||"General research"));panel.append(list);}
+  const links=related(star);
+  if(links.length){panel.append(el("div","Relations","tag"));const list=el("ul");for(const r of links){const other=r.source===star.factor_id?r.target:r.source,item=el("li"),a=el("a",other);a.onclick=()=>show(byId[other]);const label={derived:r.source===star.factor_id?"input of ":"derived from ",co_selected:"selected with ",replaced:r.source===star.factor_id?"replaced by ":"replaced "}[r.kind];item.append(label,a,` ×${r.weight}`);list.append(item);}panel.append(list);}
+  if(star.recipe){panel.append(el("div","Recipe","tag"),el("pre",JSON.stringify(star.recipe,null,2)));}
+  panel.append(el("div",data.notice,"notice"));panel.style.display="block";
+}
+
+function showRound(star){
+  show(star);
+  if(!star)return;
+  const lines=roundStack().filter(r=>r.factor_ids.includes(star.factor_id)).map(r=>{
+    const share=r.column_share&&r.column_share[star.factor_id];
+    return `R${r.round}: ${share==null?"not recorded":`${(share*100).toFixed(0)}%`}${r.accepted?" adopted":""}`;
+  });
+  $("panel").append(el("div","Column share by round","tag"),el("p",lines.join(" · ")||"—"));
+}
+let drag=null;
+canvas.addEventListener("pointerdown",e=>{
+  if(view.mode==="rounds")return;
+  drag={x:e.clientX,y:e.clientY,moved:false};canvas.setPointerCapture(e.pointerId);canvas.classList.add("dragging");view.dragging=true;
+});
+canvas.addEventListener("pointermove",e=>{
+  if(view.mode==="rounds"){
+    const star=pick(e.clientX,e.clientY),tip=$("tooltip");view.hover=star;
+    if(star){tip.textContent=`${star.factor_id} · ${(shareOf(star.factor_id)*100).toFixed(0)}%`;tip.style.left=e.clientX+14+"px";tip.style.top=e.clientY+10+"px";tip.style.display="block";}else tip.style.display="none";
+    return;
+  }
+  if(drag){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>3)drag.moved=true;view.yaw+=dx*0.005;view.pitch=Math.max(-1.3,Math.min(1.3,view.pitch+dy*0.005));drag.x=e.clientX;drag.y=e.clientY;return;}
+  const star=pick(e.clientX,e.clientY),tip=$("tooltip");view.hover=star;
+  if(star){tip.textContent=`${star.factor_id} · selected ${star.rounds_selected}/${star.rounds_tried}`;tip.style.left=e.clientX+14+"px";tip.style.top=e.clientY+10+"px";tip.style.display="block";}else tip.style.display="none";
+});
+canvas.addEventListener("pointerup",e=>{
+  canvas.classList.remove("dragging");view.dragging=false;
+  if(view.mode==="rounds"){showRound(pick(e.clientX,e.clientY));drag=null;return;}
+  if(drag&&!drag.moved)show(pick(e.clientX,e.clientY));drag=null;
+});
+canvas.addEventListener("wheel",e=>{if(view.mode==="rounds")return;e.preventDefault();view.zoom=Math.max(0.4,Math.min(4,view.zoom*Math.exp(-e.deltaY*0.001)));},{passive:false});
+$("slider").addEventListener("input",e=>{
+  if(view.mode==="rounds"){view.round=Number(e.target.value);updateRoundCard();return;}
+  view.playing=false;view.day=Number(e.target.value);updateDay();
+});
+$("replay").onclick=()=>{view.day=0;view.shown=-1;view.playing=true;};
+$("recall").onclick=()=>{const pool=stars.filter(visible);if(pool.length)show(pool[Math.floor(Math.random()*pool.length)]);};
+$("rounds").onclick=()=>setMode(view.mode==="rounds"?"memory":"rounds");
+addEventListener("keydown",e=>{
+  if(e.key==="Escape")show(null);
+  if(view.mode!=="rounds")return;
+  if(e.key==="ArrowRight"){view.round=Math.min(summaryStop(),view.round+1);$("slider").value=view.round;updateRoundCard();}
+  if(e.key==="ArrowLeft"){view.round=Math.max(1,view.round-1);$("slider").value=view.round;updateRoundCard();}
+});
+
+function setup(){
+  $("symbol").textContent=data.symbol;document.title=`${data.symbol} · factor constellation`;
+  $("star-count").textContent=stars.length;$("category-count").textContent=present.length;
+  $("study-count").textContent=data.studies.length;$("relation-count").textContent=relations.length;
+  $("slider").max=totalDays;$("slider").value=totalDays;view.day=totalDays;view.shown=totalDays;
+  $("day-total").textContent=totalDays;$("day-number").textContent=String(totalDays).padStart(3,"0");
+  $("first-date").textContent=new Date(start).toISOString().slice(0,10);$("last-date").textContent=new Date(end).toISOString().slice(0,10);
+  const filters=$("filters");
+  const chip=(label,key)=>{const b=el("button",label);b.type="button";b.onclick=()=>{view.filter=key;for(const c of filters.children)c.classList.toggle("active",c===b);};if(key===null)b.classList.add("active");filters.append(b);};
+  chip("All",null);for(const key of present)chip(data.categories[key],key);
+  if(!stars.length)$("empty").style.display="block";
+}
+setup();requestAnimationFrame(draw);
+</script>
+</body>
+</html>

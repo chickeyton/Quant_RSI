@@ -379,6 +379,14 @@ def make_server(workbench, token, port=0):
                     )
                 elif route == "overview":
                     self.respond(200, workbench.overview())
+                elif re.fullmatch(r"constellation/(daily|synthetic)/[A-Z0-9.\-]{1,15}", route):
+                    from quant_rsi.research.study_constellation import constellation, render
+
+                    _, data, symbol = route.split("/")
+                    directory = workbench.root / "history" / data
+                    self.respond(
+                        200, render(constellation(directory, stock_symbol(symbol))), "text/html"
+                    )
                 elif re.fullmatch(r"tasks/[0-9a-f]{24}/(state)?", route):
                     task = workbench.task(route.split("/")[1])
                     state = read_state(task / "study")
