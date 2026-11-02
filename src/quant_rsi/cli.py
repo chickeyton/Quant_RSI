@@ -139,6 +139,12 @@ def main(argv: list[str] | None = None) -> int:
             )
             demo.add_argument("--model", choices=("lightgbm", "ridge"), default="lightgbm")
             demo.add_argument(
+                "--latest-fit",
+                choices=("refit", "selected"),
+                default="refit",
+                help="daily prices: refit on mature labels (one extra fit), or reuse research fit",
+            )
+            demo.add_argument(
                 "--compare-qlib",
                 action="store_true",
                 help="one additional upstream Qlib LightGBM fit on the selected study inputs",
