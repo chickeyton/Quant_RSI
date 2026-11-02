@@ -22,6 +22,7 @@ def refresh_evidence(task, manifest, *, on_stage=None):
             "llm",
             "llm_model",
             "model",
+            "compare_models",
             "rounds",
             "max_fits",
             "patience",

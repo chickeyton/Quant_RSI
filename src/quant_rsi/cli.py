@@ -182,6 +182,11 @@ def main(argv: list[str] | None = None) -> int:
                 help="one additional upstream Qlib LightGBM fit on the selected study inputs",
             )
             demo.add_argument(
+                "--compare-models",
+                action="store_true",
+                help="one alternate LightGBM/Ridge fit on the same selected factors and rows",
+            )
+            demo.add_argument(
                 "--ridge-alpha", type=float, help="positive ridge penalty (default: 1; ridge only)"
             )
             demo.add_argument("--output", type=Path, required=True, help="new report directory")

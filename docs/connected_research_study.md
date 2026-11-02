@@ -1530,6 +1530,7 @@ company suggestions. RSS news limits apply per issuer; see
 | `--llm-model`, `--llm-timeout` | Optional Codex or DeepSeek model (DeepSeek default `deepseek-chat`); API model required; timeout 180 seconds per call |
 | `--cursor-dir` | Directory for `--llm cursor` request and response files; default `OUTPUT/cursor-llm` |
 | `--model` | `lightgbm` by default; `ridge` uses a reviewed regularized linear model on the same rows and features |
+| `--compare-models` | Off; one alternate LightGBM/Ridge fit on the selected research inputs, without changing selection or publication |
 | `--ridge-alpha` | Positive finite penalty for Ridge, default 1.0; rejected when supplied with LightGBM |
 | `--related`, `--news`, `--prices` | `profile`, `issuer-rss`, `daily`; each also accepts `simulated`, except prices use `synthetic` |
 | `--related-prices` / `--no-related-prices` | Enabled by default; collect at most three distinct related symbols once, with no silent replacement of unavailable data |
@@ -1632,9 +1633,43 @@ LightGBM retains its existing deterministic parameters and 24 boosting rounds,
 without scaling. Both model choices retain the same maturity rules, common news
 mask and unchanged-price/training-mean controls. Separate CLI runs can receive
 different LLM factors: merely running each model once is not a controlled model
-comparison. Freeze data, factor columns, origins and information budgets before
-making that claim. This completes the alternative-model interface in #39 B; it
+comparison. Use `--compare-models` below to reuse one selected research fit's inputs.
+This completes the alternative-model interface in #39 B; it
 does not complete multi-profile, external-engine or independent validation work.
+
+### Same-input model comparison
+
+```bash
+quant-rsi research-study KO --news-research --compare-models --output /tmp/ko-models
+```
+
+The workbench's **Compare LightGBM and Ridge** checkbox enables the same option and
+is retained in saved templates and queued tasks. It is off by default. After research
+selection is frozen, one alternate estimator is fitted on the identical factor columns,
+training sessions and mature labels. A LightGBM study adds Ridge with alpha 1 and
+training-only standardization; a Ridge study adds the existing fixed LightGBM model.
+There is no additional LLM call or parameter search.
+
+The report and live task card show both models, unchanged-price and training-mean
+forecast baselines, and buy-and-hold. Forecast MAE and direction hit rate use common
+origins; account returns, Sharpe and drawdown use the same costs and execution rules.
+Forecast counts and the daily-return counts used by Sharpe are shown separately.
+Development and reserved-terminal windows remain separate. A missing terminal window
+is explicitly unavailable; the comparison does not remove difficult rows to improve
+coverage. Buy-and-hold is an account benchmark and has no model forecast MAE.
+
+`model_comparison_inputs.json` retains the selected research fit's inputs (evaluation
+labels are absent), and `model_comparison.json` records results and a canonical input
+fingerprint. The configuration declares one additional comparison fit, separate from
+the research, publication and walk-forward budgets. Resume reuses a completed comparison
+receipt. The selected round, published prediction and subsequent hypothesis feedback
+remain unchanged. This compares models **conditional on already selected factors**;
+it does not establish independent model superiority or research-policy improvement.
+
+With the optional Qlib runtime, a LightGBM study can combine `--compare-models` and
+`--compare-qlib`: one Ridge fit compares estimators, and one upstream Qlib LightGBM fit
+compares workflow semantics on the same retained inputs. Qlib is an execution/research
+framework, not a third prediction model. These options together add two comparison fits.
 
 ## Active news research
 

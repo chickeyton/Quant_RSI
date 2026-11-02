@@ -274,6 +274,7 @@ class Workbench:
                     "llm",
                     "data",
                     "model",
+                    "compare_models",
                     "selection_metric",
                     "horizon_sessions",
                     "historical_sessions",

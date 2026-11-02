@@ -196,6 +196,13 @@ contains a split and remains unavailable under the existing corporate-action che
 See [Nasdaq coverage](docs/connected_research_study.md#nasdaq-example-aapl).
 
 
+Add `--compare-models` (or enable **Compare LightGBM and Ridge** in the workbench)
+to fit the alternate model once on the selected research model's exact factors,
+training rows and evaluation windows. The report compares forecast error, direction,
+costed returns, Sharpe and drawdown against the same simple baselines. This extra
+comparison fit does not change the selected model or latest forecast. See
+[same-input model comparison](docs/connected_research_study.md#same-input-model-comparison).
+
 With the [optional Qlib environment](docs/qlib_workflow_comparison.md), add
 `--compare-qlib` to run one actual upstream fit on the selected study's frozen
 features and splits. The same report compares forecasts and costed accounts;

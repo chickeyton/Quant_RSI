@@ -1041,6 +1041,45 @@ def render_study(result):
                     for name, m in pooled.items()
                 ],
             )
+    comparison = result["study"].get("model_comparison")
+    if comparison:
+        from quant_rsi.research.study_model_comparison import comparison_rows
+
+        section("Same-input model comparison", comparison["notice"])
+        table(
+            [
+                "Window",
+                "Model / baseline",
+                "Forecast N",
+                "Price MAE",
+                "Direction hit rate",
+                "Net return",
+                "Sharpe / daily N",
+                "Max drawdown",
+            ],
+            [
+                [
+                    row["window"],
+                    row["model"],
+                    row["sample_count"] if row["sample_count"] is not None else "N/A",
+                    _number(row["mae"]),
+                    _number(row["direction_hit_rate"], percent=True),
+                    _number(row["net_return"], percent=True),
+                    _number(row["sharpe_ratio"])
+                    + " / "
+                    + str(
+                        row["daily_return_count"] if row["daily_return_count"] is not None else "—"
+                    ),
+                    _number(row["max_drawdown"], percent=True),
+                ]
+                for row in comparison_rows(comparison)
+            ],
+        )
+        for name, segment in comparison["segments"].items():
+            if segment["status"] != "completed":
+                section(f"Model comparison: {name}", segment["reason"])
+        section("Common comparison inputs", comparison["inputs_sha256"])
+
     comparison = result["study"].get("qlib_comparison")
     if comparison:
         section("Actual Qlib workflow comparison", comparison["notice"])
