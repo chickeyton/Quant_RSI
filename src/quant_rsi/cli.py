@@ -250,7 +250,7 @@ def main(argv: list[str] | None = None) -> int:
     history = commands.add_parser(
         "research-history", help="inspect or observe saved study forecasts"
     )
-    history.add_argument("action", choices=("status", "observe", "factors"))
+    history.add_argument("action", choices=("status", "observe", "factors", "constellation"))
     history.add_argument("symbol")
     history.add_argument(
         "--history-dir",
@@ -267,6 +267,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     history.add_argument(
         "--prices-dir", type=Path, help="later retained daily collection; required for observe"
+    )
+    history.add_argument(
+        "--output",
+        type=Path,
+        help="constellation HTML file (default: <history-dir>/constellation/<SYMBOL>.html)",
     )
     workflow = commands.add_parser("research-workflow", help="one frozen research/account profile")
     workflow_commands = workflow.add_subparsers(dest="workflow_command", required=True)
@@ -520,6 +525,29 @@ def main(argv: list[str] | None = None) -> int:
             symbol = args.symbol.strip().upper()
             if args.history_dir is None:
                 args.history_dir = default_history_dir("daily")
+            if args.output is not None and args.action != "constellation":
+                raise ValueError("--output is only used by research-history constellation")
+            if args.action == "constellation":
+                from quant_rsi.core.artifacts import atomic_write
+                from quant_rsi.research.study_constellation import constellation, render
+
+                if args.prices_dir is not None:
+                    raise ValueError("research-history constellation does not read prices")
+                data = constellation(args.history_dir, symbol)
+                output = (
+                    args.output or args.history_dir / "constellation" / f"{symbol}.html"
+                ).resolve()
+                atomic_write(output, render(data).encode())
+                print(
+                    f"{symbol}: {len(data['stars'])} factor stars and "
+                    f"{len(data['relations'])} relations from {len(data['studies'])} studies: "
+                    f"{output}"
+                )
+                if args.ui if args.ui is not None else sys.stderr.isatty():
+                    import webbrowser
+
+                    webbrowser.open(output.as_uri())
+                return 0
             if args.action == "factors":
                 from quant_rsi.research.study_history import factor_ledger
 

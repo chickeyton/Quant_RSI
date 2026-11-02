@@ -22,7 +22,12 @@ quant-rsi = "quant_rsi.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"quant_rsi.research" = ["study_ui.html", "study_ui_cards.js", "study_workbench.html"]
+"quant_rsi.research" = [
+    "study_ui.html",
+    "study_ui_cards.js",
+    "study_workbench.html",
+    "study_constellation.html",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
