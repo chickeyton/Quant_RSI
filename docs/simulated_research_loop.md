@@ -72,6 +72,37 @@ library; no additional SDK is required. It requests a strict JSON schema via
 [Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs).
 Codex login alone does not supply the API mode's `OPENAI_API_KEY`.
 
+### DeepSeek API
+
+Make `DEEPSEEK_API_KEY` available in the process environment. The adapter calls
+`https://api.deepseek.com/chat/completions` with `response_format` JSON object mode.
+`--llm-model` is optional and defaults to `deepseek-chat`.
+
+```bash
+quant-rsi research-demo KO --llm deepseek
+quant-rsi research-demo KO --llm deepseek --llm-model deepseek-chat
+```
+
+This transport answers hypothesis calls only. `--news-research` still requires
+Codex or the OpenAI API, because those are the transports that record a web search.
+
+### Cursor handoff
+
+`--llm cursor` stops at each hypothesis and waits for a JSON file. It does not
+launch Cursor and does not send the prompt to a hosted model. A person or a Cursor
+session reads `round-N.request.json` and moves the finished hypothesis JSON onto
+`round-N.response.json` in the same directory. `research-demo` requires
+`--cursor-dir`. `research-study` defaults to `OUTPUT/cursor-llm`. The wait uses
+`--llm-timeout`.
+
+```bash
+quant-rsi research-demo KO --llm cursor --cursor-dir /tmp/ko-cursor --llm-timeout 600
+```
+
+The response file is the hypothesis JSON itself, not a wrapper. Replace the file
+into place so a partial write is not read. Web search for news research is not
+part of this handoff.
+
 ### What changes and what stays simulated
 
 A successful live run makes two external LLM calls: an initial selection and one
@@ -86,7 +117,7 @@ Missing credentials, unavailable CLI/model, connection/timeout failures, rejecte
 or invalid output, unknown factor IDs or an unchanged revision stop the command.
 The adapter does not retry or fall back to simulated hypotheses.
 
-The trace identifies `codex_cli` or `openai_api` and reports `mode: mixed` with a
+The trace identifies `codex_cli`, `openai_api`, `deepseek_api` or `cursor_handoff` and reports `mode: mixed` with a
 simulation notice. Related stocks are synthetic by default, or configured with
 `--related profile`. Predictions use illustrative
 contributions by default, or actual fitting with `--model lightgbm`; prices default

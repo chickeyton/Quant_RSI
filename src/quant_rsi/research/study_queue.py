@@ -45,7 +45,7 @@ def study_options(options):
     result = defaults | options
     result["question"] = research_question(result["question"])
     for key, allowed in (
-        ("llm", {"codex", "api", "simulated"}),
+        ("llm", {"codex", "api", "simulated", "deepseek", "cursor"}),
         ("model", {"lightgbm", "ridge"}),
         ("financials_source", {"auto", "sec", "issuer"}),
         ("data", {"daily", "synthetic"}),
@@ -75,6 +75,8 @@ def study_options(options):
         or (result["llm"] == "api" and not model.strip())
     ):
         raise ValueError("API mode requires a model name; credentials come from the environment")
+    if result["news_research"] and result["llm"] in {"deepseek", "cursor"}:
+        raise ValueError("News research web search requires Codex or the OpenAI API")
     for key in ("news_research", "financials", "external_drivers", "only_new_evidence"):
         if type(result[key]) is not bool:
             raise ValueError(key + " must be boolean")
@@ -124,6 +126,8 @@ def study_arguments(task, workspace, symbol, options, *, batch_id=None):
             arguments += ["--" + flag, str(options[key])]
     if options["data"] == "synthetic":
         arguments += ["--news", "simulated", "--related", "simulated"]
+    if options["llm"] == "cursor":
+        arguments += ["--cursor-dir", str(task / "study" / "cursor-llm")]
     if options["llm_model"]:
         arguments += ["--llm-model=" + options["llm_model"]]
     if options.get("question"):

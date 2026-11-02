@@ -4,7 +4,9 @@ import json
 import math
 import os
 import subprocess
+import sys
 import tempfile
+import time
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -14,6 +16,7 @@ from urllib.request import Request, urlopen
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from quant_rsi.core.artifacts import atomic_write
 from quant_rsi.research.demo import select_factors
 from quant_rsi.research.demo_proposals import FactorProposal, NewsFactorProposal, extend_library
 from quant_rsi.research.provider_process import run_provider
@@ -58,14 +61,18 @@ class LLMHypothesizer:
     model: str | None = None
     timeout: float = 180
     on_usage: Callable[[dict], None] | None = field(default=None, repr=False, compare=False)
+    handoff_dir: Path | None = None
 
     def __post_init__(self):
-        if self.mode not in {"codex", "api"}:
-            raise ValueError("LLM mode must be codex or api")
+        if self.mode not in {"codex", "api", "deepseek", "cursor"}:
+            raise ValueError("LLM mode must be codex, api, deepseek or cursor")
         if not math.isfinite(self.timeout) or self.timeout <= 0:
             raise ValueError("LLM timeout must be a positive finite number")
         if self.mode == "api" and (not self.model or not self.model.strip()):
             raise ValueError("API mode requires --llm-model")
+        if self.mode == "cursor" and self.handoff_dir is None:
+            raise ValueError("Cursor mode requires a handoff directory")
+        object.__setattr__(self, "_handoff_count", [0])
 
     def __call__(self, context, library, *, previous=None, feedback=None):
         study = context.get("allow_factor_proposals", False)
@@ -263,7 +270,7 @@ class LLMHypothesizer:
                 allow_nan=False,
             )
         )
-        raw = self._codex(prompt, schema) if self.mode == "codex" else self._api(prompt, schema)
+        raw = self._hypothesis_text(prompt, schema)
         try:
             result = response_type.model_validate_json(raw).model_dump()
         except ValidationError:
@@ -283,26 +290,45 @@ class LLMHypothesizer:
             raise ValueError("LLM did not revise the factor selection; demo stopped")
         return {
             **result,
-            "provider": "codex_cli" if self.mode == "codex" else "openai_api",
+            "provider": {
+                "codex": "codex_cli",
+                "api": "openai_api",
+                "deepseek": "deepseek_api",
+                "cursor": "cursor_handoff",
+            }[self.mode],
             "requested_model": self.model,
             "previous_factor_ids": deepcopy(previous["factor_ids"]) if previous else [],
             "feedback_used": deepcopy(feedback),
         }
+
+    def _hypothesis_text(self, prompt, schema):
+        return self._exchange(prompt, schema, search=False)["text"]
+
+    def _exchange(self, prompt, schema, *, search):
+        if self.mode == "codex":
+            if not search:
+                return {"text": self._codex(prompt, schema), "search_actions": []}
+            return self._codex_response(prompt, schema, search=True)
+        if self.mode == "api":
+            if not search:
+                return {"text": self._api(prompt, schema), "search_actions": []}
+            return self._api_response(prompt, schema, search=True)
+        if search:
+            raise ValueError("News research web search requires --llm codex or --llm api")
+        if self.mode == "deepseek":
+            return {"text": self._deepseek(prompt, schema), "search_actions": []}
+        return {"text": self._cursor(prompt, schema), "search_actions": []}
 
     def _codex(self, prompt, schema):
         return self._codex_response(prompt, schema, search=False)["text"]
 
     def structured(self, prompt, schema):
         """Reuse authenticated transports for a bounded, tool-free research decision."""
-        return self._codex(prompt, schema) if self.mode == "codex" else self._api(prompt, schema)
+        return self._hypothesis_text(prompt, schema)
 
     def search(self, prompt, schema):
         """Enable provider-native web search only for explicit discovery requests."""
-        response = (
-            self._codex_response(prompt, schema, search=True)
-            if self.mode == "codex"
-            else self._api_response(prompt, schema, search=True)
-        )
+        response = self._exchange(prompt, schema, search=True)
         if not any(action["type"] == "search" for action in response["search_actions"]):
             raise ValueError("News discovery completed without a recorded web search")
         return response
@@ -446,6 +472,94 @@ class LLMHypothesizer:
             if item.get("type") == "web_search_call" and item.get("status") == "completed"
         ]
         return {"text": "".join(texts), "search_actions": actions}
+
+    def _deepseek(self, prompt, schema):
+        key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+        if not key:
+            raise ValueError("DeepSeek mode requires DEEPSEEK_API_KEY in the environment")
+        model = (self.model or "").strip() or "deepseek-chat"
+        body = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt + "\nJSON_SCHEMA:\n" + json.dumps(schema),
+                }
+            ],
+            "response_format": {"type": "json_object"},
+            "stream": False,
+        }
+        request = Request(
+            "https://api.deepseek.com/chat/completions",
+            data=json.dumps(body).encode("utf-8"),
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=self.timeout) as response:
+                payload = json.load(response)
+        except HTTPError as exc:
+            raise ValueError(f"DeepSeek API request failed (HTTP {exc.code})") from None
+        except (URLError, TimeoutError):
+            raise ValueError("DeepSeek API connection failed or timed out") from None
+        except ValueError:
+            raise ValueError("DeepSeek API returned invalid JSON") from None
+        if not isinstance(payload, dict):
+            raise ValueError("DeepSeek API returned invalid JSON")
+        usage = payload.get("usage")
+        if isinstance(usage, dict):
+            self._report_usage(
+                {
+                    "input_tokens": usage.get("prompt_tokens"),
+                    "output_tokens": usage.get("completion_tokens"),
+                    "cached_input_tokens": usage.get("prompt_cache_hit_tokens"),
+                }
+            )
+        choices = payload.get("choices")
+        message = choices[0].get("message") if isinstance(choices, list) and choices else None
+        text = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("DeepSeek API returned no hypothesis text")
+        return text
+
+    def _cursor(self, prompt, schema):
+        """Wait for a local JSON file. This does not call Cursor itself."""
+        directory = Path(self.handoff_dir)
+        directory.mkdir(parents=True, exist_ok=True)
+        self._handoff_count[0] += 1
+        number = self._handoff_count[0]
+        response_path = directory / f"round-{number}.response.json"
+        if response_path.exists():
+            response_path.unlink()
+        atomic_write(
+            directory / f"round-{number}.request.json",
+            json.dumps(
+                {"round": number, "prompt": prompt, "schema": schema},
+                ensure_ascii=False,
+            ).encode(),
+        )
+        print(
+            f"[quant-rsi] Cursor hypothesis {number}: write the JSON response to {response_path}",
+            file=sys.stderr,
+            flush=True,
+        )
+        deadline = time.monotonic() + self.timeout
+        previous = None
+        while time.monotonic() < deadline:
+            if response_path.is_file():
+                size = response_path.stat().st_size
+                if size and size == previous:
+                    if size > 4 * 1024 * 1024:
+                        raise ValueError("Cursor hypothesis response exceeded the bounded size")
+                    return response_path.read_text(encoding="utf-8")
+                previous = size
+            else:
+                previous = None
+            time.sleep(0.2)
+        raise ValueError(
+            f"Cursor hypothesis timed out; write the JSON response to {response_path} "
+            "or raise --llm-timeout"
+        )
 
     def _report_usage(self, usage):
         if self.on_usage is None:
