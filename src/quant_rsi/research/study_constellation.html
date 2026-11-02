@@ -43,16 +43,23 @@ button:hover,button.active{border-color:var(--gold);color:var(--gold)}
 #panel .close{float:right;padding:2px 9px}
 #notice{color:var(--muted);font-size:11px;margin-top:10px}
 #empty{top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:var(--muted);display:none}
+#roundcard{left:28px;bottom:78px;width:min(460px,38vw);max-height:42vh;overflow:auto;background:rgba(10,10,16,.88);border:1px solid #34332e;border-radius:10px;padding:14px 16px;font:12.5px/1.5 system-ui,sans-serif;display:none}
+#roundcard h2{font:400 18px Georgia,serif;margin:4px 0 6px}
+#roundcard .metric.worse{color:#ff8fb8}
+#roundcard .metric.better{color:#7fe0b5}
+#round-legend{right:32px;bottom:64px;max-width:280px;text-align:right;font:11px system-ui,sans-serif;color:var(--muted);display:none;flex-direction:column;gap:4px;align-items:flex-end}
 #tooltip{position:fixed;pointer-events:none;font:12px system-ui,sans-serif;background:rgba(10,10,16,.9);border:1px solid #3b3a35;padding:4px 8px;border-radius:4px;display:none;white-space:nowrap}
 </style>
 </head>
 <body>
 <canvas id="sky"></canvas>
-<div class="overlay" id="title"><small>Factor constellation / 3D</small><h1 id="symbol">—</h1><p>Every factor the research loop has tried stays as a star. Repeatedly useful stars keep glowing; neglected ones dim until only their coordinate remains.</p></div>
-<div class="overlay" id="counts"><div><b id="star-count">0</b> STARS · <b id="category-count">0</b> CLASSES · <b id="study-count">0</b> STUDIES · <b id="relation-count">0</b> LINKS</div><div class="buttons"><button id="replay" type="button">＋ Replay memory stream</button><button id="recall" type="button">Random recall ↗</button></div></div>
+<div class="overlay" id="title"><small>Factor constellation / 3D</small><h1 id="symbol">—</h1><p>Every factor the research loop has tried stays as a star. Repeatedly useful stars keep glowing; neglected ones dim until only their coordinate remains. Round stack steps through one study, then stacks every round onto the symbol.</p></div>
+<div class="overlay" id="counts"><div><b id="star-count">0</b> STARS · <b id="category-count">0</b> CLASSES · <b id="study-count">0</b> STUDIES · <b id="relation-count">0</b> LINKS</div><div class="buttons"><button id="rounds" type="button">Round stack</button><button id="replay" type="button">＋ Replay memory stream</button><button id="recall" type="button">Random recall ↗</button></div></div>
 <div class="overlay" id="filters"></div>
 <div class="overlay" id="legend"><span>● size = importance</span><span>✦ light = recency</span><span><i style="background:#f1c76b"></i>derived input</span><span><i style="background:#7fd6ff"></i>selected together</span><span><i style="background:#ff8fb8"></i>revision replaced</span><span><i style="background:#3a3a44"></i>same class</span></div>
+<div class="overlay" id="round-legend"><span><i style="background:#f1c76b"></i>→ symbol: width = this round's column share, or the stack of every round</span><span>Last slider stop stacks all rounds. Each round weighs the same; an unused factor counts as zero.</span></div>
 <div class="overlay" id="timeline"><div id="day">DAY<b id="day-number">000</b>/ <span id="day-total">0</span></div><input id="slider" type="range" min="0" max="0" value="0" aria-label="Memory day"><div class="ends"><span id="first-date"></span><span id="last-date"></span></div></div>
+<div class="overlay" id="roundcard"></div>
 <div class="overlay" id="hint">Drag to rotate · scroll to zoom<br>Click a star to see what it remembers</div>
 <div class="overlay" id="panel" role="dialog" aria-live="polite"></div>
 <div class="overlay" id="empty"><h2>No remembered factors yet</h2><p>Run a study with shared history, then reopen this map.</p></div>
@@ -65,7 +72,7 @@ const RELATION = {derived:"241,199,107",co_selected:"127,214,255",replaced:"255,
 const DAY = 86400000;
 const $ = id => document.getElementById(id);
 const canvas = $("sky"), ctx = canvas.getContext("2d");
-const view = {yaw:0.6, pitch:0.42, zoom:1, auto:true, filter:null, selected:null, hover:null, day:0, playing:false};
+const view = {yaw:0.6, pitch:0.42, zoom:1, auto:true, filter:null, selected:null, hover:null, day:0, playing:false, mode:"memory", study:Math.max(0,(DATA&&DATA.studies?DATA.studies.length:1)-1), round:1};
 const particles = [];
 
 function hash(text){let h=2166136261;for(const c of text){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;}
@@ -116,8 +123,103 @@ function radius(star,p){return (1.6+3.4*Math.sqrt((star.importance+0.5)/maxImpor
 function rgba(hex,alpha){const n=parseInt(hex.slice(1),16);return `rgba(${n>>16},${(n>>8)&255},${n&255},${alpha})`;}
 function related(star){return relations.filter(r=>r.source===star.factor_id||r.target===star.factor_id);}
 
+function studyNow(){return data.studies[view.study]||{round_stack:[]};}
+function roundStack(){return studyNow().round_stack||[];}
+function summaryStop(){return Math.max(1, roundStack().length+1);}
+function stacking(){return view.mode==="rounds"&&view.round===summaryStop();}
+function shareOf(fid){
+  const rounds=roundStack();
+  if(stacking()){
+    const recorded=rounds.filter(r=>r.column_share&&Object.keys(r.column_share).length).length||rounds.length||1;
+    return rounds.reduce((sum,r)=>sum+((r.column_share&&r.column_share[fid])||0),0)/recorded;
+  }
+  const round=rounds.find(r=>r.round===view.round);
+  return (round&&round.column_share&&round.column_share[fid])||0;
+}
+function sharesRecorded(round){return !!(round&&round.column_share&&Object.keys(round.column_share).length);}
+function drawRounds(){
+  ctx.clearRect(0,0,width,height);
+  const sky=ctx.createRadialGradient(width/2,height/2,0,width/2,height/2,Math.max(width,height)*0.7);
+  sky.addColorStop(0,"#12121f");sky.addColorStop(1,"#04050a");ctx.fillStyle=sky;ctx.fillRect(0,0,width,height);
+  const core={x:width/2,y:height/2};
+  ctx.fillStyle="#fff7e0";ctx.beginPath();ctx.arc(core.x,core.y,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#d8d0b8";ctx.font="12px system-ui";ctx.textAlign="center";ctx.fillText(data.symbol,core.x,core.y-18);
+  const rounds=roundStack(), current=stacking()?null:rounds.find(r=>r.round===view.round);
+  const ids=stacking()?[...new Set(rounds.flatMap(r=>r.factor_ids))]:(current?current.factor_ids:[]);
+  const scale=Math.min(width,height)/900;
+  const measured=stacking()?rounds.some(sharesRecorded):sharesRecorded(current);
+  for(const fid of ids){
+    const star=byId[fid];if(!star)continue;
+    const p={x:core.x+star.x*scale,y:core.y+star.z*scale}, share=shareOf(fid);
+    ctx.strokeStyle=`rgba(241,199,107,${measured?0.25+0.7*Math.min(1,share*(stacking()?4:1)):0.45})`;
+    ctx.lineWidth=measured?0.6+9*(stacking()?Math.min(1,share*4):share):1.4;
+    ctx.beginPath();ctx.moveTo(core.x,core.y);ctx.lineTo(p.x,p.y);ctx.stroke();
+    const color=PALETTE[star.category]||PALETTE.other, radius=7;
+    ctx.fillStyle=color;ctx.beginPath();ctx.arc(p.x,p.y,radius,0,Math.PI*2);ctx.fill();
+    if(measured){ctx.fillStyle="#fff";ctx.font="11px system-ui";ctx.textAlign="left";ctx.fillText(`${(share*100).toFixed(0)}%`,p.x+radius+6,p.y+4);}
+    star.screen={x:p.x,y:p.y,r:radius+8};
+  }
+  for(const star of stars)if(!ids.includes(star.factor_id))star.screen=null;
+}
+function updateRoundCard(){
+  if(view.mode!=="rounds")return;
+  const rounds=roundStack(), card=$("roundcard");
+  card.replaceChildren();
+  if(data.studies.length>1){
+    const select=document.createElement("select");
+    data.studies.forEach((study,index)=>{const option=document.createElement("option");option.value=index;option.textContent=`${String(study.issued_at).slice(0,10)} · ${study.rounds} rounds`;option.selected=index===view.study;select.append(option);});
+    select.onchange=()=>{view.study=Number(select.value);view.round=summaryStop();$("slider").max=summaryStop();$("slider").value=view.round;updateRoundCard();};
+    card.append(select);
+  }
+  if(!rounds.length){card.append(el("p","This study has no recorded rounds."));return;}
+  if(stacking()){
+    const measured=rounds.some(sharesRecorded);
+    const ids=[...new Set(rounds.flatMap(r=>r.factor_ids))].sort((a,b)=>shareOf(b)-shareOf(a));
+    card.append(el("div","ALL ROUNDS STACKED","tag"),el("h2",`${data.symbol} and every factor`));
+    card.append(el("p","Each round's column share is added, then divided by the rounds that recorded a share. A factor left out of a round counts as zero. This is how the fit used each column, not proof that it predicts returns."));
+    for(const fid of ids){
+      const used=rounds.filter(r=>r.factor_ids.includes(fid));
+      const adopted=used.filter(r=>r.accepted).map(r=>r.round);
+      card.append(el("p",`${measured?(shareOf(fid)*100).toFixed(1)+"%  ":""}${fid}  · ${used.length}/${rounds.length}${adopted.length?" · adopted "+adopted.join(","):""}`));
+    }
+    if(!measured)card.append(el("p","Column share was not recorded for this study. Lines show which factors were tried."));
+    $("day-number").textContent="ALL";$("day-total").textContent=rounds.length;
+    return;
+  }
+  const round=rounds.find(r=>r.round===view.round);
+  $("day-number").textContent=view.round;$("day-total").textContent=rounds.length;
+  if(!round)return;
+  card.append(el("div",`ROUND ${round.round}${round.selected?" · SELECTED":""}`,"tag"));
+  card.append(el("h2",round.accepted?"Adopted as the new incumbent":"Rejected: incumbent kept"));
+  if(round.mae_price!=null){
+    const better=round.baseline_mae_price!=null&&round.mae_price<round.baseline_mae_price;
+    const line=el("p");
+    line.innerHTML=`Dev MAE <span class="metric ${better?"better":"worse"}">${Number(round.mae_price).toFixed(4)}</span>${round.baseline_mae_price!=null?` vs unchanged-price ${Number(round.baseline_mae_price).toFixed(4)}`:""}`;
+    card.append(line);
+  }
+  if(round.hypothesis)card.append(el("p",round.hypothesis));
+  const ranked=[...round.factor_ids].sort((a,b)=>((round.column_share[b]||0)-(round.column_share[a]||0)));
+  card.append(el("p",ranked.map(fid=>fid+(round.column_share[fid]!=null?` ${(round.column_share[fid]*100).toFixed(0)}%`:"")).join(" · ")));
+}
+function setMode(mode){
+  view.mode=mode;view.selected=null;show(null);
+  const rounds=mode==="rounds";
+  $("rounds").classList.toggle("active",rounds);
+  $("legend").style.display=rounds?"none":"";
+  $("round-legend").style.display=rounds?"flex":"none";
+  $("filters").style.display=rounds?"none":"";
+  $("roundcard").style.display=rounds?"block":"none";
+  $("replay").style.display=rounds?"none":"";
+  $("hint").innerHTML=rounds?"← → to step rounds · click a star<br>The last stop stacks every round":"Drag to rotate · scroll to zoom<br>Click a star to see what it remembers";
+  canvas.style.cursor=rounds?"default":"grab";
+  $("day").childNodes[0].textContent=rounds?"ROUND ":"DAY";
+  if(rounds){view.round=summaryStop();$("slider").min=1;$("slider").max=summaryStop();$("slider").value=view.round;updateRoundCard();}
+  else{$("slider").min=0;$("slider").max=totalDays;$("slider").value=Math.floor(view.day);updateDay();}
+}
+
 let previousTime=0;
 function draw(time){
+  if(view.mode==="rounds"){drawRounds();requestAnimationFrame(draw);return;}
   const elapsed=Math.min(100,time-(previousTime||time));previousTime=time;
   if(view.auto&&!view.dragging)view.yaw+=0.00006*elapsed;
   if(view.playing){view.day=Math.min(totalDays,view.day+totalDays*elapsed/12000);$("slider").value=Math.floor(view.day);updateDay();if(view.day>=totalDays)view.playing=false;}
@@ -197,19 +299,49 @@ function show(star){
   panel.append(el("div",data.notice,"notice"));panel.style.display="block";
 }
 
+function showRound(star){
+  show(star);
+  if(!star)return;
+  const lines=roundStack().filter(r=>r.factor_ids.includes(star.factor_id)).map(r=>{
+    const share=r.column_share&&r.column_share[star.factor_id];
+    return `R${r.round}: ${share==null?"not recorded":`${(share*100).toFixed(0)}%`}${r.accepted?" adopted":""}`;
+  });
+  $("panel").append(el("div","Column share by round","tag"),el("p",lines.join(" · ")||"—"));
+}
 let drag=null;
-canvas.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY,moved:false};canvas.setPointerCapture(e.pointerId);canvas.classList.add("dragging");view.dragging=true;});
+canvas.addEventListener("pointerdown",e=>{
+  if(view.mode==="rounds")return;
+  drag={x:e.clientX,y:e.clientY,moved:false};canvas.setPointerCapture(e.pointerId);canvas.classList.add("dragging");view.dragging=true;
+});
 canvas.addEventListener("pointermove",e=>{
+  if(view.mode==="rounds"){
+    const star=pick(e.clientX,e.clientY),tip=$("tooltip");view.hover=star;
+    if(star){tip.textContent=`${star.factor_id} · ${(shareOf(star.factor_id)*100).toFixed(0)}%`;tip.style.left=e.clientX+14+"px";tip.style.top=e.clientY+10+"px";tip.style.display="block";}else tip.style.display="none";
+    return;
+  }
   if(drag){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>3)drag.moved=true;view.yaw+=dx*0.005;view.pitch=Math.max(-1.3,Math.min(1.3,view.pitch+dy*0.005));drag.x=e.clientX;drag.y=e.clientY;return;}
   const star=pick(e.clientX,e.clientY),tip=$("tooltip");view.hover=star;
   if(star){tip.textContent=`${star.factor_id} · selected ${star.rounds_selected}/${star.rounds_tried}`;tip.style.left=e.clientX+14+"px";tip.style.top=e.clientY+10+"px";tip.style.display="block";}else tip.style.display="none";
 });
-canvas.addEventListener("pointerup",e=>{canvas.classList.remove("dragging");view.dragging=false;if(drag&&!drag.moved)show(pick(e.clientX,e.clientY));drag=null;});
-canvas.addEventListener("wheel",e=>{e.preventDefault();view.zoom=Math.max(0.4,Math.min(4,view.zoom*Math.exp(-e.deltaY*0.001)));},{passive:false});
-$("slider").addEventListener("input",e=>{view.playing=false;view.day=Number(e.target.value);updateDay();});
+canvas.addEventListener("pointerup",e=>{
+  canvas.classList.remove("dragging");view.dragging=false;
+  if(view.mode==="rounds"){showRound(pick(e.clientX,e.clientY));drag=null;return;}
+  if(drag&&!drag.moved)show(pick(e.clientX,e.clientY));drag=null;
+});
+canvas.addEventListener("wheel",e=>{if(view.mode==="rounds")return;e.preventDefault();view.zoom=Math.max(0.4,Math.min(4,view.zoom*Math.exp(-e.deltaY*0.001)));},{passive:false});
+$("slider").addEventListener("input",e=>{
+  if(view.mode==="rounds"){view.round=Number(e.target.value);updateRoundCard();return;}
+  view.playing=false;view.day=Number(e.target.value);updateDay();
+});
 $("replay").onclick=()=>{view.day=0;view.shown=-1;view.playing=true;};
 $("recall").onclick=()=>{const pool=stars.filter(visible);if(pool.length)show(pool[Math.floor(Math.random()*pool.length)]);};
-addEventListener("keydown",e=>{if(e.key==="Escape")show(null);});
+$("rounds").onclick=()=>setMode(view.mode==="rounds"?"memory":"rounds");
+addEventListener("keydown",e=>{
+  if(e.key==="Escape")show(null);
+  if(view.mode!=="rounds")return;
+  if(e.key==="ArrowRight"){view.round=Math.min(summaryStop(),view.round+1);$("slider").value=view.round;updateRoundCard();}
+  if(e.key==="ArrowLeft"){view.round=Math.max(1,view.round-1);$("slider").value=view.round;updateRoundCard();}
+});
 
 function setup(){
   $("symbol").textContent=data.symbol;document.title=`${data.symbol} · factor constellation`;

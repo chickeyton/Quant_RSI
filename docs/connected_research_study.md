@@ -1353,6 +1353,12 @@ offline HTML page with no external scripts.
 - The **day slider** shows the map as of an earlier day, **Replay memory stream** animates
   the stars appearing, and clicking a star shows its counts, metrics, research questions,
   relations and recipe.
+- **Round stack** switches to one study. The slider steps through that study's rounds, and
+  its last stop stacks every round: a line to the symbol is that factor's share of the fit.
+  LightGBM records gain share; ridge records the share of absolute standardized coefficients.
+  The stack adds those shares and divides by the rounds that recorded one. A factor left
+  out of a recorded round counts as zero. Older studies still show which factors were tried,
+  without a share. Neither view is evidence that a factor predicts returns.
 
 The map visualizes adaptive development history. A bright star or a dense relationship
 does not establish that a factor or link predicts returns.

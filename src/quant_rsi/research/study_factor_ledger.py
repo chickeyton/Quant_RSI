@@ -26,19 +26,30 @@ def attempt_records(result):
         metrics = development.get("metrics", {})
         baseline = development.get("baselines", {}).get("unchanged_price", {}).get("metrics", {})
         strategy = prediction.get("strategy", {}).get("strategy", {}).get("metrics", {})
-        records.append(
-            {
-                "round": number,
-                "factor_ids": list(prediction.get("factor_ids", [])),
-                "selected": number == iterations["selected_round"],
-                "accepted": attempt.get("accepted"),
-                "mae_price": _number(metrics.get("mae_price")),
-                "baseline_mae_price": _number(baseline.get("mae_price")),
-                "direction_hit_rate": _number(metrics.get("direction_hit_rate")),
-                "sharpe_ratio": _number(strategy.get("sharpe_ratio")),
-                "net_return": strategy.get("net_return"),
+        factor_ids = list(prediction.get("factor_ids", []))
+        record = {
+            "round": number,
+            "factor_ids": factor_ids,
+            "selected": number == iterations["selected_round"],
+            "accepted": attempt.get("accepted"),
+            "mae_price": _number(metrics.get("mae_price")),
+            "baseline_mae_price": _number(baseline.get("mae_price")),
+            "direction_hit_rate": _number(metrics.get("direction_hit_rate")),
+            "sharpe_ratio": _number(strategy.get("sharpe_ratio")),
+            "net_return": strategy.get("net_return"),
+        }
+        hypothesis = attempt.get("hypothesis")
+        text = hypothesis.get("hypothesis") if isinstance(hypothesis, dict) else None
+        if isinstance(text, str) and text.strip():
+            record["hypothesis"] = text
+        share = prediction.get("column_share")
+        if isinstance(share, dict):
+            record["column_share"] = {
+                key: value
+                for key in factor_ids
+                if (value := _number(share.get(key))) is not None and value >= 0
             }
-        )
+        records.append(record)
     return records
 
 

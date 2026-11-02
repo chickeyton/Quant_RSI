@@ -12,6 +12,7 @@ from test_study_factor_ledger import run
 from quant_rsi.cli import main
 from quant_rsi.research import study_history
 from quant_rsi.research.study_constellation import constellation, render
+from quant_rsi.research.study_estimators import column_share
 from quant_rsi.research.study_workbench import Workbench, make_server
 
 
@@ -52,6 +53,60 @@ def register(directory, study_id, issued_at, attempts, selected, definitions):
                 "status": "unavailable",
             },
         )
+
+
+def test_column_share_is_the_within_round_weight():
+    assert column_share([1, 3], ["a", "b"]) == {"a": 0.25, "b": 0.75}
+    assert column_share([0, 0], ["a", "b"]) == {}
+    assert column_share([1], ["a", "b"]) == {}
+
+
+def test_round_stack_keeps_each_rounds_column_share(tmp_path):
+    register(
+        tmp_path,
+        "s1",
+        "2026-01-01T21:00:00Z",
+        [
+            {
+                "round": 1,
+                "accepted": True,
+                "hypothesis": {"hypothesis": "Start from a slow price recipe."},
+                "prediction": {
+                    "factor_ids": ["research.momentum_5"],
+                    "column_share": {"research.momentum_5": 1, "ignored": 9},
+                    "development": {
+                        "metrics": {"mae_price": 1.2},
+                        "baselines": {"unchanged_price": {"metrics": {"mae_price": 1.5}}},
+                    },
+                },
+            },
+            {
+                "round": 2,
+                "accepted": False,
+                "hypothesis": {"hypothesis": "Add the peer and keep the price recipe."},
+                "prediction": {
+                    "factor_ids": ["research.momentum_5", "peer.KOF.peer_return_5"],
+                    "column_share": {"research.momentum_5": 0.25, "peer.KOF.peer_return_5": 0.75},
+                    "development": {
+                        "metrics": {"mae_price": 1.4},
+                        "baselines": {"unchanged_price": {"metrics": {"mae_price": 1.5}}},
+                    },
+                },
+            },
+        ],
+        1,
+        [
+            {"factor_id": "research.momentum_5", "kind": "numeric", "recipe": {}},
+            {"factor_id": "peer.KOF.peer_return_5", "kind": "numeric", "recipe": {}},
+        ],
+    )
+    stack = constellation(tmp_path, "KO")["studies"][0]["round_stack"]
+    assert stack[0]["column_share"] == {"research.momentum_5": 1}
+    assert stack[0]["hypothesis"] == "Start from a slow price recipe."
+    assert stack[0]["accepted"] is True and stack[0]["selected"] is True
+    assert stack[1]["column_share"]["peer.KOF.peer_return_5"] == 0.75
+    assert stack[1]["accepted"] is False and stack[1]["selected"] is False
+    assert "Round stack" in render(constellation(tmp_path, "KO"))
 
 
 def test_relations_come_from_definitions_selection_and_revisions(tmp_path):

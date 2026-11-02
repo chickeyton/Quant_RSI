@@ -33,6 +33,28 @@ def category(factor_id):
     return prefix if prefix in CATEGORIES else "other"
 
 
+def _round_view(attempt):
+    share = attempt.get("column_share")
+    if not isinstance(share, dict):
+        share = {}
+    kept = {}
+    for key in attempt["factor_ids"]:
+        value = share.get(key)
+        if isinstance(value, int | float) and not isinstance(value, bool):
+            kept[key] = value
+    hypothesis = attempt.get("hypothesis")
+    return {
+        "round": attempt["round"],
+        "factor_ids": list(attempt["factor_ids"]),
+        "accepted": bool(attempt.get("accepted")),
+        "selected": bool(attempt.get("selected")),
+        "mae_price": attempt.get("mae_price"),
+        "baseline_mae_price": attempt.get("baseline_mae_price"),
+        "column_share": kept,
+        "hypothesis": hypothesis if isinstance(hypothesis, str) else "",
+    }
+
+
 def constellation(directory, symbol):
     studies = ledger_studies(directory, symbol)
     stars = {item["factor_id"]: item for item in summarize(studies)["factors"]}
@@ -106,6 +128,7 @@ def constellation(directory, symbol):
                     (a["factor_ids"] for a in study["attempts"] if a["selected"]), []
                 ),
                 "rounds": len(study["attempts"]),
+                "round_stack": [_round_view(attempt) for attempt in study["attempts"]],
             }
             for study in studies
         ],

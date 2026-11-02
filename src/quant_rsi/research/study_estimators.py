@@ -36,6 +36,25 @@ def model_configuration(name="lightgbm", ridge_alpha=None, *, horizon_sessions=5
     }
 
 
+def column_share(weights, factor_ids):
+    """Share of one fit's column usage. Not evidence that a column predicts returns."""
+    weights = np.asarray(weights, dtype=float)
+    if (
+        weights.ndim != 1
+        or len(weights) != len(factor_ids)
+        or not np.isfinite(weights).all()
+        or (weights < 0).any()
+    ):
+        return {}
+    total = float(weights.sum())
+    if total <= 0:
+        return {}
+    return {
+        factor_id: float(weight) / total
+        for factor_id, weight in zip(factor_ids, weights, strict=True)
+    }
+
+
 class StandardizedRidge:
     """L2-regularized slopes with an unpenalized intercept; no estimator search."""
 
