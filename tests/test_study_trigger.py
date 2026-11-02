@@ -141,7 +141,8 @@ def test_external_evidence_reuses_prepared_directory_and_changes_trigger(
 
     value, collected, stages = [1.0], [], []
 
-    def collect(directory, since, through):
+    def collect(directory, since, through, *, cache_directory=None):
+        assert cache_directory is None
         collected.append((directory, since, through))
         return {"records": [{"value": value[0]}], "failures": []}
 
@@ -162,6 +163,46 @@ def test_external_evidence_reuses_prepared_directory_and_changes_trigger(
         fingerprints.append(receipt["fingerprint"])
     assert fingerprints[0] == fingerprints[1] != fingerprints[2]
     assert stages.count("collecting_external_drivers") == 3
+
+
+def test_watchlist_external_cache_is_shared_only_within_batch(evidence, tmp_path, monkeypatch):
+    from test_eia_petroleum import INDEX, PAGE, PAGE_TEXT, TABLE
+
+    from quant_rsi.research import eia_petroleum as eia
+
+    state, _ = evidence
+    state["prices"]["dates"] = ["2026-10-30"]
+    calls = []
+
+    def download(url):
+        calls.append(url)
+        return INDEX if url == eia.ARCHIVE_URL else PAGE_TEXT if url == PAGE else TABLE
+
+    monkeypatch.setattr(eia, "_download", download)
+    workbench = Workbench(tmp_path)
+    options = OFFLINE | {"data": "daily", "external_drivers": True, "only_new_evidence": True}
+    receipts, caches = [], []
+    for cycle in range(2):
+        batch = workbench.batch(["XOM", "KO"], options)
+        group = []
+        for row in batch["tasks"]:
+            if row["action"] != "research":
+                continue
+            task = workbench.task(row["id"])
+            manifest = json.loads((task / "task.json").read_bytes())
+            receipt, args = trigger.refresh_evidence(task, manifest)
+            receipts.append(receipt)
+            shared = args[args.index("--external-drivers-cache-dir") + 1]
+            group.append(shared)
+            directory = args[args.index("--external-drivers-dir") + 1]
+            snapshot = eia.collect_petroleum(directory, "2026-10-30", "2026-10-30")
+            assert len(snapshot["records"]) == 3 and not snapshot["failures"]
+        assert len(set(group)) == 1
+        caches.append(group[0])
+        assert len(calls) == 3 * (cycle + 1)
+    assert caches[0] != caches[1]
+    assert receipts[0]["fingerprint"] == receipts[2]["fingerprint"]
+    assert receipts[1]["fingerprint"] == receipts[3]["fingerprint"]
 
 
 @pytest.fixture

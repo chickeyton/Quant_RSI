@@ -96,7 +96,7 @@ def watchlist(value):
     return symbols
 
 
-def study_arguments(task, workspace, symbol, options):
+def study_arguments(task, workspace, symbol, options, *, batch_id=None):
     arguments = [
         "research-study",
         symbol,
@@ -134,6 +134,13 @@ def study_arguments(task, workspace, symbol, options):
         arguments += ["--financials", "--financials-source", options["financials_source"]]
     if options.get("external_drivers"):
         arguments += ["--external-drivers"]
+        if batch_id is not None and options["data"] == "daily":
+            if not re.fullmatch(r"[0-9a-f]{24}", batch_id):
+                raise ValueError("Invalid study batch identity")
+            arguments += [
+                "--external-drivers-cache-dir",
+                str(workspace / "batches" / batch_id / "external_drivers"),
+            ]
     return arguments
 
 

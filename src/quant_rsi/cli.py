@@ -130,6 +130,11 @@ def main(argv: list[str] | None = None) -> int:
                 type=Path,
                 help="retained EIA weekly petroleum snapshot directory",
             )
+            demo.add_argument(
+                "--external-drivers-cache-dir",
+                type=Path,
+                help="shared EIA resource cache; use a fresh directory for each research cycle",
+            )
             demo.add_argument("--model", choices=("lightgbm", "ridge"), default="lightgbm")
             demo.add_argument(
                 "--compare-qlib",

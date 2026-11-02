@@ -141,12 +141,14 @@ def _configuration(args):
         args.news_snapshot = args.news_snapshot.resolve()
         if args.news_snapshot.is_relative_to(checkout):
             raise ValueError("Keep news snapshots outside the source checkout")
-    if getattr(args, "external_drivers_dir", None):
-        if not getattr(args, "external_drivers", False):
-            raise ValueError("--external-drivers-dir requires --external-drivers")
-        args.external_drivers_dir = args.external_drivers_dir.resolve()
-        if args.external_drivers_dir.is_relative_to(checkout):
-            raise ValueError("Keep external driver snapshots outside the checkout")
+    for name in ("external_drivers_dir", "external_drivers_cache_dir"):
+        if getattr(args, name, None):
+            if not getattr(args, "external_drivers", False):
+                raise ValueError(f"--{name.replace('_', '-')} requires --external-drivers")
+            value = getattr(args, name).resolve()
+            setattr(args, name, value)
+            if value.is_relative_to(checkout):
+                raise ValueError("Keep external driver snapshots outside the checkout")
     if getattr(args, "financials_dir", None):
         if not getattr(args, "financials", False):
             raise ValueError("--financials-dir requires --financials")
@@ -493,7 +495,12 @@ def _run(args, symbol, root, configuration, record, progress, cache):
                 return simulated_petroleum(cutoffs, required)
             directory = args.external_drivers_dir or root / "external_drivers"
             try:
-                snapshot = collect_petroleum(directory, cutoffs[0][:10], cutoffs[-1][:10])
+                snapshot = collect_petroleum(
+                    directory,
+                    cutoffs[0][:10],
+                    cutoffs[-1][:10],
+                    cache_directory=getattr(args, "external_drivers_cache_dir", None),
+                )
                 return prepare_petroleum(snapshot, cutoffs, required)
             except (OSError, ValueError, KeyError) as exc:
                 return {

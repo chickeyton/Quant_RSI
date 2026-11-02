@@ -15,6 +15,30 @@ from quant_rsi.research.study_workbench import Workbench
 OFFLINE = {"llm": "simulated", "data": "synthetic", "model": "ridge", "news_research": False}
 
 
+@pytest.mark.parametrize("check_inputs", [False, True])
+@pytest.mark.parametrize("only_new_evidence", [False, True])
+def test_all_daily_batch_entry_points_receive_the_same_external_cache(
+    tmp_path, check_inputs, only_new_evidence
+):
+    workbench = Workbench(tmp_path)
+    batch = workbench.batch(
+        ["XOM", "KO"],
+        OFFLINE
+        | {"data": "daily", "external_drivers": True, "only_new_evidence": only_new_evidence},
+        check_inputs=check_inputs,
+        force=True,
+    )
+    paths = []
+    for row in batch["tasks"]:
+        if row["action"] == "observe":
+            continue
+        manifest = json.loads((workbench.task(row["id"]) / "task.json").read_bytes())
+        args = manifest["arguments"]
+        paths.append(args[args.index("--external-drivers-cache-dir") + 1])
+        assert ("--check-inputs" in args) is check_inputs
+    assert paths == [str(tmp_path / "batches" / batch["batch_id"] / "external_drivers")] * 2
+
+
 def template(**changes):
     return {
         "name": "Two stocks",

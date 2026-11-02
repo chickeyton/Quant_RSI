@@ -135,7 +135,7 @@ class Workbench:
             "plan_id": plan_id,
             "batch_id": batch_id,
             "force": force,
-            "arguments": study_arguments(task, self.root, symbol, options),
+            "arguments": study_arguments(task, self.root, symbol, options, batch_id=batch_id),
         }
         if action == "check_inputs":
             manifest["arguments"].append("--check-inputs")

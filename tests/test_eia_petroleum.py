@@ -1,5 +1,7 @@
 """Offline official-layout fixtures; these do not establish predictive value."""
 
+import shutil
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -113,6 +115,42 @@ def test_collection_reuses_retained_sources_and_detects_tampering(tmp_path, monk
         eia.collect_petroleum(tmp_path, "2026-10-01", "2026-10-30")
 
 
+def test_shared_batch_cache_keeps_independent_receipts_and_bounds(tmp_path, monkeypatch):
+    calls = []
+
+    def download(url):
+        calls.append(url)
+        return INDEX if url == eia.ARCHIVE_URL else PAGE_TEXT if url == PAGE else TABLE
+
+    monkeypatch.setattr(eia, "_download", download)
+    shared = tmp_path / "batch"
+
+    def collect(name, through="2026-10-30", cache=shared):
+        return eia.collect_petroleum(tmp_path / name, "2026-10-01", through, cache_directory=cache)
+
+    # Even concurrent readers get one consistent bytes/receipt pair per URL.
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first, second = list(executor.map(collect, ("XOM", "KO")))
+    assert len(calls) == 3
+    assert first == second  # Including original received_at, source hashes and failures.
+    for item in first["resources"]:
+        assert (tmp_path / "XOM" / item["file"]).read_bytes() == (
+            tmp_path / "KO" / item["file"]
+        ).read_bytes()
+    collect("other-window", through="2026-10-29")
+    assert len(calls) == 6
+    collect("next-cycle", cache=tmp_path / "next-batch")
+    assert len(calls) == 9  # A new batch really checks the provider again.
+    # Tampering is not silently accepted by another task or replaced with fresh receipts.
+    resource = shared / "2026-10-01_2026-10-30" / first["resources"][0]["file"]
+    resource.write_bytes(b"changed")
+    with pytest.raises(ValueError, match="Cached EIA resource changed"):
+        collect("tampered")
+    shutil.rmtree(shared)
+    assert collect("XOM") == first  # Completed task no longer depends on the cache.
+    assert len(calls) == 9
+
+
 def test_failed_release_is_retained_without_fabricating_data(tmp_path, monkeypatch):
     def download(url):
         if url == eia.ARCHIVE_URL:
@@ -212,11 +250,27 @@ def test_cli_runs_external_revision_and_exposes_input_check(tmp_path):
     from test_research_study import command
 
     from quant_rsi.cli import main
+    from quant_rsi.research.study_resume import resume_arguments
     from quant_rsi.research.study_ui import read_state
     from quant_rsi.research.study_ui_views import visual_output
 
     root = tmp_path / "study"
-    assert main(command(root, "--llm", "simulated", "--external-drivers", "--no-ui")) == 0
+    shared = tmp_path / "batch"
+    assert (
+        main(
+            command(
+                root,
+                "--llm",
+                "simulated",
+                "--external-drivers",
+                "--no-ui",
+                "--external-drivers-cache-dir",
+                str(shared),
+            )
+        )
+        == 0
+    )
+    assert resume_arguments(root).external_drivers_cache_dir == shared
     result = json.loads((root / "result.json").read_bytes())
     external_ids = []
     for attempt in result["iterations"]["attempts"]:

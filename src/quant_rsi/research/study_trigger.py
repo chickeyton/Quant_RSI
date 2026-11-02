@@ -103,7 +103,9 @@ def refresh_evidence(task, manifest, *, on_stage=None):
                 on_stage("collecting_external_drivers")
             directory = task / "preflight/external_drivers"
             dates = evidence["prices"]["dates"]
-            external = collect_petroleum(directory, dates[0], dates[-1])
+            cache_flag = "--external-drivers-cache-dir"
+            shared = arguments[arguments.index(cache_flag) + 1] if cache_flag in arguments else None
+            external = collect_petroleum(directory, dates[0], dates[-1], cache_directory=shared)
             evidence["external_drivers"] = {
                 "records": external["records"],
                 "failures": external["failures"],
