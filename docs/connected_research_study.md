@@ -170,12 +170,57 @@ revision was rejected. Forecast results evaluate selected factors; they do not e
 a causal answer to a business question. Missing business variables must not be described
 as tested merely because a price proxy ran.
 
+For a nonempty question, each Codex/API hypothesis returns a bounded `question_map`
+with one to four claims: `claim`, selected `factor_ids`, `rationale` and `limitations`.
+An unmeasured part uses an empty factor list and explains the missing inputs. The
+validator rejects bindings to unselected or invented factors before fitting. The
+researcher chooses the factors; the user need not name recipes or prescribe a revision.
+The live hypothesis node shows **proposed inputs**. After each completed fit, the
+prediction node and report check those IDs against the recorded model columns and show
+**inputs fitted**, **inputs not fitted**, or **no measured input**. These labels describe
+execution, not support for a causal claim. Claims and limitations remain explicitly
+attributed to the LLM, whose interpretation can be wrong. Catalog inputs marked
+unavailable, including business variables, retain their recorded reasons in the
+evidence path instead of disappearing from the explanation.
+
+The final report puts the selected attempt's map next to the question, while retaining
+maps for rejected rounds below. This uses the existing hypothesis calls and adds no
+training or selection step. Simulated researchers and older study records have no
+structured map; the report says so rather than inventing coverage or rewriting history.
+
 Cross-run feedback and remembered recipes use the same symbol, prediction horizon and
 exact trimmed question. Repeating a saved template continues that focus; changing its
 question starts a separate feedback scope and changes the new-evidence fingerprint.
 Case and punctuation are retained. Blank questions and older records share the general
 research scope. All forecasts remain in the global history and can still be observed.
 Failed studies preserve the question on `research-resume`; changing it requires a new study.
+
+### Unprescribed factor selection observation (2026-11-01)
+
+At `28e9c05`, real Codex received only this business question, with no named factor
+recipe or prescribed revision: “Could changes in US petroleum inventories help explain
+near-term XOM returns, and how might company fundamentals change that hypothesis?
+Use the available evidence to investigate the question and identify what cannot be tested.”
+The run reused 252 retained public daily sessions, issuer financials, EIA archive data
+and issuer RSS. Active news search and related-price collection were disabled; it was
+not a fresh online discovery benchmark.
+
+Codex selected all three supplied EIA inventory changes, company revenue/inventory/free
+cash-flow growth, momentum and volatility. After development feedback it substituted
+operating cash-flow growth and a moving-average price recipe. Both rounds supplied four
+question-map entries, including one explicitly unmeasured claim about missing causal,
+news or peer evidence. All bound IDs were present in their actual model inputs.
+
+Two Codex calls, two real LightGBM research fits and two source-removal diagnostic fits
+completed in 87.9 seconds on the local machine. Over 20 development observations,
+price MAE was 4.0271 initially and 4.0823 after revision, versus 3.6075 for unchanged
+price. The configured MAE rule retained round 1 despite revised net return rising
+from 3.60% to 3.74%; buy-and-hold returned 4.98%. Annualized daily Sharpe was
+1.7910 initially, 1.6919 revised and 2.3644 for buy-and-hold, using only 24 daily
+returns. Terminal evaluation remained unavailable because selected industry features
+were missing on reserved dates; the latest forecast had no observed outcome.
+These are negative development results and one integration timing, not independent
+predictive evidence or a claim that the explanation changes improved performance.
 
 ### Question-driven integration observation (2026-11-01)
 

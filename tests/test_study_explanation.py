@@ -1,6 +1,11 @@
 """Explanations must distinguish cited context, actual fitting and unavailable inputs."""
 
-from quant_rsi.research.study_explanation import continuity, evidence_path, explain_prediction
+from quant_rsi.research.study_explanation import (
+    continuity,
+    evidence_path,
+    explain_prediction,
+    question_coverage,
+)
 from quant_rsi.research.study_history import mature_feedback
 from quant_rsi.research.study_ui_views import visual_output
 
@@ -14,6 +19,12 @@ def test_citing_news_does_not_claim_news_was_fitted_and_unavailable_reasons_surv
             "definitions": [
                 {"factor_id": "guidance", "kind": "news", "runnable": False},
                 {"factor_id": "count", "kind": "news", "runnable": True},
+                {
+                    "factor_id": "inventory",
+                    "kind": "numeric",
+                    "runnable": False,
+                    "reasons": ["insufficient_training_coverage"],
+                },
             ]
         },
         {"items": [{"id": "article", "title": "Demand grew", "url": "https://issuer.test"}]},
@@ -25,6 +36,35 @@ def test_citing_news_does_not_claim_news_was_fitted_and_unavailable_reasons_surv
     assert factors["guidance"]["status"] == "unavailable"
     assert factors["guidance"]["reason"] == "late_receipt"
     assert factors["count"]["status"] == "not_selected"
+    assert factors["inventory"]["status"] == "unavailable"
+    assert factors["inventory"]["reason"] == "insufficient_training_coverage"
+
+
+def test_question_execution_is_derived_from_actual_fit_and_missing_inputs_stay_unmeasured():
+    hypothesis = {
+        "question_map": [
+            {
+                "claim": "A proposed association",
+                "factor_ids": ids,
+                "rationale": "Researcher's rationale",
+                "limitations": ["Not causal evidence"],
+            }
+            for ids in (["price"], ["business"], [])
+        ]
+    }
+    assert [row["status"] for row in question_coverage(hypothesis)] == [
+        "proposed_inputs",
+        "proposed_inputs",
+        "no_measured_input",
+    ]
+    fitted = question_coverage(hypothesis, ["price"])
+    assert [row["status"] for row in fitted] == [
+        "inputs_fitted",
+        "inputs_not_fitted",
+        "no_measured_input",
+    ]
+    assert all("status" not in claim for claim in hypothesis["question_map"])
+    assert question_coverage({}) == []  # Old reports remain readable, with no invented mapping.
 
 
 def test_paths_keep_each_round_and_its_actual_inputs_including_rejected_news_trial():

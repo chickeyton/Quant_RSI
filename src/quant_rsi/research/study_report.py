@@ -4,7 +4,7 @@ import json
 from html import escape
 
 from quant_rsi.market.market_contracts import timestamp
-from quant_rsi.research.study_explanation import continuity, evidence_path
+from quant_rsi.research.study_explanation import continuity, evidence_path, question_coverage
 
 
 def _cell(value):
@@ -55,6 +55,28 @@ def render_study(result):
             + "</tbody></table></div>"
         )
 
+    def question_cards(rows):
+        for row in rows:
+            fields = [
+                ("Execution", row["status"].replace("_", " ")),
+                ("Bound factors", ", ".join(row["factor_ids"]) or "No measured input"),
+                ("Rationale (LLM)", row["rationale"]),
+            ]
+            md.extend(["### " + row["claim"], ""])
+            md.extend(f"**{name}:** {value}\n" for name, value in fields)
+            md.extend(["**Limitations (LLM):**", ""])
+            md.extend("- " + item for item in row["limitations"])
+            md.append("")
+            html.append(
+                "<section class='question-claim'><h3>"
+                + escape(row["claim"])
+                + "</h3>"
+                + "".join(f"<p><b>{name}:</b> {escape(value)}</p>" for name, value in fields)
+                + "<b>Limitations (LLM):</b><ul>"
+                + "".join("<li>" + escape(item) + "</li>" for item in row["limitations"])
+                + "</ul></section>"
+            )
+
     title = result["target"] + " · Connected research study"
     md.extend([f"# {title}", "", result["notice"], ""])
     html.append(
@@ -67,6 +89,21 @@ def render_study(result):
         if iterations:
             chosen = iterations["attempts"][iterations["selected_round"] - 1]
             section("Selected research hypothesis", chosen["hypothesis"]["hypothesis"])
+            coverage = question_coverage(chosen["hypothesis"], chosen["prediction"]["factor_ids"])
+            if coverage:
+                section(
+                    "Selected question map",
+                    "Claims, rationale and limitations are the researcher's assessment. "
+                    "Execution is checked against this attempt's recorded model inputs. "
+                    "Inputs fitted does not mean the claim was confirmed or caused returns.",
+                )
+                question_cards(coverage)
+            else:
+                section(
+                    "Selected question map",
+                    "No structured question map was recorded by this researcher. "
+                    "Do not infer question coverage from the presence of a fitted model.",
+                )
         section(
             "Scope of the answer",
             "The question guides evidence discovery and factor hypotheses. The results below "
@@ -358,6 +395,8 @@ def render_study(result):
             ["Factor", "Input", "Execution", "Reason"],
             [[f["factor_id"], f["input_kind"], f["status"], f["reason"]] for f in path["factors"]],
         )
+        if path["question_map"]:
+            question_cards(path["question_map"])
     related = steps["related_stocks"]
     if related.get("relationships"):
         table(
@@ -1097,6 +1136,8 @@ def render_study(result):
         "overflow-wrap:anywhere;min-width:80px}th{background:#e4eeed}a{color:#086b79}"
         "svg{width:100%;height:auto;background:white}"
         "section p{max-width:100ch;overflow-wrap:anywhere}"
+        ".question-claim{padding:18px;margin:16px 0;border:1px solid #d8e1e7;"
+        "border-radius:10px;background:white;overflow-wrap:anywhere}"
         "</style><main>" + "".join(html) + "</main></html>"
     )
 

@@ -10,10 +10,58 @@ from test_study_queue import OFFLINE, finish_queue
 from quant_rsi.cli import main
 from quant_rsi.research import active_news, study
 from quant_rsi.research.demo import research_question
+from quant_rsi.research.llm import LLMHypothesizer
 from quant_rsi.research.study_history import history_view, mature_feedback, recent_factor_recipes
 from quant_rsi.research.study_queue import study_arguments, study_options
 from quant_rsi.research.study_ui import read_state
 from quant_rsi.research.study_workbench import Workbench
+
+
+@pytest.mark.parametrize("mode", ["codex", "api"])
+@pytest.mark.parametrize("binding", ["research.momentum_5", "invented.input", "omitted"])
+def test_question_map_requires_current_selected_bindings(monkeypatch, mode, binding):
+    response = {
+        "hypothesis": "Examine a price control while inventory measurements are unavailable.",
+        "factor_ids": ["research.momentum_5"],
+        "evidence_news_ids": ["source"],
+        "event_signal": 0,
+        "proposed_factors": [{"op": "momentum", "window": 5, "description": "Price control"}],
+        "question_map": [
+            {
+                "claim": "Recent price direction may matter",
+                "factor_ids": [binding],
+                "rationale": "A trailing price control",
+                "limitations": ["Does not measure inventories"],
+            },
+            {
+                "claim": "Inventory builds could signal weaker demand",
+                "factor_ids": [],
+                "rationale": "No inventory measurement was supplied",
+                "limitations": ["Missing industry inventory and demand measurements"],
+            },
+        ],
+    }
+    if binding == "omitted":
+        response.pop("question_map")
+
+    def transport(self, prompt, schema):
+        assert schema["properties"]["question_map"]["minItems"] == 1
+        assert "question_map" in schema["required"]
+        return json.dumps(response)
+
+    monkeypatch.setattr(LLMHypothesizer, "_" + mode, transport)
+    hypothesize = LLMHypothesizer(mode, model="offline-fixture")
+    context = {
+        "allow_factor_proposals": True,
+        "research_question": "Could inventories explain returns?",
+        "news": {"items": [{"id": "source"}]},
+    }
+    if binding == "research.momentum_5":
+        result = hypothesize(context, {"definitions": []})
+        assert result["question_map"] == response["question_map"]
+    else:
+        with pytest.raises(ValueError, match="[Qq]uestion map"):
+            hypothesize(context, {"definitions": []})
 
 
 @pytest.mark.parametrize("invalid", [None, True, 3, [], "x" * 1001])

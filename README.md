@@ -107,6 +107,10 @@ quant-rsi research-study KO --news-research --financials --output /tmp/ko-busine
 To focus that study on a concrete business question, add
 `--question "Could inventory growth indicate weaker demand? Which available variables can test it?"`.
 This guides the researcher; the chosen horizon and MAE/Sharpe selection remain fixed.
+With a question, Codex/API rounds also map each proposed claim to the selected factors
+and disclose missing measurements and limitations. The live view and final report
+distinguish proposed inputs, actual fitted columns and claims with no measured input;
+fitting a column does not confirm the claim. No additional LLM call is needed.
 
 With financial data or external drivers enabled, Codex/API researchers can also propose bounded business
 expressions, such as **inventory growth minus revenue growth**, execute them in the model,

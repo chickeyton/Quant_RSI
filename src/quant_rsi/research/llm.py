@@ -29,11 +29,21 @@ class Hypothesis(BaseModel):
     event_signal: float = Field(ge=-1, le=1, allow_inf_nan=False)
 
 
+class QuestionClaim(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, str_strip_whitespace=True)
+
+    claim: str = Field(min_length=1, max_length=1000)
+    factor_ids: list[str] = Field(max_length=20)
+    rationale: str = Field(min_length=1, max_length=2000)
+    limitations: list[str] = Field(min_length=1, max_length=6)
+
+
 class StudyHypothesis(Hypothesis):
     proposed_factors: list[FactorProposal] = Field(min_length=1, max_length=3)
     proposed_business_factors: list[BusinessFactorProposal] = Field(
         default_factory=list, max_length=2
     )
+    question_map: list[QuestionClaim] = Field(default_factory=list, max_length=4)
 
 
 class NewsStudyHypothesis(StudyHypothesis):
@@ -66,6 +76,8 @@ class LLMHypothesizer:
         schema = response_type.model_json_schema()
         if study:
             schema["required"] = list(schema["properties"])
+            if context.get("research_question"):
+                schema["properties"]["question_map"]["minItems"] = 1
             for name in ("ExpressionNode", "FactorExpression"):
                 definition = schema["$defs"][name]
                 definition["required"] = list(definition["properties"])
@@ -179,6 +191,14 @@ class LLMHypothesizer:
                 "log_return_volatility is the unannualized sample standard deviation (ddof=1) "
                 "of trailing daily log returns; its window must be 2..30. "
                 "Revision may deactivate earlier factors by omitting their IDs. "
+                "When research_question is nonempty, return one to four question_map entries "
+                "covering its testable and untestable parts; otherwise return []. Each entry "
+                "has claim, factor_ids, rationale, limitations. Bind only IDs selected in this "
+                "round (including newly proposed IDs); use [] for a claim with no measured "
+                "input. Explain what those variables actually measure and list missing data, "
+                "coverage or identification limitations. Price controls do not measure missing "
+                "business variables. A fitted input does not confirm a claim. On revision, "
+                "update the map for this round's selection and explain changes using feedback. "
                 "Optionally propose zero to two proposed_business_factors; use [] when no "
                 "relevant supplied business inputs exist. Each has name, description, inputs "
                 "(two to four {name, factor_id} bindings to supplied financial.* or external.* "
@@ -249,6 +269,11 @@ class LLMHypothesizer:
         except ValidationError:
             raise ValueError("LLM returned an invalid hypothesis JSON object") from None
         select_factors(extend_library(library, result) if study else library, result)
+        if study and context.get("research_question") and not result["question_map"]:
+            raise ValueError("Research question requires an explicit question map")
+        for claim in result.get("question_map", []):
+            if not set(claim["factor_ids"]).issubset(result["factor_ids"]):
+                raise ValueError("Question map must bind only this round's selected factors")
         if not set(result["evidence_news_ids"]).issubset(news_ids):
             raise ValueError("LLM cited news outside the supplied context")
         research_ids = context["news"].get("research_evidence_ids", [])
