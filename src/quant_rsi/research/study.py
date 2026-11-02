@@ -174,6 +174,7 @@ def _configuration(args):
         + int(getattr(args, "financials", False))
         + int(getattr(args, "external_drivers", False)),
         walk_forward_fit_budget=folds,
+        publication_fit_budget=int(args.prices == "daily" and args.latest_fit == "refit"),
         generated_recipes="bounded_price_news_and_business_expressions",
     )
     return symbol, root, configuration
@@ -500,6 +501,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
                     cutoffs[0][:10],
                     cutoffs[-1][:10],
                     cache_directory=getattr(args, "external_drivers_cache_dir", None),
+                    history_directory=args.history_dir,
                 )
                 return prepare_petroleum(snapshot, cutoffs, required)
             except (OSError, ValueError, KeyError) as exc:
@@ -750,7 +752,17 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         _write(root / "terminal_evaluation.json", terminal)
         return terminal
 
-    def summarize(context, first, second, feedback, *, iterations, terminal_evaluation=None):
+    def publish_selected(iterations):
+        from quant_rsi.research.study_latest import refit_latest
+
+        chosen = iterations["selected_round"]
+        publication = refit_latest(model, chosen, iterations["attempts"][chosen - 1]["prediction"])
+        _write(root / "latest_fit.json", publication)
+        return publication
+
+    def summarize(
+        context, first, second, feedback, *, iterations, terminal_evaluation=None, latest_fit=None
+    ):
         summary = model.summarize(context, first, second, feedback)
         chosen = iterations["selected_round"]
         selected = iterations["attempts"][chosen - 1]["prediction"]
@@ -768,10 +780,13 @@ def _run(args, symbol, root, configuration, record, progress, cache):
                 "same development window; ties and missing metrics retain the incumbent."
             )
         selection["forecast_note"] = "Latest forecast uses the selected fitted model; no refit."
+        published = latest_fit if latest_fit is not None else selected
+        if latest_fit is not None:
+            selection["forecast_note"] = latest_fit["notice"]
         for key in ("latest_forecast", "latest_forecast_unavailable"):
             summary.pop(key, None)
-            if key in selected:
-                summary[key] = deepcopy(selected[key])
+            if key in published:
+                summary[key] = deepcopy(published[key])
         summary["selection"] = selection
         summary["research_rounds"] = [
             {
@@ -798,6 +813,8 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         )
         if terminal_evaluation is not None:
             summary["text"] += " " + summary["terminal_evaluation"]["text"]
+        if latest_fit is not None:
+            summary["text"] += " " + latest_fit["notice"]
         return summary
 
     result = run_demo(
@@ -817,6 +834,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         patience=args.patience,
         select=lambda incumbent, trial: select_attempt(incumbent, trial, args.selection_metric),
         evaluate_selected=evaluate_selected if args.terminal_sessions else None,
+        publish_selected=publish_selected if configuration["publication_fit_budget"] else None,
     )
     result["trace"] = prelude + result["trace"]
     steps = {event["stage"]: event["output"] for event in result["trace"]}
@@ -1084,6 +1102,13 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         event = {"stage": "walk_forward", "output": diagnostic}
         record(event)
         result["trace"].append(event)
+    if configuration["publication_fit_budget"]:
+        publication = steps["latest_fit"]
+        result["study"]["latest_fit"] = publication
+        result["study"]["conclusion"] += (
+            f" Publication refit: {publication['status']}, {publication['extra_fits']} additional "
+            "fit outside the research budget. " + publication["notice"]
+        )
     # Freeze measured research time for the reports, but do not announce success yet.
     result["runtime"] = progress.snapshot("completed")
     cache.call("final_result", symbol, lambda: {"result": result, "prices": history_prices})

@@ -124,7 +124,9 @@ def register_study(directory, run_root, result, snapshot=None):
         now = market_contracts.trusted_now()
         selected = result["iterations"]["selected_round"]
         attempt = result["iterations"]["attempts"][selected - 1]
-        forecast = attempt["prediction"].get("latest_forecast")
+        from quant_rsi.research.study_latest import publication_prediction
+
+        forecast = publication_prediction(result).get("latest_forecast")
         sessions, publication = [], None
         status, reason = "unavailable", "selected_latest_forecast_unavailable"
         if forecast and snapshot:
@@ -443,7 +445,13 @@ def ledger_studies(directory, symbol, *, horizon_sessions=None):
                 continue
             attempts = entry.get("attempts")
             definitions = entry.get("attempted_definitions")
-            if attempts is None or definitions is None:
+            retained_ids = {d["factor_id"] for d in definitions or []}
+            missing_inputs = any(
+                identity not in retained_ids
+                for definition in definitions or []
+                for identity in definition.get("input_factor_ids") or []
+            )
+            if attempts is None or definitions is None or missing_inputs:
                 retained = store.json(entry["result_ref"])
                 attempts = attempt_records(retained)
                 definitions = attempted_definitions(retained)

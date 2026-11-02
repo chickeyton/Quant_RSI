@@ -69,6 +69,8 @@ class StudyProgress:
             ),
         }
         comparisons = {"qlib_comparison", "financial_comparison", "external_comparison"}
+        if any(item["stage"] == "latest_fit" for item in stages):
+            groups["publication_model_stages"] = lambda name: name == "latest_fit"
         if any(item["stage"] in comparisons for item in stages):
             groups["comparison_model_stages"] = lambda name: name in comparisons
         for group, matches in groups.items():

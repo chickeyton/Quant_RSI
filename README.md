@@ -38,6 +38,9 @@ failures stay visible. Saved templates offer **Check & run** and **Force run**.
 When external industry drivers are enabled, stocks in the same batch and date window
 share the EIA download. Each task retains its own source bytes and original receipt
 times; a new batch collects afresh, so cached receipts do not mask new evidence.
+Issuer financial and EIA archives collect up to four independent releases concurrently.
+Records, source resources and failures retain archive order; publication cutoffs and
+completed snapshots remain unchanged.
 Before research starts, the task list and live view show price, news and financial
 collection followed by the new-evidence check. Failed preparations retain their last stage.
 When preparation starts a study, it passes the collected RSS snapshot into that study;
@@ -140,13 +143,17 @@ For an energy-sector hypothesis, add **External drivers** in the workbench, or r
 
 ```bash
 quant-rsi research-study XOM --news-research --external-drivers \
-  --historical-sessions 252 --output /tmp/xom-industry-study
+  --historical-sessions 252 --history-dir ~/quant-rsi-history \
+  --output ~/quant-rsi-studies/xom-industry-001
 ```
 
-This offers EIA US petroleum inventory changes and, where archived price tables
-cover the required rows, WTI/Brent five-observation price returns. The researcher
+This offers EIA US petroleum inventory changes and, where dated publications
+cover the required rows, WTI/Brent five-observation price returns. Current EIA daily-history
+pages continue the archived price-table path; their quotes enter together after the page's
+publication date. Reuse `--history-dir` across fresh output directories to retain successive
+publications; the workbench does this automatically. The researcher
 can select, combine and revise these industry variables alongside company factors;
-the report shows which columns were used. Archived release dates constrain availability.
+the report shows which columns were used. Release dates constrain availability.
 Missing price tables are not backfilled from today's prices; expired selected inputs
 can prevent the latest forecast while preserving completed historical fits. Retained
 older inventory-only snapshots remain unchanged. See
@@ -215,8 +222,17 @@ The research view also freezes the history seen at the start of that run, marks 
 mature outcomes were supplied as feedback, and compares the previous selected factor
 set with this run's selected model. Pending outcomes remain unknown.
 
+Daily studies now refit the selected factors once on all usable retained rows whose
+labels have matured by the latest close, then publish that model's forecast. This is
+one additional fit outside `--max-fits`; the UI shows its separate budget and training
+cutoff. Development and terminal scores remain attached to the original research model.
+Use `--latest-fit selected` (or **Reuse research model** in the workbench) to keep the
+earlier behavior without this extra fit. Synthetic studies do not publish or refit.
+History and subsequent feedback track the actually published prediction, including its
+fit mode and training cutoff; missing publication inputs remain explicitly unavailable.
+
 The study adopts a revision only when its **development MAE strictly improves**;
-otherwise it retains the incumbent for the latest forecast. To choose strategy
+otherwise it retains the incumbent's factors for the latest forecast. To choose strategy
 Sharpe instead, set `--selection-metric sharpe` before the run. Ties and unavailable
 comparisons retain the incumbent. All attempts remain in the report; this is
 development selection, not independent validation. Stage progress goes to stderr

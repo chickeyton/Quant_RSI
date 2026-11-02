@@ -228,6 +228,7 @@ def run_demo(
     patience=None,
     select=None,
     evaluate_selected=None,
+    publish_selected=None,
 ):
     """One factor revision, no network, fits, workspace or persistence by default.
 
@@ -280,6 +281,11 @@ def run_demo(
         if evaluate_selected is not None
         else None
     )
+    publication = (
+        call("latest_fit", publish_selected, deepcopy(iterations))
+        if publish_selected is not None
+        else None
+    )
     summary = call(
         "summary",
         summarize,
@@ -289,6 +295,7 @@ def run_demo(
         deepcopy(iterations["feedback"]),
         **({"iterations": deepcopy(iterations)} if select is not None else {}),
         **({"terminal_evaluation": deepcopy(terminal)} if terminal is not None else {}),
+        **({"latest_fit": deepcopy(publication)} if publication is not None else {}),
     )
     live_llm = any(
         hypothesis.get("provider") in {"codex_cli", "openai_api"}

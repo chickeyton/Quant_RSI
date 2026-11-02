@@ -284,6 +284,30 @@ def visual_output(stage, output, previous, symbol):
             ],
             "note": output["notice"] + f" Additional fits: {output['extra_fits']}.",
         }
+    if stage == "latest_fit":
+        forecast = output.get("latest_forecast", {})
+        unavailable = output.get("latest_forecast_unavailable", {})
+        return {
+            "kind": "facts",
+            "facts": {
+                "status": output["status"],
+                "selected_round": output["selected_round"],
+                "additional_fits": output["extra_fits"],
+                "training_rows": len(output["training_sessions"]),
+                "excluded_training_rows": len(output["excluded_training_sessions"]),
+                **_pick(
+                    forecast,
+                    "origin_session",
+                    "target_session",
+                    "reference_price",
+                    "predicted_price",
+                    "training_information_cutoff",
+                    "outcome",
+                ),
+                **_pick(unavailable, "reasons", "missing_factor_ids"),
+            },
+            "note": output["notice"],
+        }
     if stage == "walk_forward":
         rows = []
         for fold in output["folds"]:

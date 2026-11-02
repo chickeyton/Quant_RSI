@@ -91,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
             demo.add_argument(
                 "--history-dir",
                 type=Path,
-                help="shared study receipts, outcomes, factor ledger and news archive "
+                help="shared receipts, outcomes, factor ledger, news and industry publications "
                 "(default: $QUANT_RSI_HISTORY_DIR or ~/.quant_rsi/history, per price source)",
             )
             demo.add_argument(
@@ -151,6 +151,12 @@ def main(argv: list[str] | None = None) -> int:
                 help="shared EIA resource cache; use a fresh directory for each research cycle",
             )
             demo.add_argument("--model", choices=("lightgbm", "ridge"), default="lightgbm")
+            demo.add_argument(
+                "--latest-fit",
+                choices=("refit", "selected"),
+                default="refit",
+                help="daily prices: refit on mature labels (one extra fit), or reuse research fit",
+            )
             demo.add_argument(
                 "--compare-qlib",
                 action="store_true",
@@ -530,13 +536,15 @@ def main(argv: list[str] | None = None) -> int:
                     print(json.dumps(ledger, indent=2, allow_nan=False))
                 else:
                     print(
-                        f"{symbol}: {len(ledger['factors'])} remembered factors from "
+                        f"{symbol}: {len(ledger['factors'])} remembered factor versions from "
                         f"{ledger['study_count']} studies in {args.history_dir}"
                     )
                     for item in ledger["factors"]:
                         mae = item["best_mae_price"]
                         print(
-                            f"  {item['factor_id']}: tried {item['rounds_tried']} rounds, "
+                            f"  {item['factor_id']} [{item['horizon_sessions']} sessions, "
+                            f"definition {item['definition_sha256'][:12]}]: "
+                            f"tried {item['rounds_tried']} rounds, "
                             f"selected {item['rounds_selected']}, best development MAE "
                             + ("n/a" if mae is None else f"{mae:.4f}")
                             + f", last seen {item['last_seen']}"

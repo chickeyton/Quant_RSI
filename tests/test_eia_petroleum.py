@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from test_eia_price_history import source_fixture
 
 from quant_rsi.research import eia_petroleum as eia
 
@@ -98,16 +99,16 @@ def test_collection_reuses_retained_sources_and_detects_tampering(tmp_path, monk
 
     def download(url):
         calls.append(url)
-        return INDEX if url == eia.ARCHIVE_URL else PAGE_TEXT if url == PAGE else TABLE
+        return source_fixture(url)
 
     monkeypatch.setattr(eia, "_download", download)
     snapshot = eia.collect_petroleum(tmp_path, "2026-10-01", "2026-10-30")
-    assert len(calls) == 3
-    assert len(snapshot["records"]) == 3
+    assert len(calls) == 5
+    assert len(snapshot["records"]) == 5
     assert not snapshot["failures"]
     assert all(item["received_at"] for item in snapshot["resources"])
     assert eia.collect_petroleum(tmp_path, "2026-10-01", "2026-10-30") == snapshot
-    assert len(calls) == 3
+    assert len(calls) == 5
     with pytest.raises(ValueError, match="identity changed"):
         eia.collect_petroleum(tmp_path, "2026-10-02", "2026-10-30")
     (tmp_path / snapshot["resources"][-1]["file"]).write_bytes(b"changed")
@@ -120,35 +121,42 @@ def test_shared_batch_cache_keeps_independent_receipts_and_bounds(tmp_path, monk
 
     def download(url):
         calls.append(url)
-        return INDEX if url == eia.ARCHIVE_URL else PAGE_TEXT if url == PAGE else TABLE
+        return source_fixture(url)
 
     monkeypatch.setattr(eia, "_download", download)
     shared = tmp_path / "batch"
 
     def collect(name, through="2026-10-30", cache=shared):
-        return eia.collect_petroleum(tmp_path / name, "2026-10-01", through, cache_directory=cache)
+        return eia.collect_petroleum(
+            tmp_path / name,
+            "2026-10-01",
+            through,
+            cache_directory=cache,
+            history_directory=tmp_path / "history",
+        )
 
     # Even concurrent readers get one consistent bytes/receipt pair per URL.
     with ThreadPoolExecutor(max_workers=2) as executor:
         first, second = list(executor.map(collect, ("XOM", "KO")))
-    assert len(calls) == 3
+    assert len(calls) == 5
     assert first == second  # Including original received_at, source hashes and failures.
     for item in first["resources"]:
         assert (tmp_path / "XOM" / item["file"]).read_bytes() == (
             tmp_path / "KO" / item["file"]
         ).read_bytes()
     collect("other-window", through="2026-10-29")
-    assert len(calls) == 6
+    assert len(calls) == 10
     collect("next-cycle", cache=tmp_path / "next-batch")
-    assert len(calls) == 9  # A new batch really checks the provider again.
+    assert len(calls) == 15  # A new batch really checks the provider again.
     # Tampering is not silently accepted by another task or replaced with fresh receipts.
     resource = shared / "2026-10-01_2026-10-30" / first["resources"][0]["file"]
     resource.write_bytes(b"changed")
     with pytest.raises(ValueError, match="Cached EIA resource changed"):
         collect("tampered")
     shutil.rmtree(shared)
+    shutil.rmtree(tmp_path / "history")
     assert collect("XOM") == first  # Completed task no longer depends on the cache.
-    assert len(calls) == 9
+    assert len(calls) == 15
 
 
 def test_failed_release_is_retained_without_fabricating_data(tmp_path, monkeypatch):
@@ -160,7 +168,7 @@ def test_failed_release_is_retained_without_fabricating_data(tmp_path, monkeypat
     monkeypatch.setattr(eia, "_download", download)
     snapshot = eia.collect_petroleum(tmp_path, "2026-10-01", "2026-10-30")
     assert snapshot["records"] == []
-    assert len(snapshot["failures"]) == 1
+    assert len(snapshot["failures"]) == 3
     bundle = eia.prepare_petroleum(snapshot, ["2026-10-30T20:00:00+00:00"], [0])
     assert all(not item["runnable"] for item in bundle["definitions"])
     assert all(column == [None] for column in bundle["columns"].values())
@@ -173,19 +181,20 @@ def test_shared_cache_retries_failed_requests_without_rewriting_old_task(tmp_pat
         calls.append(url)
         if url == PAGE and calls.count(PAGE) == 1:
             raise OSError("Temporary upstream failure")
-        return INDEX if url == eia.ARCHIVE_URL else PAGE_TEXT if url == PAGE else TABLE
+        return source_fixture(url)
 
     monkeypatch.setattr(eia, "_download", download)
     shared = tmp_path / "batch"
     first = eia.collect_petroleum(
         tmp_path / "first", "2026-10-01", "2026-10-30", cache_directory=shared
     )
-    assert not first["records"] and len(first["failures"]) == 1
+    assert {r["field"] for r in first["records"]} == {"wti", "brent"}
+    assert len(first["failures"]) == 1
     receipt = (tmp_path / "first/snapshot.json").read_bytes()
     second = eia.collect_petroleum(
         tmp_path / "second", "2026-10-01", "2026-10-30", cache_directory=shared
     )
-    assert len(second["records"]) == 3 and not second["failures"]
+    assert len(second["records"]) == 5 and not second["failures"]
     assert calls.count(eia.ARCHIVE_URL) == 1 and calls.count(PAGE) == 2
     assert (tmp_path / "first/snapshot.json").read_bytes() == receipt
     assert (

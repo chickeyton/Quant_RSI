@@ -64,6 +64,7 @@ def resume_arguments(root, *, ui=False):
         "research_rounds",
         "fit_budget",
         "comparison_fit_budget",
+        "publication_fit_budget",
         "generated_recipes",
     ):
         config.pop(name, None)

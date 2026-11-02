@@ -2,12 +2,17 @@
 
 from copy import deepcopy
 
+from quant_rsi.core.artifacts import canonical, digest
+
 NOTICE = (
     "Every attempted round of previous studies for this symbol and horizon, including "
     "rejected revisions. Metrics are development measurements on each study's own window "
     "after adaptive feedback; they are not independent evidence that a factor works and are "
     "not comparable as a ranking across different periods or inputs. Rejected recipes are "
-    "not restored as catalog candidates; propose them again explicitly to retry them."
+    "not restored as catalog candidates; propose them again explicitly to retry them. "
+    "Different executable definitions, source bindings and prediction horizons have separate "
+    "ledger entries even when their display factor_id is the same. Metrics describe the whole "
+    "attempted model containing the factor, not that factor's isolated contribution."
 )
 
 
@@ -43,13 +48,49 @@ def attempt_records(result):
 
 
 def attempted_definitions(result):
-    """Definitions of every attempted factor, from the frozen per-round catalogs."""
+    """Attempted factors and their input definitions from the frozen catalogs."""
     ids = {key for attempt in attempt_records(result) for key in attempt["factor_ids"]}
     definitions = {}
     for event in result.get("trace", []):
         if event["stage"].endswith("factor_library"):
             definitions.update({d["factor_id"]: d for d in event["output"]["definitions"]})
+    pending = list(ids)
+    while pending:
+        key = pending.pop()
+        for source in definitions.get(key, {}).get("input_factor_ids") or []:
+            if source not in ids:
+                ids.add(source)
+                pending.append(source)
     return [deepcopy(definitions[key]) for key in sorted(ids) if key in definitions]
+
+
+def factor_identity(key, definitions, horizon):
+    """Fingerprint the recorded executable recipe and its transitive source bindings."""
+    pending, execution = [key], {}
+    while pending:
+        identity = pending.pop()
+        if identity in execution:
+            continue
+        definition = definitions.get(identity, {})
+        execution[identity] = {
+            field: deepcopy(definition[field])
+            for field in (
+                "kind",
+                "input_kind",
+                "recipe",
+                "source",
+                "input_factor_ids",
+                "reuse_lifetime",
+            )
+            if field in definition
+        }
+        pending.extend(definition.get("input_factor_ids") or [])
+    definition_sha = digest(canonical(execution))
+    return {
+        "ledger_id": digest(canonical([key, horizon, definition_sha])),
+        "definition_sha256": definition_sha,
+        "horizon_sessions": horizon,
+    }
 
 
 def _better(current, value, lower):
@@ -65,12 +106,15 @@ def summarize(studies, *, limit=None):
     factors = {}
     for study in studies:
         definitions = {d["factor_id"]: d for d in study["definitions"]}
+        horizon = study.get("horizon_sessions", 5)
         for attempt in study["attempts"]:
             for key in attempt["factor_ids"]:
                 definition = definitions.get(key, {})
+                identity = factor_identity(key, definitions, horizon)
                 item = factors.setdefault(
-                    key,
+                    identity["ledger_id"],
                     {
+                        **identity,
                         "factor_id": key,
                         "kind": definition.get("kind"),
                         "description": definition.get("description"),
@@ -88,7 +132,7 @@ def summarize(studies, *, limit=None):
                     },
                 )
                 if definition:
-                    # The latest retained definition describes the remembered recipe.
+                    # Descriptions may change; executable definitions never share a row.
                     item.update(
                         kind=definition.get("kind"),
                         description=definition.get("description"),

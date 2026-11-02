@@ -7,6 +7,7 @@ import io
 import json
 import math
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urljoin
@@ -14,6 +15,7 @@ from urllib.request import Request, build_opener
 
 from quant_rsi.core.artifacts import atomic_write, canonical, digest
 from quant_rsi.market.news_feed import NoRedirect
+from quant_rsi.research.eia_price_history import collect_price_publications
 from quant_rsi.research.eia_prices import PRICE_FIELDS, parse_prices
 
 ARCHIVE_URL = "https://www.eia.gov/petroleum/supply/weekly/archive/"
@@ -28,7 +30,10 @@ NOTICE = (
     "EIA archived weekly petroleum inventories, reconstructed from documents retrieved now. "
     "Inventory changes describe US industry stocks, not the target company's inventory. "
     "When linked by a dated archive, Table 11 adds WTI/Brent five-observation daily-price "
-    "returns; weekly-average columns are excluded. Price-table gaps remain missing. "
+    "returns; weekly-average columns are excluded. Current EIA daily-history pages add "
+    "their latest six quotes together at that page's publication date, never at each quote's "
+    "observation date. Shared study history retains successive publications. "
+    "Earlier gaps remain missing. "
     "Date-only releases become usable at 05:00 UTC the following day; the observation week "
     "is not the publication date. Retained documents do not prove their exact historical "
     "version. Values expire 14 days after availability; missing data are not filled with zero."
@@ -134,7 +139,7 @@ def _download(url):
     return raw
 
 
-def collect_petroleum(directory, since, through, *, cache_directory=None):
+def collect_petroleum(directory, since, through, *, cache_directory=None, history_directory=None):
     """Reuse retained inputs; fresh collection never overwrites an existing snapshot."""
     directory = Path(directory)
     since, through = date.fromisoformat(since), date.fromisoformat(through)
@@ -164,10 +169,10 @@ def collect_petroleum(directory, since, through, *, cache_directory=None):
     )
     shared.mkdir(parents=True, exist_ok=True)
 
-    def fetch(url):
+    def fetch(url, retained_resources):
         identity = digest(url.encode())
         # Keep the bytes/receipt pair consistent for concurrent cache readers and writers.
-        with (shared / ".resources.lock").open("a") as lock:
+        with (shared / f".{identity}.lock").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             local = directory / f"{identity}.json"
             storage = directory if local.exists() else shared
@@ -192,26 +197,41 @@ def collect_petroleum(directory, since, through, *, cache_directory=None):
                 # Every task stays independently replayable if the batch cache is removed.
                 atomic_write(directory / body.name, raw)
                 atomic_write(local, canonical(item))
-        resources.append(item)
+        retained_resources.append(item)
         return raw, item
 
-    index, _ = fetch(ARCHIVE_URL)
-    records = []
-    for released, page_url in release_links(index, since, through):
+    links = []
+    try:
+        index, _ = fetch(ARCHIVE_URL, resources)
+    except OSError as exc:
+        failures.append({"url": ARCHIVE_URL, "error_type": type(exc).__name__, "reason": str(exc)})
+    else:
+        try:
+            links = release_links(index, since, through)
+        except ValueError as exc:
+            failures.append(
+                {"url": ARCHIVE_URL, "error_type": type(exc).__name__, "reason": str(exc)}
+            )
+
+    def collect_release(link):
+        released, page_url = link
+        records, retained_resources, release_failures = [], [], []
         url = page_url
         try:
-            page, _ = fetch(page_url)
+            page, _ = fetch(page_url, retained_resources)
             _page_dates(page, released)
         except (ValueError, OSError) as exc:
-            failures.append({"url": url, "error_type": type(exc).__name__, "reason": str(exc)})
-            continue
+            release_failures.append(
+                {"url": url, "error_type": type(exc).__name__, "reason": str(exc)}
+            )
+            return records, retained_resources, release_failures
         for table in (4, 11):
             url = page_url
             try:
                 url, observation = parse_release_page(page, page_url, released, table)
                 if url is None:
                     continue
-                raw, resource = fetch(url)
+                raw, resource = fetch(url, retained_resources)
                 parsed = (
                     parse_table(raw, released)
                     if table == 4
@@ -226,7 +246,24 @@ def collect_petroleum(directory, since, through, *, cache_directory=None):
                     for record in parsed
                 )
             except (ValueError, OSError) as exc:
-                failures.append({"url": url, "error_type": type(exc).__name__, "reason": str(exc)})
+                release_failures.append(
+                    {"url": url, "error_type": type(exc).__name__, "reason": str(exc)}
+                )
+        return records, retained_resources, release_failures
+
+    records = []
+    # map preserves archive order even when later releases finish first.
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        for rows, items, errors in executor.map(collect_release, links):
+            records.extend(rows)
+            resources.extend(items)
+            failures.extend(errors)
+    prices, publications, errors = collect_price_publications(
+        lambda url: fetch(url, resources), directory, since, through, history_directory
+    )
+    records.extend(prices)
+    resources.extend(publications)
+    failures.extend(errors)
     snapshot = {
         "provider": "eia_weekly_petroleum",
         "bounds": bounds,
@@ -235,7 +272,7 @@ def collect_petroleum(directory, since, through, *, cache_directory=None):
         "resources": resources,
         "failures": failures,
         "notice": NOTICE,
-        "price_tables": "archived_daily_prices",
+        "price_tables": "archived_and_retained_daily_price_publications",
     }
     atomic_write(retained, canonical(snapshot))
     return snapshot
@@ -254,9 +291,12 @@ def prepare_petroleum(snapshot, cutoffs, required):
             available = datetime.fromisoformat(record["available_at"])
             if timedelta(0) <= cutoff - available <= timedelta(days=14):
                 field = record["field"]
-                if (
-                    field not in selected
-                    or record["available_at"] > selected[field]["available_at"]
+                if field not in selected or (
+                    record["available_at"],
+                    record.get("observation_date", ""),
+                ) > (
+                    selected[field]["available_at"],
+                    selected[field].get("observation_date", ""),
                 ):
                     selected[field] = record
         evidence.append(selected)
@@ -282,7 +322,7 @@ def prepare_petroleum(snapshot, cutoffs, required):
                 ),
                 "description": (
                     f"EIA {label}: latest daily quote / fifth preceding daily observation - 1; "
-                    "available after archive publication, not on the quoted date."
+                    "available after publication, not on the quoted date."
                     if price
                     else f"EIA US {label}: current / prior week inventory - 1."
                 ),
