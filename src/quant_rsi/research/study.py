@@ -688,10 +688,15 @@ def _run(args, symbol, root, configuration, record, progress, cache):
     def context(target):
         return model.context(target) | {
             "research_question": configuration["question"],
-            "prior_outcomes": {k: v for k, v in prior_outcomes.items() if k != "factor_memory"}
+            "prior_outcomes": {
+                k: v
+                for k, v in prior_outcomes.items()
+                if k not in {"factor_memory", "factor_ledger"}
+            }
             if prior_outcomes
             else None,
             "factor_memory": factor_memory,
+            "factor_ledger": (prior_outcomes or {}).get("factor_ledger"),
             "guidance": guidance_summary,
             "allow_factor_proposals": True,
             "selection_policy": {

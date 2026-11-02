@@ -208,9 +208,16 @@ Unavailable business sources remain pending. Factor cards and the report show wh
 run and what was selected. Explicit `--catalog` keeps the standalone catalog path;
 see [factor layers and execution](docs/factor_layers.md#execution-in-the-connected-study).
 
-Add `--history-dir /tmp/ko-research-history` to connect separate study runs. The next
+Separate study runs are connected through shared history: by default
+`~/.quant_rsi/history/<daily|synthetic>` (override with `--history-dir` or
+`$QUANT_RSI_HISTORY_DIR`; `--no-history` keeps a run isolated). The next
 run observes prior forecasts using newly received prices and passes mature outcomes
-to the LLM, while sharing the retained news archive. The UI shows pending and observed
+to the LLM, while sharing the retained news archive. A factor ledger also keeps every
+attempted round, including rejected revisions, with development metrics; inspect it with
+`quant-rsi research-history factors KO`, or browse it as an offline star map of factors
+and their recorded relationships with `quant-rsi research-history constellation KO`
+(also linked from the workbench). See the [factor ledger](docs/connected_research_study.md#factor-ledger)
+and [factor constellation](docs/connected_research_study.md#factor-constellation). The UI shows pending and observed
 forecasts with price error, costed return and Sharpe. Use `research-history observe`
 to update outcomes without another fit; see [continuous research](docs/connected_research_study.md#continue-research-across-market-days).
 Late forecasts remain non-prospective, and account results are hypothetical.

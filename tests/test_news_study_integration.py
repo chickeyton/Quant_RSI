@@ -33,6 +33,8 @@ def command(output, archive):
         str(output),
         "--news-archive",
         str(archive),
+        # The price double has no retained collection to register in shared history.
+        "--no-history",
     ]
 
 

@@ -1265,7 +1265,11 @@ quant-rsi research-study KO --output /tmp/ko-study-offline \
 
 ### Continue research across market days
 
-Opt into one shared history directory while keeping each study output directory fresh:
+Studies share one history directory while each study output directory stays fresh.
+Without `--history-dir`, the CLI uses `~/.quant_rsi/history/<daily|synthetic>`
+(or the same layout under `$QUANT_RSI_HISTORY_DIR`), matching the workbench's
+per-price-source layout. Pass `--no-history` for a self-contained run, or name a
+directory explicitly:
 
 ```bash
 quant-rsi research-study KO --news-research \
@@ -1314,7 +1318,7 @@ The existing UI adds a forecast-history table. Opening it again reads current hi
 `research-history ... --ui` opens the latest study view after observing. Saved HTML
 and each study report remain snapshots. The table shows the latest 50 entries for the
 symbol; at most 20 mature outcomes from that view enter the LLM context. All receipts
-and corrections remain in the journal. Without `--history-dir`, studies stay isolated.
+and corrections remain in the journal. Only `--no-history` studies stay isolated.
 
 The **Continuing the previous research** view uses the history snapshot retained in
 `prior_outcomes.json` and the target trace at this run's start. It shows which settled
@@ -1326,7 +1330,7 @@ live history table, which may receive new observations after the run completes.
 
 ### Reusing selected factor recipes
 
-With `--history-dir` (already provided by the workbench), a new study reads selected
+With shared history (the CLI default, also provided by the workbench), a new study reads selected
 recipes from the latest five studies of the same stock. It reads immutable history
 artifacts, not the prior run's mutable filesystem path. Older entries can recover the
 selected definitions from their frozen catalogs without rewriting those entries.
@@ -1347,6 +1351,76 @@ outcome path supplies observed errors. Unselected candidates remain in retained 
 This is not global factor deletion, automatic promotion, or an independent assessment
 of factor effectiveness. Studies without shared history remain isolated.
 New memory alone does not count as new external evidence for scheduled research.
+
+### Factor ledger
+
+Each registered study also records every attempted round, not only the selected one:
+its factor IDs, the frozen definitions of every attempted factor, development price
+MAE beside the unchanged-price baseline, direction hit rate, costed strategy Sharpe and
+net return, and whether the round was selected. Entries registered before the ledger
+recover the same records from their retained results; nothing is rewritten.
+
+Ledger rows distinguish the executable definition, transitive input recipes/source
+bindings, and prediction horizon. Reusing a display ID with different news keywords,
+a changed business formula or a different source creates a separate `ledger_id` and
+`definition_sha256`; old scores are never attributed to the latest recipe. Descriptions
+and current availability do not create new versions. Input definitions are retained for
+this identification even when they were not fitted directly. Legacy missing input
+definitions are recovered from the frozen result. Metrics are those of the whole model
+containing a factor, not its isolated contribution.
+
+The next study supplies a per-factor summary as `context.factor_ledger` for the same
+symbol and horizon across research questions (the 40 most recently tried factor versions):
+rounds tried and selected, rounds beating the unchanged-price baseline, best development
+MAE and Sharpe, and settled selected forecasts. It helps the researcher avoid repeating
+rejected sets. Rejected recipes are not restored as catalog candidates; the researcher
+must propose them again. These are adaptive development measurements on each study's
+own window, not a cross-period ranking or evidence that a factor works. Inspect the
+ledger without another fit:
+
+```bash
+quant-rsi research-history factors KO          # default daily history
+quant-rsi research-history factors KO --history-dir /tmp/ko-research-history --json
+```
+
+### Factor constellation
+
+The same ledger can be browsed as a star map, one star per remembered factor, grouped by
+class (price recipes, news, financial statements, business expressions, industry drivers,
+related companies and instrument-profile bindings) around the stock:
+
+```bash
+quant-rsi research-history constellation KO    # writes and opens <history>/constellation/KO.html
+quant-rsi research-history constellation KO --history-dir /tmp/ko-research-history \
+  --output /tmp/ko-constellation.html --no-ui
+```
+
+The workbench lists a **Factor constellations** link for each stock in its shared history;
+that page is rendered from the current history on every request. The file is a single
+offline HTML page with no external scripts.
+
+- **Size** counts selections, development rounds beating the unchanged-price baseline and
+  twice the settled selected forecasts.
+- **Brightness** fades with the days since the factor was last tried; more important stars
+  fade more slowly. Faded stars remain as a small coordinate mark.
+- **Lines** are recorded relationships only: a derived factor's declared inputs (inputs
+  that were never tried directly appear as ringed stars), factors selected together in a
+  study's adopted round, and a revision replacing one factor set with another. Faint
+  straight lines only connect nearby stars of the same class.
+- The **day slider** reveals first appearances; **Reveal history** animates that sequence.
+  Sizes, relationship counts and detail metrics summarize all retained history, not what
+  was known on the selected day. Clicking a star shows its metrics, questions and recipe.
+  Each execution version (including source bindings and horizon) has its own star;
+  links and round shares reference that exact version.
+- **Round stack** switches to one study. The slider steps through that study's rounds, and
+  its last stop stacks every round: a line to the symbol is that factor's share of the fit.
+  LightGBM records gain share; ridge records the share of absolute standardized coefficients.
+  The stack adds those shares and divides by the rounds that recorded one. A factor left
+  out of a recorded round counts as zero. Older studies still show which factors were tried,
+  without a share. Neither view is evidence that a factor predicts returns.
+
+The map visualizes adaptive development history. A bright star or a dense relationship
+does not establish that a factor or link predicts returns.
 
 A real-service check on 2026-11-01 registered the retained KO study from the financial
 source acceptance into a separate history at the current receipt time, then ran a new
