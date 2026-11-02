@@ -105,7 +105,9 @@ def refresh_evidence(task, manifest, *, on_stage=None):
             dates = evidence["prices"]["dates"]
             cache_flag = "--external-drivers-cache-dir"
             shared = arguments[arguments.index(cache_flag) + 1] if cache_flag in arguments else None
-            external = collect_petroleum(directory, dates[0], dates[-1], cache_directory=shared)
+            external = collect_petroleum(
+                directory, dates[0], dates[-1], cache_directory=shared, history_directory=history
+            )
             evidence["external_drivers"] = {
                 "records": external["records"],
                 "failures": external["failures"],

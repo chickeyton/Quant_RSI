@@ -140,13 +140,17 @@ For an energy-sector hypothesis, add **External drivers** in the workbench, or r
 
 ```bash
 quant-rsi research-study XOM --news-research --external-drivers \
-  --historical-sessions 252 --output /tmp/xom-industry-study
+  --historical-sessions 252 --history-dir ~/quant-rsi-history \
+  --output ~/quant-rsi-studies/xom-industry-001
 ```
 
-This offers EIA US petroleum inventory changes and, where archived price tables
-cover the required rows, WTI/Brent five-observation price returns. The researcher
+This offers EIA US petroleum inventory changes and, where dated publications
+cover the required rows, WTI/Brent five-observation price returns. Current EIA daily-history
+pages continue the archived price-table path; their quotes enter together after the page's
+publication date. Reuse `--history-dir` across fresh output directories to retain successive
+publications; the workbench does this automatically. The researcher
 can select, combine and revise these industry variables alongside company factors;
-the report shows which columns were used. Archived release dates constrain availability.
+the report shows which columns were used. Release dates constrain availability.
 Missing price tables are not backfilled from today's prices; expired selected inputs
 can prevent the latest forecast while preserving completed historical fits. Retained
 older inventory-only snapshots remain unchanged. See

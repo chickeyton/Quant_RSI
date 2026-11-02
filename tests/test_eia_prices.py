@@ -109,6 +109,10 @@ def test_collection_retains_independent_price_and_inventory_tables(
         ),
         page_url.rsplit("/", 1)[0] + "/csv/table11.csv": prices,
     }
+    # Archived-table behavior remains testable when both current pages are malformed.
+    from quant_rsi.research.eia_price_history import PRICE_HISTORY_URLS
+
+    urls.update({url: b"Unsupported current page" for url in PRICE_HISTORY_URLS.values()})
     calls = []
 
     def download(url):
@@ -124,9 +128,9 @@ def test_collection_retains_independent_price_and_inventory_tables(
         tmp_path / "second", "2026-10-01", "2026-10-30", cache_directory=shared
     )
     assert first == second
-    assert len(calls) == (3 if prices is None else 4)
+    assert len(calls) == (5 if prices is None else 6)
     assert len(first["records"]) == 3 * inventory_valid + 2 * (prices == TABLE)
-    assert len(first["failures"]) == int(prices not in (None, TABLE)) + int(not inventory_valid)
+    assert len(first["failures"]) == 2 + int(prices not in (None, TABLE)) + int(not inventory_valid)
     cutoffs = ["2026-10-28T20:00:00+00:00", "2026-10-29T20:00:00+00:00"]
     bundle = eia.prepare_petroleum(first, cutoffs, [1])
     values = bundle["columns"]["external.eia_wti_5obs_return"]

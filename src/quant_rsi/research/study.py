@@ -500,6 +500,7 @@ def _run(args, symbol, root, configuration, record, progress, cache):
                     cutoffs[0][:10],
                     cutoffs[-1][:10],
                     cache_directory=getattr(args, "external_drivers_cache_dir", None),
+                    history_directory=args.history_dir,
                 )
                 return prepare_petroleum(snapshot, cutoffs, required)
             except (OSError, ValueError, KeyError) as exc:
