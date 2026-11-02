@@ -166,6 +166,36 @@ def test_failed_release_is_retained_without_fabricating_data(tmp_path, monkeypat
     assert all(column == [None] for column in bundle["columns"].values())
 
 
+def test_shared_cache_retries_failed_requests_without_rewriting_old_task(tmp_path, monkeypatch):
+    calls = []
+
+    def download(url):
+        calls.append(url)
+        if url == PAGE and calls.count(PAGE) == 1:
+            raise OSError("Temporary upstream failure")
+        return INDEX if url == eia.ARCHIVE_URL else PAGE_TEXT if url == PAGE else TABLE
+
+    monkeypatch.setattr(eia, "_download", download)
+    shared = tmp_path / "batch"
+    first = eia.collect_petroleum(
+        tmp_path / "first", "2026-10-01", "2026-10-30", cache_directory=shared
+    )
+    assert not first["records"] and len(first["failures"]) == 1
+    receipt = (tmp_path / "first/snapshot.json").read_bytes()
+    second = eia.collect_petroleum(
+        tmp_path / "second", "2026-10-01", "2026-10-30", cache_directory=shared
+    )
+    assert len(second["records"]) == 3 and not second["failures"]
+    assert calls.count(eia.ARCHIVE_URL) == 1 and calls.count(PAGE) == 2
+    assert (tmp_path / "first/snapshot.json").read_bytes() == receipt
+    assert (
+        eia.collect_petroleum(
+            tmp_path / "first", "2026-10-01", "2026-10-30", cache_directory=shared
+        )
+        == first
+    )
+
+
 def test_external_columns_participate_in_two_real_fits_and_revision():
     from quant_rsi.research.demo import load_catalog
     from quant_rsi.research.demo_model import LightGBMDemo

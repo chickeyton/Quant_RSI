@@ -851,6 +851,16 @@ research cycle. `--external-drivers-dir` continues to identify a task's retained
 Both directories must remain outside the source checkout. Synthetic runs do not download
 or populate the cache, and the cache does not add LLM calls or model fits.
 
+Validation at `6bed759` ran two native CLI input checks over a preseeded cache of
+retained public XOM prices, RSS and EIA resources. Both checks preserved all 109
+resource hashes/receipts, 159 records and the same two excluded source-date failures;
+all three external factors were usable. Both task snapshots remained readable after
+the shared cache was removed. This made no new network requests, LLM calls or fits.
+A separate offline two-stock batch fixture measured six resource requests before
+sharing versus three after; the next batch requested all three resources again.
+These checks demonstrate request reuse and provenance, not a live-service latency
+or total-storage improvement. Each task deliberately keeps its own raw evidence copy.
+
 ```bash
 quant-rsi research-study XOM --llm codex --news-research --external-drivers \
   --historical-sessions 252 \
