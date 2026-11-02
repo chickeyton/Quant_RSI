@@ -135,6 +135,12 @@ def main(argv: list[str] | None = None) -> int:
                 type=Path,
                 help="shared EIA resource cache; use a fresh directory for each research cycle",
             )
+            demo.add_argument(
+                "--intraday-store",
+                type=Path,
+                help="intraday snapshot store whose session summaries become external factors",
+            )
+            demo.add_argument("--intraday-snapshot", help="snapshot reference in --intraday-store")
             demo.add_argument("--model", choices=("lightgbm", "ridge"), default="lightgbm")
             demo.add_argument(
                 "--compare-qlib",

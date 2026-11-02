@@ -136,6 +136,12 @@ quarterly USD facts; cash-flow factors compare matching reported
 facts disable the affected factor; they are not invented or filled with zero. Source failures and fallback choices remain visible. See the
 [financial data contract and offline example](docs/connected_research_study.md#financial-business-factors).
 
+With an intraday snapshot from `python -m quant_rsi.intraday collect`, `--intraday-store` and
+`--intraday-snapshot` add per-session summaries of the target's intraday bars (realized
+volatility, first- and last-hour returns, close location, close-to-VWAP gap and last-hour volume
+share) as daily factors. See
+[intraday session summaries](docs/connected_research_study.md#intraday-session-summaries).
+
 For an energy-sector hypothesis, add **External drivers** in the workbench, or run:
 
 ```bash

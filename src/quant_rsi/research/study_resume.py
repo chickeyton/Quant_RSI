@@ -79,6 +79,7 @@ def resume_arguments(root, *, ui=False):
         "financials_dir",
         "external_drivers_dir",
         "external_drivers_cache_dir",
+        "intraday_store",
     ):
         if config.get(name) is not None:
             config[name] = Path(config[name])

@@ -147,8 +147,17 @@ def blocks_for(name, session, rng, price, bar_seconds, missing_minutes=()):
     return [decision, execution, quotes], float(last)
 
 
-def build_snapshot(tmp_path, count=40, *, seed=7, missing=None, early_close=None, bar_seconds=300):
-    session_list = sessions(count, early_close=early_close)
+def build_snapshot(
+    tmp_path,
+    count=40,
+    *,
+    seed=7,
+    missing=None,
+    early_close=None,
+    bar_seconds=300,
+    session_list=None,
+):
+    session_list = session_list or sessions(count, early_close=early_close)
     spec = contract(session_list, bar_seconds=bar_seconds)
     rng = np.random.default_rng(seed)
     prices = {"KO": 60.0, "SPY": 500.0}

@@ -149,6 +149,11 @@ def _configuration(args):
             setattr(args, name, value)
             if value.is_relative_to(checkout):
                 raise ValueError("Keep external driver snapshots outside the checkout")
+    intraday = [getattr(args, name, None) for name in ("intraday_store", "intraday_snapshot")]
+    if any(intraday) and not all(intraday):
+        raise ValueError("--intraday-store and --intraday-snapshot must be given together")
+    if getattr(args, "intraday_store", None):
+        args.intraday_store = args.intraday_store.resolve()
     if getattr(args, "financials_dir", None):
         if not getattr(args, "financials", False):
             raise ValueError("--financials-dir requires --financials")
@@ -172,7 +177,10 @@ def _configuration(args):
         fit_budget=fit_budget,
         comparison_fit_budget=int(compare_external)
         + int(getattr(args, "financials", False))
-        + int(getattr(args, "external_drivers", False)),
+        + int(
+            getattr(args, "external_drivers", False)
+            or bool(getattr(args, "intraday_snapshot", None))
+        ),
         walk_forward_fit_budget=folds,
         generated_recipes="bounded_price_news_and_business_expressions",
     )
@@ -479,16 +487,40 @@ def _run(args, symbol, root, configuration, record, progress, cache):
         )
 
     external = None
-    if getattr(args, "external_drivers", False):
+    intraday_snapshot = getattr(args, "intraday_snapshot", None)
+    if getattr(args, "external_drivers", False) or intraday_snapshot:
         from quant_rsi.research.eia_petroleum import (
             collect_petroleum,
             prepare_petroleum,
             simulated_petroleum,
         )
+        from quant_rsi.research.intraday_drivers import combine, load_intraday
         from quant_rsi.research.study_financials import sample_coverage
 
         progress.start("load_external_drivers")
         required = [int(i) for i in (*model.train, *model.origins)]
+
+        def unavailable(name, exc):
+            return {
+                "definitions": [],
+                "columns": {},
+                "provider": "unavailable",
+                "notice": f"{name} unavailable: {exc}",
+                "failures": [{"error_type": type(exc).__name__, "reason": str(exc)}],
+            }
+
+        def intraday_inputs():
+            try:
+                return load_intraday(
+                    args.intraday_store,
+                    intraday_snapshot,
+                    symbol,
+                    list(model.data.dates),
+                    cutoffs,
+                    required,
+                )
+            except (OSError, ValueError, KeyError) as exc:
+                return unavailable("Intraday summaries", exc)
 
         def external_inputs():
             if args.prices == "synthetic":
@@ -503,17 +535,32 @@ def _run(args, symbol, root, configuration, record, progress, cache):
                 )
                 return prepare_petroleum(snapshot, cutoffs, required)
             except (OSError, ValueError, KeyError) as exc:
-                return {
-                    "definitions": [],
-                    "columns": {},
-                    "provider": "unavailable",
-                    "notice": "External drivers unavailable: " + str(exc),
-                    "failures": [{"error_type": type(exc).__name__, "reason": str(exc)}],
-                }
+                return unavailable("External drivers", exc)
 
-        external = cache.call(
-            "external_features", {"cutoffs": cutoffs, "required": required}, external_inputs
-        )
+        bundles = []
+        if getattr(args, "external_drivers", False):
+            bundles.append(
+                cache.call(
+                    "external_features",
+                    {"cutoffs": cutoffs, "required": required},
+                    external_inputs,
+                )
+            )
+        if intraday_snapshot:
+            bundles.append(
+                cache.call(
+                    "intraday_features",
+                    {
+                        "cutoffs": cutoffs,
+                        "required": required,
+                        "sessions": list(model.data.dates),
+                        "snapshot": intraday_snapshot,
+                        "instrument": symbol,
+                    },
+                    intraday_inputs,
+                )
+            )
+        external = combine(bundles)
         external["sample_coverage"] = sample_coverage(external, model.train, model.origins)
         model.configure_external(external)
         _write(root / "external_features.json", external)

@@ -987,6 +987,63 @@ The machine-local report is
 `/tmp/quant-rsi-external-codex-ablation-validation.json`. These artifacts are not
 shipped with the package. Offline regressions use original small fixtures.
 
+## Intraday session summaries
+
+`--intraday-store` and `--intraday-snapshot` turn a retained intraday snapshot (collected
+with `python -m quant_rsi.intraday collect`, see [intraday_ibkr.md](intraday_ibkr.md)) into
+daily study factors for the target instrument. Each study row uses its own session's
+regular-hours decision bars:
+
+| Factor | Definition |
+| --- | --- |
+| `external.intraday_realized_vol` | Square root of the summed squared bar log returns, from the open |
+| `external.intraday_first_hour_return` | Log return from the open to the close of the first hour |
+| `external.intraday_last_hour_return` | Log return over the last hour to the session close |
+| `external.intraday_close_location` | (close − session low) / (session high − session low) |
+| `external.intraday_close_vwap_gap` | Close / volume-weighted typical price − 1 |
+| `external.intraday_last_hour_volume_share` | Last-hour volume / session volume |
+
+Rules:
+- **Availability:** a row uses a session only if its session ID matches and the session
+  closed by the row's cutoff. The summaries use no bar after the close, so they are known
+  with the closing price the study already uses.
+- **Missing data:** a session with any non-valid decision bar, or absent from the snapshot,
+  stays missing. As with other external inputs, a factor is usable only if every training and
+  development row has a value. Nothing is filled.
+- **Verification:** the snapshot is loaded and verified (manifest, columns and raw responses)
+  before use, and every definition records the snapshot reference.
+- **Selection and ablation:** the factors join the external-driver family. The researcher may
+  select them, and the existing diagnostic refits the selected model without them. With
+  `--external-drivers` as well, both families share one bundle and one diagnostic.
+
+```bash
+quant-rsi research-study SPY --prices daily --prices-dir /tmp/spy-daily \
+  --intraday-store runs/spy/store --intraday-snapshot SNAPSHOT_SHA256 \
+  --walk-forward-folds 3 --output /tmp/spy-intraday-study
+```
+
+The snapshot must cover every training and development session. A one-year snapshot
+covers the default history; longer `--historical-sessions` need a longer collection.
+
+### Intraday-summary integration observation (2026-11-02)
+
+A SPY study used retained daily prices, a 250-session IBKR paper snapshot (read-only
+historical data) and the simulated researcher, so factor choice was scripted. All six
+factors covered the 45 training and 20 development rows. Round 1 (10-session momentum plus
+intraday realized volatility) was selected.
+
+| Development model (20 observations) | Price MAE | Direction hit rate | Net return | Sharpe |
+|---|---:|---:|---:|---:|
+| Selected: momentum + intraday realized volatility | 6.9655 | 65% | 1.13% | 1.56 |
+| Diagnostic: same model without the intraday column | 7.6388 | 55% | −0.78% | −1.05 |
+| Unchanged-price baseline | 8.7465 | – | – | – |
+
+The post-selection walk-forward diagnostic (3 windows, 60 origins) was worse than both
+baselines: price MAE 8.39 against 7.56 for unchanged price and 7.88 for the training-label
+mean, with a 60% direction hit rate. The reserved terminal evaluation (10 observations) was
+also worse than unchanged price (MAE 7.70 against 4.73). This is retrospective engineering
+evidence on a short sample. It shows the inputs run end to end; it does not show a gain.
+
 ## Nasdaq example: AAPL
 
 ```bash
