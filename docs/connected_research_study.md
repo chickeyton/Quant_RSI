@@ -1112,8 +1112,22 @@ metric. Ties, missing metrics and worse results retain the incumbent. Subsequent
 calls receive its hypothesis/feedback plus all previous trial hypotheses, factor IDs,
 development metrics and decisions, including rejected trials. The same training rows,
 development origins, strategy costs and baselines are used throughout. The final
-latest forecast comes from the selected fitted model, even when an intermediate round
-wins; it is not refitted or silently replaced with the last trial.
+latest forecast uses the selected round's factors, even when an intermediate round
+wins. Daily studies default to `--latest-fit refit`: after terminal evaluation, one
+separate publication fit uses all finite retained feature rows from the 30-session
+warmup through the last origin whose label has matured at the latest price close.
+Missing training rows are listed, not imputed; fewer than 12 usable rows or missing
+latest inputs withhold publication. Model settings and factor choices remain frozen.
+This adds at most one fit outside `--max-fits`, declared as `publication_fit_budget`.
+Its trained state uses the existing checkpoint mechanism, so recovery reuses it.
+
+`latest_fit.json` records training/excluded sessions, selected factors, fit count and
+the new forecast with its training cutoff. The report and UI show a publication stage;
+shared history registers this forecast and later supplies its actual outcome to research.
+Development, terminal and diagnostic scores still describe their original models and
+are not accuracy estimates for the publication fit. `--latest-fit selected` reuses the
+original selected research model, preserving the earlier behavior. Synthetic runs have
+no publication fit. Existing completed studies and histories are not rewritten.
 
 The UI reuses the feedback/revision/prediction nodes on each round and exposes every
 stage in its selector. Decision cards show fit usage and the incumbent. The final
@@ -1210,8 +1224,8 @@ Node outputs use visual views rather than a raw JSON wall:
 - Prediction and conclusion views trace news citations → hypothesis → fitted inputs.
   Each round lists actual fitted columns separately from unselected or unavailable news
   definitions, with coverage reasons. This is provenance, not feature attribution or a
-  measured causal news effect. Rejected trials remain visible; only the selected model
-  supplies the latest forecast.
+  measured causal news effect. Rejected trials remain visible; only the selected factors
+  enter the publication model. Its training cutoff and extra fit count are shown separately.
 - Factor cards show executable recipes. Revision views distinguish additions, removals,
   parameter changes and recipe replacements with different IDs.
 - Prediction charts compare observed prices, both attempts and the unchanged-price baseline,
@@ -1267,7 +1281,7 @@ quant-rsi research-history observe KO --history-dir /tmp/ko-research-history \
 quant-rsi research-history status KO --history-dir /tmp/ko-research-history
 ```
 
-The first command saves the **selected round's** latest forecast, factor IDs,
+The first command saves the **publication model's** latest forecast, selected factor IDs,
 training cutoff, costs and original result in the existing content-addressed store
 and Journal. A post-commit clock witness uses the existing publication confirmation
 rule: issuance and confirmation must occur after the origin close and before the
@@ -1529,8 +1543,10 @@ population standard deviation; constant columns use scale one. It minimizes
 five-session log returns, with an unpenalized intercept. A NumPy augmented
 least-squares solve supports duplicate/constant columns without adding a dependency.
 The trace records means, scales, coefficients and intercept in `factor_ids` order.
-Evaluation rows and latest forecast inputs never fit the scaler. The selected
-attempt's model and scaler produce its latest forecast without a third fit.
+Research evaluation rows never fit the research scaler. With `--latest-fit refit`,
+the publication model fits its own scaler on its mature-label training rows; the latest
+prediction row remains excluded. `--latest-fit selected` reuses the research model and
+scaler without an additional fit.
 
 LightGBM retains its existing deterministic parameters and 24 boosting rounds,
 without scaling. Both model choices retain the same maturity rules, common news

@@ -99,6 +99,9 @@ def test_two_complete_studies_pass_mature_outcomes_to_next_hypothesis(tmp_path, 
     assert not contexts[0]["prior_outcomes"]["entries"]
     entry = study_history.history_view(history)["entries"][0]
     assert entry["status"] == "pending"
+    published = json.loads(frozen)["study"]["latest_fit"]["latest_forecast"]
+    assert entry["forecast"] == published
+    assert published["fit_mode"] == "refit_selected_factors"
     collection, _ = prices(tmp_path, monkeypatch, "2026-10-30")
     assert main(command(second, history, collection)) == 0
     assert (first / "result.json").read_bytes() == frozen
@@ -115,6 +118,9 @@ def test_two_complete_studies_pass_mature_outcomes_to_next_hypothesis(tmp_path, 
     assert len(frozen_history) == 1 and frozen_history[0]["status"] == "settled"
     view = next(e["view"] for e in read_state(second)["events"] if e["stage"] == "summary")
     assert view["continuity"]["entries"][0]["provided_as_feedback"]
+    assert view["continuity"]["entries"][0]["fit_mode"] == "refit_selected_factors"
+    assert view["continuity"]["entries"][0]["training_cutoff"] == published["origin_session"]
+    assert prior[0]["forecast"] == published
     assert (
         view["continuity"]["selected_factor_ids"]
         == json.loads((second / "result.json").read_text())["study"]["selection"][

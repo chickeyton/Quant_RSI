@@ -172,10 +172,21 @@ def render_study(result):
         section("Continuing the previous research", previous["notice"])
         if previous["entries"]:
             table(
-                ["Target", "Status / reason", "Predicted", "Actual", "Error", "Feedback supplied"],
+                [
+                    "Target",
+                    "Forecast model",
+                    "Training cutoff",
+                    "Status / reason",
+                    "Predicted",
+                    "Actual",
+                    "Error",
+                    "Feedback supplied",
+                ],
                 [
                     [
                         e["target_session"],
+                        e["fit_mode"],
+                        e["training_cutoff"],
                         e["status"] + " / " + (e["reason"] or ""),
                         _number(e["predicted_price"]),
                         _number(e["actual_price"]),
@@ -735,11 +746,17 @@ def render_study(result):
     selected = first if selection["selected_attempt"] == "initial" else second
     if iterations:
         selected = iterations["attempts"][iterations["selected_round"] - 1]["prediction"]
-    latest = selected.get("latest_forecast")
+    from quant_rsi.research.study_latest import publication_prediction
+
+    published = publication_prediction(result)
+    latest = published.get("latest_forecast")
     section(
         "Latest forecast",
         (
-            f"This forecast reuses the selected {selection['selected_attempt']} fitted model with "
+            published["notice"]
+            if "latest_fit" in result["study"]
+            else f"This forecast reuses the selected {selection['selected_attempt']} fitted model "
+            "with "
             "its disclosed training cutoff. It is not an observed outcome "
             "and has no accuracy score."
             if latest
@@ -747,6 +764,18 @@ def render_study(result):
             "fitted model and completed development results remain retained."
         ),
     )
+    if "latest_fit" in result["study"]:
+        table(
+            ["Publication fit", "Additional fits", "Training rows", "Excluded training rows"],
+            [
+                [
+                    published["status"],
+                    published["extra_fits"],
+                    len(published["training_sessions"]),
+                    len(published["excluded_training_sessions"]),
+                ]
+            ],
+        )
     if latest:
         table(
             ["Origin", "Target", "Reference price", "Predicted price", "Training cutoff"],
@@ -760,8 +789,8 @@ def render_study(result):
                 ]
             ],
         )
-    elif selected.get("latest_forecast_unavailable"):
-        unavailable = selected["latest_forecast_unavailable"]
+    elif published.get("latest_forecast_unavailable"):
+        unavailable = published["latest_forecast_unavailable"]
         section("Forecast unavailable", "; ".join(unavailable["reasons"]))
         if unavailable.get("missing_factor_ids"):
             table(

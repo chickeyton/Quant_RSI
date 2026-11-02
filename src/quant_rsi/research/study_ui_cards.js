@@ -165,7 +165,7 @@ const StudyCards = (() => {
     wrap.append(el('h3', 'view-section-title', 'Continuing the previous research'));
     wrap.append(pills(Object.entries(view.counts).map(([status, count]) => `${count} ${title(status)}`)));
     if (!view.entries.length) wrap.append(note('First run in this history. No previous outcome feedback.'));
-    else wrap.append(table(['Target', 'Status / reason', 'Predicted', 'Actual', 'Price error', 'Outcome feedback supplied'], view.entries.map(e => [e.target_session, `${title(e.status)} · ${title(e.reason || '')}`, fmt(e.predicted_price), fmt(e.actual_price), fmt(e.price_error), e.provided_as_feedback ? 'Yes' : 'No'])));
+    else wrap.append(table(['Target', 'Forecast model', 'Training cutoff', 'Status / reason', 'Predicted', 'Actual', 'Price error', 'Outcome feedback supplied'], view.entries.map(e => [e.target_session, title(e.fit_mode), e.training_cutoff, `${title(e.status)} · ${title(e.reason || '')}`, fmt(e.predicted_price), fmt(e.actual_price), fmt(e.price_error), e.provided_as_feedback ? 'Yes' : 'No'])));
     if (view.previous_study_id && view.selected_factor_ids !== null) {
       wrap.append(table(['Selected factors', 'IDs'], [['Previous run', view.previous_factor_ids.join(', ')], ['This run', view.selected_factor_ids.join(', ')]]));
       wrap.append(pills([...view.added.map(f => `+ ${f}`), ...view.removed.map(f => `− ${f}`)]));
